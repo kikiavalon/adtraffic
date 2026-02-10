@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { clearConversation } from '../claude/kiki-service.js';
+import { requireAuth } from '../auth/middleware.js';
 
 const router = Router();
 
@@ -8,8 +9,8 @@ const router = Router();
  *
  * Clears conversation history. Useful for "New Chat" functionality.
  */
-router.delete('/api/conversations/:id', (req, res) => {
-  const { id } = req.params;
+router.delete('/api/conversations/:id', requireAuth, (req, res) => {
+  const id = req.params.id as string;
   clearConversation(id);
   res.json({ success: true, conversationId: id });
 });

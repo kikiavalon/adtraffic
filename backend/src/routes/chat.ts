@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { ChatRequestSchema } from '@adtraffic/shared';
 import type { ChatResponse } from '@adtraffic/shared';
 import { chat } from '../claude/kiki-service.js';
+import { requireAuth } from '../auth/middleware.js';
 
 const router = Router();
 
@@ -11,7 +12,7 @@ const router = Router();
  * Receives a user message, forwards to Claude API via Kiki service,
  * returns Kiki's AI-generated response.
  */
-router.post('/api/chat', async (req, res) => {
+router.post('/api/chat', requireAuth, async (req, res) => {
   const parsed = ChatRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {

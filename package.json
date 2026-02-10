@@ -1,46 +1,20 @@
 {
-  "name": "cm360-super-trafficker",
-  "version": "1.0.0",
-  "description": "AI-powered Campaign Manager 360 trafficking automation tool",
-  "main": "build/index.js",
-  "bin": {
-    "cm360-super-trafficker": "build/index.js"
-  },
-  "type": "module",
-  "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
-    "dev": "tsx src/index.ts",
-    "test": "jest",
-    "lint": "eslint src --ext .ts",
-    "format": "prettier --write 'src/**/*.ts'",
-    "prepublishOnly": "npm run build"
-  },
-  "keywords": [
-    "cm360",
-    "campaign-manager",
-    "trafficking",
-    "mcp",
-    "claude",
-    "ai",
-    "advertising",
-    "automation"
+  "name": "adtraffic",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AdTraffic.ai — AI-powered CM360 trafficking via Chrome extension",
+  "workspaces": [
+    "shared",
+    "backend",
+    "extension"
   ],
-  "author": "Your Company",
-  "license": "MIT",
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4",
-    "googleapis": "^144.0.0"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
-    "eslint": "^8.57.0",
-    "jest": "^29.7.0",
-    "prettier": "^3.2.5",
-    "ts-jest": "^29.1.2",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:extension": "npm run dev --workspace=extension",
+    "test": "npm test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "rm -rf node_modules shared/node_modules backend/node_modules extension/node_modules"
   },
   "engines": {
     "node": ">=20.0.0"

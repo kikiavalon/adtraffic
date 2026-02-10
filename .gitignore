@@ -23,3 +23,18 @@ session-buffer.md
 
 # Claude Code internals
 .claude/
+
+# Chrome extension build
+extension/dist/
+
+# Backend build
+backend/dist/
+
+# Shared build
+shared/dist/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log

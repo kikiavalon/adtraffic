@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import healthRouter from './routes/health.js';
 import chatRouter from './routes/chat.js';
+import conversationsRouter from './routes/conversations.js';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -12,7 +13,7 @@ app.use(cors({
     /^chrome-extension:\/\//,
     /^http:\/\/localhost/,
   ],
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -20,6 +21,7 @@ app.use(express.json({ limit: '10mb' }));
 // Routes
 app.use(healthRouter);
 app.use(chatRouter);
+app.use(conversationsRouter);
 
 // Only start server when run directly (not when imported for testing)
 if (process.env.NODE_ENV !== 'test') {

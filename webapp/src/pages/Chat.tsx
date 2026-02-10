@@ -30,7 +30,7 @@ function Chat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
-  const { token, user, logout } = useAuth();
+  const { user, logout, authFetch } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -50,9 +50,8 @@ function Chat() {
   const startNewChat = useCallback(async () => {
     // Clear server-side conversation
     try {
-      await fetch(`${API_URL}/api/conversations/${conversationId}`, {
+      await authFetch(`${API_URL}/api/conversations/${conversationId}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
       });
     } catch { /* best effort */ }
 
@@ -101,16 +100,10 @@ function Chat() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/chat`, {
+      const response = await authFetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          conversationId,
-          message: text,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, message: text }),
       });
 
       if (!response.ok) {

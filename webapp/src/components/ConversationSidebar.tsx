@@ -20,19 +20,17 @@ interface ConversationSidebarProps {
 function ConversationSidebar({ currentConversationId, onSelectConversation, onNewChat, refreshKey }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const { token } = useAuth();
+  const { authFetch } = useAuth();
 
   const loadConversations = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/conversations`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const res = await authFetch(`${API_URL}/api/conversations`);
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations);
       }
     } catch { /* ignore */ }
-  }, [token]);
+  }, [authFetch]);
 
   useEffect(() => {
     loadConversations();
@@ -40,9 +38,7 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
 
   const handleSelect = async (convId: string) => {
     try {
-      const res = await fetch(`${API_URL}/api/conversations/${convId}/messages`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const res = await authFetch(`${API_URL}/api/conversations/${convId}/messages`);
       if (res.ok) {
         const data = await res.json();
         onSelectConversation(convId, data.messages);

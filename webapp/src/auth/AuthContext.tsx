@@ -16,6 +16,7 @@ interface AuthContextType {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
+  authFetch: (url: string, options?: RequestInit) => Promise<Response>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -93,8 +94,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.clear();
   }, []);
 
+  const authFetch = useCallback(async (url: string, options?: RequestInit) => {
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        ...options?.headers,
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (res.status === 401) {
+      setToken(null);
+      setUser(null);
+      sessionStorage.clear();
+    }
+
+    return res;
+  }, [token]);
+
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, register, logout, isLoading, authFetch }}>
       {children}
     </AuthContext.Provider>
   );

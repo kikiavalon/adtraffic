@@ -4,6 +4,7 @@ import cors from 'cors';
 import healthRouter from './routes/health.js';
 import chatRouter from './routes/chat.js';
 import conversationsRouter from './routes/conversations.js';
+import { errorHandler } from './middleware/error-handler.js';
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
@@ -23,6 +24,9 @@ app.use(express.json({ limit: '10mb' }));
 app.use(healthRouter);
 app.use(chatRouter);
 app.use(conversationsRouter);
+
+// Global error handler (must be after all routes)
+app.use(errorHandler);
 
 // Only start server when run directly (not when imported for testing)
 if (process.env.NODE_ENV !== 'test') {

@@ -9,21 +9,23 @@ const PORT = process.env.PORT ?? 3001;
 // Middleware
 app.use(cors({
   origin: [
-    'chrome-extension://*', // Chrome extension origin
-    'http://localhost:*',   // Local development
+    /^chrome-extension:\/\//,
+    /^http:\/\/localhost/,
   ],
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-app.use(express.json({ limit: '10mb' })); // IO uploads can be large
+app.use(express.json({ limit: '10mb' }));
 
 // Routes
 app.use(healthRouter);
 app.use(chatRouter);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`AdTraffic.ai backend running on port ${PORT}`);
-});
+// Only start server when run directly (not when imported for testing)
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`AdTraffic.ai backend running on port ${PORT}`);
+  });
+}
 
 export default app;

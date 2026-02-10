@@ -4,13 +4,11 @@ import type { ChatMessage } from '@adtraffic/shared';
 import { KIKI_SYSTEM_PROMPT } from './system-prompt.js';
 import { CM360_TOOLS } from './tool-definitions.js';
 import { executeTool } from '../cm360/tool-executor.js';
+import { getHistory, saveHistory, clearHistory, getHistoryLength } from '../db/conversation-store.js';
 
 const anthropic = new Anthropic();
 
 const MAX_TOOL_ROUNDS = 5;
-
-// In-memory conversation store (PostgreSQL replaces this later)
-const conversations = new Map<string, Anthropic.MessageParam[]>();
 
 /**
  * Send a message to Kiki and get a response.
@@ -21,7 +19,7 @@ export async function chat(
   conversationId: string,
   userMessage: string,
 ): Promise<ChatMessage> {
-  const history = conversations.get(conversationId) ?? [];
+  const history = getHistory(conversationId);
 
   history.push({ role: 'user', content: userMessage });
 
@@ -51,7 +49,7 @@ export async function chat(
       );
       const responseText = textBlocks.map((b) => b.text).join('\n') || 'I need a moment to think about that.';
 
-      conversations.set(conversationId, history);
+      saveHistory(conversationId, history);
 
       return {
         id: uuidv4(),
@@ -85,7 +83,7 @@ export async function chat(
   }
 
   // If we hit the max rounds, extract whatever text we have
-  conversations.set(conversationId, history);
+  saveHistory(conversationId, history);
 
   return {
     id: uuidv4(),
@@ -99,12 +97,12 @@ export async function chat(
  * Clear a conversation's history.
  */
 export function clearConversation(conversationId: string): void {
-  conversations.delete(conversationId);
+  clearHistory(conversationId);
 }
 
 /**
  * Get the number of messages in a conversation.
  */
 export function getConversationLength(conversationId: string): number {
-  return conversations.get(conversationId)?.length ?? 0;
+  return getHistoryLength(conversationId);
 }

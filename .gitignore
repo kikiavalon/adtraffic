@@ -24,8 +24,11 @@ session-buffer.md
 # Claude Code internals
 .claude/
 
-# Chrome extension build
-extension/dist/
+# Web app build
+webapp/dist/
+
+# Companion Chrome extension build
+companion/dist/
 
 # Backend build
 backend/dist/

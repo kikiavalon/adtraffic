@@ -2,19 +2,19 @@
   "name": "adtraffic",
   "version": "0.1.0",
   "private": true,
-  "description": "AdTraffic.ai — AI-powered CM360 trafficking via Chrome extension",
+  "description": "AdTraffic.ai — AI-powered CM360 web platform + companion Chrome extension",
   "workspaces": [
     "shared",
     "backend",
-    "extension"
+    "webapp"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
     "dev:backend": "npm run dev --workspace=backend",
-    "dev:extension": "npm run dev --workspace=extension",
+    "dev:webapp": "npm run dev --workspace=webapp",
     "test": "npm test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "clean": "rm -rf node_modules shared/node_modules backend/node_modules extension/node_modules"
+    "clean": "rm -rf node_modules shared/node_modules backend/node_modules webapp/node_modules"
   },
   "engines": {
     "node": ">=20.0.0"

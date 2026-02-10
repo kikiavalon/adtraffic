@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../auth/AuthContext.js';
+import ConversationSidebar from '../components/ConversationSidebar.js';
 import './Chat.css';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
@@ -28,6 +29,7 @@ function Chat() {
   });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const { token, user, logout } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -65,7 +67,24 @@ function Chat() {
       timestamp: Date.now(),
     }]);
     setInput('');
+    setSidebarRefresh((n) => n + 1);
   }, [conversationId]);
+
+  const handleSelectConversation = useCallback((convId: string, msgs: Array<{ id: string; role: string; content: string; timestamp: number }>) => {
+    setConversationId(convId);
+    setMessages(msgs.length > 0 ? msgs.map((m) => ({
+      id: m.id,
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+      timestamp: m.timestamp,
+    })) : [{
+      id: 'welcome',
+      role: 'assistant' as const,
+      content: "Hi! I'm Kiki, your CM360 trafficking assistant. Upload an IO to get started, or just tell me what you need.",
+      timestamp: Date.now(),
+    }]);
+    setInput('');
+  }, []);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -100,6 +119,7 @@ function Chat() {
 
       const data = await response.json();
       setMessages((prev) => [...prev, data.message]);
+      setSidebarRefresh((n) => n + 1);
     } catch (error) {
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
@@ -141,6 +161,12 @@ function Chat() {
 
   return (
     <div className="chat-page">
+      <ConversationSidebar
+        currentConversationId={conversationId}
+        onSelectConversation={handleSelectConversation}
+        onNewChat={startNewChat}
+        refreshKey={sidebarRefresh}
+      />
       <header className="chat-header">
         <div className="chat-header-title">
           <span className="status-dot" />

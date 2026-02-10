@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('../cm360/tool-executor.js', () => ({
+  executeTool: vi.fn().mockResolvedValue({ result: {}, isError: false }),
+}));
+
 // Mock Anthropic SDK before importing the service
 vi.mock('@anthropic-ai/sdk', () => {
   const mockCreate = vi.fn().mockResolvedValue({
@@ -82,15 +86,12 @@ describe('kiki-service', () => {
   it('handles empty text response gracefully', async () => {
     const mockInstance = new Anthropic();
     const mockCreate = vi.mocked(mockInstance.messages.create);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockCreate.mockResolvedValueOnce({
       content: [],
       role: 'assistant',
       stop_reason: 'end_turn',
-      id: 'msg_mock',
-      type: 'message',
-      model: 'claude-sonnet-4-5-20250929',
-      usage: { input_tokens: 10, output_tokens: 0 },
-    });
+    } as any);
 
     const result = await chat('test-conv', 'Hello');
     expect(result.content).toBe('I need a moment to think about that.');

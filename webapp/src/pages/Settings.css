@@ -1,0 +1,87 @@
+.settings-page {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.settings-header {
+  margin-bottom: 32px;
+}
+
+.settings-back {
+  font-size: 13px;
+  color: #0066ff;
+  text-decoration: none;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.settings-back:hover {
+  text-decoration: underline;
+}
+
+.settings-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.settings-section {
+  border: 1px solid #e5e5e5;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.settings-section h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.settings-field {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.settings-field:last-child {
+  border-bottom: none;
+}
+
+.settings-field label {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+.settings-field span {
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.settings-placeholder {
+  font-size: 13px;
+  color: #888;
+  line-height: 1.5;
+}
+
+.settings-logout-btn {
+  padding: 10px 20px;
+  background: white;
+  border: 1px solid #dc2626;
+  color: #dc2626;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.settings-logout-btn:hover {
+  background: #fef2f2;
+}

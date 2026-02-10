@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
 import ConversationSidebar from '../components/ConversationSidebar.js';
 import './Chat.css';
@@ -170,6 +171,9 @@ function Chat() {
           <button className="chat-new-btn" onClick={startNewChat} title="Start new conversation">
             New Chat
           </button>
+          <Link to="/settings" className="chat-new-btn" title="Settings">
+            Settings
+          </Link>
           <button className="chat-new-btn" onClick={logout} title="Sign out">
             Sign Out
           </button>

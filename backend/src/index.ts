@@ -4,6 +4,7 @@ import cors from 'cors';
 import healthRouter from './routes/health.js';
 import chatRouter from './routes/chat.js';
 import conversationsRouter from './routes/conversations.js';
+import authRouter from './routes/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 
 const app = express();
@@ -24,6 +25,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(healthRouter);
 app.use(chatRouter);
 app.use(conversationsRouter);
+app.use(authRouter);
 
 // Global error handler (must be after all routes)
 app.use(errorHandler);

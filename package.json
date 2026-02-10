@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces",
+    "dev": "concurrently --names backend,webapp --prefix-colors blue,green \"npm run dev:backend\" \"npm run dev:webapp\"",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:webapp": "npm run dev --workspace=webapp",
     "test": "npm test --workspaces --if-present",
@@ -18,5 +19,8 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

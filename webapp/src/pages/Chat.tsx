@@ -1,26 +1,66 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage } from '@adtraffic/shared';
+import ReactMarkdown from 'react-markdown';
 import './Chat.css';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
+function generateConversationId(): string {
+  return `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 function Chat() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
+  const [conversationId, setConversationId] = useState<string>(() => {
+    return sessionStorage.getItem('adtraffic-conv-id') ?? generateConversationId();
+  });
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    const saved = sessionStorage.getItem(`adtraffic-messages-${conversationId}`);
+    if (saved) {
+      try { return JSON.parse(saved) as ChatMessage[]; } catch { /* fall through */ }
+    }
+    return [{
       id: 'welcome',
       role: 'assistant',
       content: "Hi! I'm Kiki, your CM360 trafficking assistant. Upload an IO to get started, or just tell me what you need.",
       timestamp: Date.now(),
-    },
-  ]);
+    }];
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Persist conversation state
+  useEffect(() => {
+    sessionStorage.setItem('adtraffic-conv-id', conversationId);
+  }, [conversationId]);
+
+  useEffect(() => {
+    sessionStorage.setItem(`adtraffic-messages-${conversationId}`, JSON.stringify(messages));
+  }, [conversationId, messages]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const startNewChat = useCallback(async () => {
+    // Clear server-side conversation
+    try {
+      await fetch(`${API_URL}/api/conversations/${conversationId}`, { method: 'DELETE' });
+    } catch { /* best effort */ }
+
+    // Clear client-side state
+    sessionStorage.removeItem(`adtraffic-messages-${conversationId}`);
+    const newId = generateConversationId();
+    setConversationId(newId);
+    setMessages([{
+      id: 'welcome',
+      role: 'assistant',
+      content: "Hi! I'm Kiki, your CM360 trafficking assistant. Upload an IO to get started, or just tell me what you need.",
+      timestamp: Date.now(),
+    }]);
+    setInput('');
+  }, [conversationId]);
 
   const sendMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -41,7 +81,7 @@ function Chat() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          conversationId: 'session-1',
+          conversationId,
           message: text,
         }),
       });
@@ -98,13 +138,22 @@ function Chat() {
           <span className="status-dot" />
           AdTraffic.ai — Kiki
         </div>
+        <button className="chat-new-btn" onClick={startNewChat} title="Start new conversation">
+          New Chat
+        </button>
       </header>
 
       <main className="chat-messages">
         {messages.map((msg) => (
           <div key={msg.id} className={`chat-message chat-message-${msg.role}`}>
             {msg.role === 'assistant' && <div className="chat-message-sender">Kiki</div>}
-            <div className="chat-message-content">{msg.content}</div>
+            {msg.role === 'assistant' ? (
+              <div className="chat-message-content">
+                <ReactMarkdown>{msg.content}</ReactMarkdown>
+              </div>
+            ) : (
+              <div className="chat-message-content">{msg.content}</div>
+            )}
           </div>
         ))}
         {isLoading && (

@@ -1,9 +1,10 @@
 import { Routes, Route } from 'react-router-dom';
+import Chat from './pages/Chat.js';
 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<div>Kiki chat loading...</div>} />
+      <Route path="/" element={<Chat />} />
     </Routes>
   );
 }

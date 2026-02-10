@@ -1,0 +1,98 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Mock Anthropic SDK before importing the service
+vi.mock('@anthropic-ai/sdk', () => {
+  const mockCreate = vi.fn().mockResolvedValue({
+    content: [{ type: 'text', text: 'Mock Kiki response' }],
+    role: 'assistant',
+    stop_reason: 'end_turn',
+  });
+
+  return {
+    default: vi.fn().mockImplementation(() => ({
+      messages: { create: mockCreate },
+    })),
+  };
+});
+
+import { chat, clearConversation, getConversationLength } from '../claude/kiki-service.js';
+import Anthropic from '@anthropic-ai/sdk';
+
+describe('kiki-service', () => {
+  beforeEach(() => {
+    clearConversation('test-conv');
+    vi.clearAllMocks();
+  });
+
+  it('returns a ChatMessage with assistant role', async () => {
+    const result = await chat('test-conv', 'Hello Kiki');
+    expect(result.role).toBe('assistant');
+    expect(result.content).toBe('Mock Kiki response');
+    expect(result.id).toBeDefined();
+    expect(result.timestamp).toBeGreaterThan(0);
+  });
+
+  it('maintains conversation history', async () => {
+    await chat('test-conv', 'First message');
+    expect(getConversationLength('test-conv')).toBe(2); // user + assistant
+
+    await chat('test-conv', 'Second message');
+    expect(getConversationLength('test-conv')).toBe(4); // 2 user + 2 assistant
+  });
+
+  it('keeps separate history per conversationId', async () => {
+    await chat('conv-a', 'Hello from A');
+    await chat('conv-b', 'Hello from B');
+
+    expect(getConversationLength('conv-a')).toBe(2);
+    expect(getConversationLength('conv-b')).toBe(2);
+
+    clearConversation('conv-a');
+    clearConversation('conv-b');
+  });
+
+  it('clears conversation history', async () => {
+    await chat('test-conv', 'Hello');
+    expect(getConversationLength('test-conv')).toBe(2);
+
+    clearConversation('test-conv');
+    expect(getConversationLength('test-conv')).toBe(0);
+  });
+
+  it('calls Claude with system prompt and tools', async () => {
+    await chat('test-conv', 'List my campaigns');
+
+    const mockInstance = new Anthropic();
+    const mockCreate = vi.mocked(mockInstance.messages.create);
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-sonnet-4-5-20250929',
+        system: expect.stringContaining('Kiki'),
+        tools: expect.arrayContaining([
+          expect.objectContaining({ name: 'cm360_list_campaigns' }),
+        ]),
+        messages: expect.arrayContaining([
+          expect.objectContaining({ role: 'user', content: 'List my campaigns' }),
+        ]),
+      }),
+    );
+  });
+
+  it('handles empty text response gracefully', async () => {
+    const mockInstance = new Anthropic();
+    const mockCreate = vi.mocked(mockInstance.messages.create);
+    mockCreate.mockResolvedValueOnce({
+      content: [],
+      role: 'assistant',
+      stop_reason: 'end_turn',
+      id: 'msg_mock',
+      type: 'message',
+      model: 'claude-sonnet-4-5-20250929',
+      usage: { input_tokens: 10, output_tokens: 0 },
+    });
+
+    const result = await chat('test-conv', 'Hello');
+    expect(result.content).toBe('I need a moment to think about that.');
+  });
+});

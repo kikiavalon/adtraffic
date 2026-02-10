@@ -1,8 +1,22 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
 
+// Mock the kiki-service module so we don't call the real Claude API
+vi.mock('../claude/kiki-service.js', () => ({
+  chat: vi.fn().mockResolvedValue({
+    id: 'mock-id',
+    role: 'assistant',
+    content: "I'm Kiki! Mock response for testing.",
+    timestamp: 1234567890,
+  }),
+}));
+
 describe('POST /api/chat', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('returns a response for valid message', async () => {
     const res = await request(app)
       .post('/api/chat')
@@ -57,5 +71,21 @@ describe('POST /api/chat', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.message.role).toBe('assistant');
+  });
+
+  it('returns 500 when Claude API fails', async () => {
+    const { chat } = await import('../claude/kiki-service.js');
+    const mockChat = vi.mocked(chat);
+    mockChat.mockRejectedValueOnce(new Error('API key not configured'));
+
+    const res = await request(app)
+      .post('/api/chat')
+      .send({
+        conversationId: 'test-conv-1',
+        message: 'Hello',
+      });
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toBe('Failed to get response from Kiki');
   });
 });

@@ -1,18 +1,17 @@
 import { Router } from 'express';
 import { ChatRequestSchema } from '@adtraffic/shared';
-import type { ChatResponse, ChatMessage } from '@adtraffic/shared';
-import { v4 as uuidv4 } from 'uuid';
+import type { ChatResponse } from '@adtraffic/shared';
+import { chat } from '../claude/kiki-service.js';
 
 const router = Router();
 
 /**
  * POST /api/chat
  *
- * Receives a chat message from the extension, forwards to Claude API,
- * returns Kiki's response. Claude integration is stubbed for Task 4 —
- * will be implemented in Task 6.
+ * Receives a user message, forwards to Claude API via Kiki service,
+ * returns Kiki's AI-generated response.
  */
-router.post('/api/chat', (req, res) => {
+router.post('/api/chat', async (req, res) => {
   const parsed = ChatRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -25,20 +24,22 @@ router.post('/api/chat', (req, res) => {
 
   const { conversationId, message } = parsed.data;
 
-  // Stub response — Claude integration comes in Task 6
-  const assistantMessage: ChatMessage = {
-    id: uuidv4(),
-    role: 'assistant',
-    content: `I'm Kiki! I received your message: "${message}". Claude integration coming soon.`,
-    timestamp: Date.now(),
-  };
+  try {
+    const assistantMessage = await chat(conversationId, message);
 
-  const response: ChatResponse = {
-    conversationId,
-    message: assistantMessage,
-  };
+    const response: ChatResponse = {
+      conversationId,
+      message: assistantMessage,
+    };
 
-  res.json(response);
+    res.json(response);
+  } catch (error) {
+    console.error('Claude API error:', error);
+    res.status(500).json({
+      error: 'Failed to get response from Kiki',
+      message: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
 });
 
 export default router;

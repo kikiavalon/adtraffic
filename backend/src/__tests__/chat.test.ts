@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
+import { db, schema } from '../db/index.js';
 
 vi.mock('../claude/kiki-service.js', () => ({
   chat: vi.fn().mockResolvedValue({
@@ -16,6 +17,11 @@ let authToken: string;
 
 describe('POST /api/chat', () => {
   beforeEach(async () => {
+    // Clear all data in correct order (messages first due to FK)
+    db.delete(schema.messages).run();
+    db.delete(schema.conversations).run();
+    db.delete(schema.users).run();
+
     const email = `chat-test-${Date.now()}@agency.com`;
     const res = await request(app)
       .post('/api/auth/register')

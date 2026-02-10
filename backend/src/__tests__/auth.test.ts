@@ -5,7 +5,9 @@ import { db, schema } from '../db/index.js';
 
 describe('Auth API', () => {
   beforeEach(() => {
-    // Clear users table before each test
+    // Clear all data in correct order (messages first due to FK)
+    db.delete(schema.messages).run();
+    db.delete(schema.conversations).run();
     db.delete(schema.users).run();
   });
 

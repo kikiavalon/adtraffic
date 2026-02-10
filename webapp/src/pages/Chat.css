@@ -238,3 +238,15 @@
 .chat-message-assistant .chat-message-content strong {
   font-weight: 600;
 }
+
+/* Header actions */
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-user-name {
+  font-size: 13px;
+  color: #666;
+}

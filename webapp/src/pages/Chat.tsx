@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
+import { useAuth } from '../auth/AuthContext.js';
 import './Chat.css';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
@@ -27,6 +28,7 @@ function Chat() {
   });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { token, user, logout } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,7 +48,10 @@ function Chat() {
   const startNewChat = useCallback(async () => {
     // Clear server-side conversation
     try {
-      await fetch(`${API_URL}/api/conversations/${conversationId}`, { method: 'DELETE' });
+      await fetch(`${API_URL}/api/conversations/${conversationId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
     } catch { /* best effort */ }
 
     // Clear client-side state
@@ -79,7 +84,10 @@ function Chat() {
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           conversationId,
           message: text,
@@ -138,9 +146,15 @@ function Chat() {
           <span className="status-dot" />
           AdTraffic.ai — Kiki
         </div>
-        <button className="chat-new-btn" onClick={startNewChat} title="Start new conversation">
-          New Chat
-        </button>
+        <div className="chat-header-actions">
+          <span className="chat-user-name">{user?.name}</span>
+          <button className="chat-new-btn" onClick={startNewChat} title="Start new conversation">
+            New Chat
+          </button>
+          <button className="chat-new-btn" onClick={logout} title="Sign out">
+            Sign Out
+          </button>
+        </div>
       </header>
 
       <main className="chat-messages">

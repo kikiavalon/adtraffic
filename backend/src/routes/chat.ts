@@ -1,8 +1,11 @@
 import { Router } from 'express';
+import type { Request } from 'express';
+import { randomUUID } from 'crypto';
 import { ChatRequestSchema } from '@adtraffic/shared';
 import type { ChatResponse } from '@adtraffic/shared';
 import { chat } from '../claude/kiki-service.js';
 import { requireAuth } from '../auth/middleware.js';
+import { saveMessage } from '../db/conversation-store.js';
 
 const router = Router();
 
@@ -26,7 +29,20 @@ router.post('/api/chat', requireAuth, async (req, res) => {
   const { conversationId, message } = parsed.data;
 
   try {
+    const userId = (req as Request & { user: { userId: string } }).user.userId;
+
+    // Save user message to DB
+    saveMessage(conversationId, {
+      id: randomUUID(),
+      role: 'user',
+      content: message,
+      timestamp: Date.now(),
+    }, userId);
+
     const assistantMessage = await chat(conversationId, message);
+
+    // Save assistant message to DB
+    saveMessage(conversationId, assistantMessage);
 
     const response: ChatResponse = {
       conversationId,

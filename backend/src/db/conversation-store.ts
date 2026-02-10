@@ -1,5 +1,5 @@
 import { db, schema } from './index.js';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import type Anthropic from '@anthropic-ai/sdk';
 
 // Cache Claude's full conversation history (with tool_use/tool_result blocks) in memory.
@@ -78,4 +78,45 @@ export function clearHistory(conversationId: string): void {
  */
 export function getHistoryLength(conversationId: string): number {
   return historyCache.get(conversationId)?.length ?? 0;
+}
+
+/**
+ * Get all conversations for a user, ordered by most recent.
+ */
+export function getConversations(userId: string): Array<{
+  id: string;
+  title: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}> {
+  return db.select({
+    id: schema.conversations.id,
+    title: schema.conversations.title,
+    createdAt: schema.conversations.createdAt,
+    updatedAt: schema.conversations.updatedAt,
+  })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.userId, userId))
+    .orderBy(desc(schema.conversations.updatedAt))
+    .all();
+}
+
+/**
+ * Get all display messages for a conversation.
+ */
+export function getMessages(conversationId: string): Array<{
+  id: string;
+  role: string;
+  content: string;
+  timestamp: number;
+}> {
+  return db.select({
+    id: schema.messages.id,
+    role: schema.messages.role,
+    content: schema.messages.content,
+    timestamp: schema.messages.timestamp,
+  })
+    .from(schema.messages)
+    .where(eq(schema.messages.conversationId, conversationId))
+    .all();
 }

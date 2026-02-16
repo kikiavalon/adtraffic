@@ -1,9 +1,9 @@
 # Session Buffer
 **Saved:** 2026-02-16
-**Reason:** Proactive save after second round of companion test expansion
+**Reason:** Proactive save after third round of companion test expansion
 
 ## What was accomplished
-- Expanded companion Chrome extension test suite from 9 to 128 tests (+119 new tests total across two rounds)
+- Expanded companion Chrome extension test suite from 9 to 235 tests (+226 new tests total across three rounds)
 - **Round 1 (+79 tests, 9→88):**
   - Created `companion/vitest.config.ts` — jsdom environment + Chrome mock setup file
   - Created `companion/src/__tests__/setup/chrome-mock.ts` — shared Chrome API mock with semi-functional in-memory storage, vi.fn() stubs for runtime, action, tabs APIs, reset in beforeEach
@@ -17,12 +17,17 @@
   - background (+10): sendResponse not called for CM360_CONTEXT, no async channel, latest context overwrites, about:blank/chrome:// clearing, context recovery after navigate-away, listener registration counts
   - content (+8): DOM-only context (no hash), FAB title/parent/border-radius, _blank target, campaignId-only URL, rapid hashchanges, DOM merge on hashchange
   - popup (+11): profileId-only rejected, accountId/campaignId-only enable, CSS classes, field ordering, campaignId-only URL, settings input pre-population, default URL loading, empty save, initial panel state
-- Updated CLAUDE.md with test counts (641 → 720 → 760)
-- All 760 tests passing (18 shared + 614 backend + 128 companion)
+- **Round 3 (+107 tests, 128→235):**
+  - context-extractor (+31): trailing slashes, mixed-case segments, subaccounts edge case, zero IDs, leading zeros, hyphens/underscores in pageType, deeply nested paths, object independence, various DOM element types (input, table, span, body), whitespace values, unrelated attributes, merge commutativity/chaining/immutability, empty string primary values
+  - background (+16): file:// URL clearing, CM360 URL variations (with/without www, ports, paths), ads.google.com, different tab IDs, context preservation on CM360 navigation, data integrity (all fields preserved, empty objects, multiple GETs), badge color consistency, full lifecycle tests (set→get→navigate→get null→set new→get new)
+  - content (+22): 14 FAB styling tests (width, height, bottom, right, cursor, borderStyle, color, fontSize, fontWeight, display, alignItems, justifyContent, gradient background, transition), 4 hover behavior tests (mouseenter/mouseleave scale and boxShadow), 3 storage key format tests, 1 execution order test
+  - popup (+38): settings edge cases (empty save, trim/trailing slash), HTML structure (context-item counts, label/value spans, no-context class), URL construction (separators, param encoding, multiple clicks), fetchContext message format, button state management (enabled/disabled for various ID combinations), context display combinations
+- Updated CLAUDE.md with test counts (641 → 720 → 760 → 867)
+- All 867 tests passing (18 shared + 614 backend + 235 companion)
 - All commits pushed to origin/main
 
 ## In progress when saved
-- Nothing actively in progress — both test expansion rounds complete
+- Nothing actively in progress — all three test expansion rounds complete
 
 ## Decisions made this session
 - Used jsdom environment globally via vitest.config.ts (not per-file pragmas) since 4/5 test files need DOM
@@ -33,6 +38,8 @@
 - Corrected empty-string pageType test — `''` is not nullish so `??` doesn't trigger, badge gets `''` not `'CM'`
 - Hash with only `#` or `#/` produces pageType `'#'` (correct per source code behavior — `#` passes through split/filter and is non-numeric)
 - Rapid hashchange test avoids asserting exact call count due to cumulative listeners from dynamic imports across tests
+- Round 3 jsdom quirks: `border: 'none'` normalizes to individual properties (use `borderStyle`), `#fff` normalizes to `rgb(255, 255, 255)`
+- Round 3: `/\/accounts\/(\d+)/` regex does NOT match `/subaccounts/67890` — the `accounts` is preceded by `sub` not `/`
 
 ## Next steps
 - Phase 3 launch prep items remain (see CLAUDE.md "What Needs to Happen Next"):

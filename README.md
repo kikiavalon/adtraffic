@@ -25,9 +25,9 @@ shared/      → Shared TypeScript types + Zod schemas
 ## Tests
 
 ```bash
-npm test                             # All 177 tests
+npm test                             # All 280 tests
 npm test --workspace=shared          # 18 schema tests
-npm test --workspace=backend         # 150 tests (unit + prompt regression + conversation flows)
+npm test --workspace=backend         # 253 tests (unit + prompt regression + conversation flows)
 npm test --workspace=companion       # 9 context extractor tests
 ```
 

@@ -135,6 +135,68 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'cm360_list_creatives',
+    description: 'List creatives for an advertiser. Creatives are the actual ad assets (images, HTML5, video) that get assigned to ads.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'Filter by advertiser ID' },
+        searchString: { type: 'string', description: 'Filter by creative name' },
+        maxResults: { type: 'number', description: 'Maximum results to return (default 100, max 1000)' },
+      },
+      required: ['profileId', 'advertiserId'],
+    },
+  },
+  {
+    name: 'cm360_list_ads',
+    description: 'List ads in a campaign. Ads link creatives to placements — they are the final "glue" in the trafficking workflow.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'Filter by campaign ID' },
+        advertiserId: { type: 'string', description: 'Filter by advertiser ID' },
+        searchString: { type: 'string', description: 'Filter by ad name' },
+        maxResults: { type: 'number', description: 'Maximum results to return (default 100, max 1000)' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_create_ad',
+    description: 'Create a new ad that links a creative to one or more placements. This is the last step in the trafficking workflow. IMPORTANT: Always show a preview and get user confirmation before calling this tool.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'Campaign ID the ad belongs to' },
+        name: { type: 'string', description: 'Ad name' },
+        placementIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of placement IDs to assign to this ad',
+        },
+        creativeId: { type: 'string', description: 'Creative ID to assign to this ad' },
+      },
+      required: ['profileId', 'campaignId', 'name', 'placementIds', 'creativeId'],
+    },
+  },
+  {
+    name: 'cm360_create_landing_page',
+    description: 'Create a new landing page for an advertiser. Landing pages are required when creating campaigns (as the default landing page). IMPORTANT: Always show a preview and get user confirmation before calling this tool.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'Advertiser ID this landing page belongs to' },
+        name: { type: 'string', description: 'Landing page name (max 256 characters)' },
+        url: { type: 'string', description: 'Landing page URL (must be a valid URL)' },
+      },
+      required: ['profileId', 'advertiserId', 'name', 'url'],
+    },
+  },
+  {
     name: 'cm360_generate_tags',
     description: 'Generate ad serving tags (JavaScript, iframe, etc.) for one or more placements. Returns the tag code ready to send to publishers.',
     input_schema: {

@@ -71,6 +71,11 @@
   line-height: 1.5;
 }
 
+.settings-connected {
+  color: #16a34a;
+  font-weight: 600;
+}
+
 .settings-logout-btn {
   padding: 10px 20px;
   background: white;

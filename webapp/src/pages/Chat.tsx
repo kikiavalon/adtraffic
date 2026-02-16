@@ -12,6 +12,17 @@ function generateConversationId(): string {
   return `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const WELCOME_MESSAGE = `Hey! I'm **Kiki**, your CM360 trafficking assistant. I'm connected to the Demo Agency account and ready to help.
+
+Here are some things you can try:
+
+- **"What advertisers do we have?"** — browse the account
+- **"Show me campaigns for Apex Motors"** — drill into an advertiser
+- **"Create a new campaign for Luminance Beauty"** — I'll walk you through it
+- **"Generate tags for all placements in that campaign"** — get ad serving tags
+
+What would you like to do?`;
+
 function Chat() {
   const [conversationId, setConversationId] = useState<string>(() => {
     return sessionStorage.getItem('adtraffic-conv-id') ?? generateConversationId();
@@ -24,7 +35,7 @@ function Chat() {
     return [{
       id: 'welcome',
       role: 'assistant',
-      content: "Hi! I'm Kiki, your CM360 trafficking assistant. Upload an IO to get started, or just tell me what you need.",
+      content: WELCOME_MESSAGE,
       timestamp: Date.now(),
     }];
   });
@@ -63,7 +74,7 @@ function Chat() {
     setMessages([{
       id: 'welcome',
       role: 'assistant',
-      content: "Hi! I'm Kiki, your CM360 trafficking assistant. Upload an IO to get started, or just tell me what you need.",
+      content: WELCOME_MESSAGE,
       timestamp: Date.now(),
     }]);
     setInput('');
@@ -80,7 +91,7 @@ function Chat() {
     })) : [{
       id: 'welcome',
       role: 'assistant' as const,
-      content: "Hi! I'm Kiki, your CM360 trafficking assistant. Upload an IO to get started, or just tell me what you need.",
+      content: WELCOME_MESSAGE,
       timestamp: Date.now(),
     }]);
     setInput('');
@@ -164,7 +175,9 @@ function Chat() {
       <header className="chat-header">
         <div className="chat-header-title">
           <span className="status-dot" />
-          AdTraffic.ai — Kiki
+          <span className="brand-name"><strong>AdTraffic</strong><span className="brand-ai">.ai</span></span>
+          <span className="brand-separator">—</span>
+          <span>Kiki</span>
         </div>
         <div className="chat-header-actions">
           <span className="chat-user-name">{user?.name}</span>
@@ -183,20 +196,35 @@ function Chat() {
       <main className="chat-messages">
         {messages.map((msg) => (
           <div key={msg.id} className={`chat-message chat-message-${msg.role}`}>
-            {msg.role === 'assistant' && <div className="chat-message-sender">Kiki</div>}
-            {msg.role === 'assistant' ? (
-              <div className="chat-message-content">
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+            {msg.role === 'assistant' && (
+              <div className="chat-message-row">
+                <div className="kiki-avatar">K</div>
+                <div className="chat-message-bubble">
+                  <div className="chat-message-sender">Kiki</div>
+                  <div className="chat-message-content">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                </div>
               </div>
-            ) : (
+            )}
+            {msg.role === 'user' && (
               <div className="chat-message-content">{msg.content}</div>
             )}
           </div>
         ))}
         {isLoading && (
           <div className="chat-message chat-message-assistant">
-            <div className="chat-message-sender">Kiki</div>
-            <div className="chat-message-content typing">Thinking...</div>
+            <div className="chat-message-row">
+              <div className="kiki-avatar">K</div>
+              <div className="chat-message-bubble">
+                <div className="chat-message-sender">Kiki</div>
+                <div className="chat-message-content typing-indicator">
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                  <span className="typing-dot" />
+                </div>
+              </div>
+            </div>
           </div>
         )}
         <div ref={messagesEndRef} />

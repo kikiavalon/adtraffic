@@ -20,7 +20,15 @@ interface ConversationSidebarProps {
 function ConversationSidebar({ currentConversationId, onSelectConversation, onNewChat, refreshKey }: ConversationSidebarProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [isWide, setIsWide] = useState(() => window.innerWidth >= 1024);
   const { authFetch } = useAuth();
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const handler = (e: MediaQueryListEvent) => setIsWide(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -42,26 +50,30 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
       if (res.ok) {
         const data = await res.json();
         onSelectConversation(convId, data.messages);
-        setIsOpen(false);
+        if (!isWide) setIsOpen(false);
       }
     } catch { /* ignore */ }
   };
 
+  const showSidebar = isWide || isOpen;
+
   return (
     <>
-      <button
-        className="sidebar-toggle"
-        onClick={() => setIsOpen(!isOpen)}
-        title="Conversation history"
-      >
-        {isOpen ? '\u2715' : '\u2630'}
-      </button>
+      {!isWide && (
+        <button
+          className="sidebar-toggle"
+          onClick={() => setIsOpen(!isOpen)}
+          title="Conversation history"
+        >
+          {isOpen ? '\u2715' : '\u2630'}
+        </button>
+      )}
 
-      {isOpen && (
-        <aside className="conversation-sidebar">
-          <div className="sidebar-header">
+      {showSidebar && (
+        <aside className={`conversation-sidebar ${isWide ? 'sidebar-persistent' : ''}`}>
+          <div className={`sidebar-header ${isWide ? 'sidebar-header-persistent' : ''}`}>
             <h2>Conversations</h2>
-            <button className="sidebar-new-btn" onClick={() => { onNewChat(); setIsOpen(false); }}>
+            <button className="sidebar-new-btn" onClick={() => { onNewChat(); if (!isWide) setIsOpen(false); }}>
               + New
             </button>
           </div>

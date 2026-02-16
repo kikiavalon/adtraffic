@@ -27,9 +27,14 @@ function Settings() {
 
         <section className="settings-section">
           <h2>CM360 Connection</h2>
-          <p className="settings-placeholder">
-            Google CM360 integration coming soon. You'll be able to connect your CM360 account here to give Kiki access to your campaigns.
-          </p>
+          <div className="settings-field">
+            <label>Status</label>
+            <span className="settings-connected">Connected</span>
+          </div>
+          <div className="settings-field">
+            <label>Account</label>
+            <span>Demo Agency (account 67890)</span>
+          </div>
         </section>
 
         <section className="settings-section">

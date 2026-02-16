@@ -6,7 +6,8 @@
   "workspaces": [
     "shared",
     "backend",
-    "webapp"
+    "webapp",
+    "companion"
   ],
   "scripts": {
     "build": "npm run build --workspaces",

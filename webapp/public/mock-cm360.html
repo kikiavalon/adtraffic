@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Campaign Manager 360 (Mock)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Google Sans', 'Roboto', system-ui, sans-serif;
+      background: #f8f9fa;
+      color: #202124;
+      font-size: 14px;
+    }
+
+    /* Top bar */
+    .topbar {
+      background: #1a73e8;
+      color: #fff;
+      padding: 8px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 16px;
+      font-weight: 500;
+      height: 48px;
+    }
+    .topbar-logo {
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: -0.3px;
+    }
+    .topbar-label {
+      opacity: 0.8;
+      font-size: 13px;
+      background: rgba(255,255,255,0.15);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* Layout */
+    .layout {
+      display: flex;
+      height: calc(100vh - 48px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 260px;
+      background: #fff;
+      border-right: 1px solid #dadce0;
+      overflow-y: auto;
+      padding: 16px 0;
+    }
+    .sidebar-section {
+      padding: 8px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #5f6368;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .sidebar-item {
+      display: block;
+      padding: 8px 16px 8px 24px;
+      color: #3c4043;
+      text-decoration: none;
+      font-size: 13px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background 0.15s;
+    }
+    .sidebar-item:hover {
+      background: #f1f3f4;
+    }
+    .sidebar-item.active {
+      background: #e8f0fe;
+      color: #1a73e8;
+      border-left-color: #1a73e8;
+      font-weight: 500;
+    }
+    .sidebar-item .item-id {
+      color: #80868b;
+      font-size: 11px;
+      margin-left: 4px;
+    }
+
+    /* Main content */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px;
+    }
+
+    /* Breadcrumb */
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #5f6368;
+      margin-bottom: 20px;
+    }
+    .breadcrumb a {
+      color: #1a73e8;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb .sep { color: #80868b; }
+
+    /* Page title */
+    .page-title {
+      font-size: 22px;
+      font-weight: 400;
+      color: #202124;
+      margin-bottom: 20px;
+    }
+
+    /* Data table */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    .data-table th {
+      text-align: left;
+      padding: 12px 16px;
+      background: #f8f9fa;
+      font-weight: 500;
+      font-size: 12px;
+      color: #5f6368;
+      border-bottom: 1px solid #dadce0;
+    }
+    .data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f3f4;
+      font-size: 13px;
+    }
+    .data-table tr:hover td {
+      background: #f8f9fa;
+    }
+    .data-table .id-cell {
+      color: #80868b;
+      font-family: 'Roboto Mono', monospace;
+      font-size: 12px;
+    }
+    .status-active {
+      color: #1e8e3e;
+      font-weight: 500;
+    }
+    .status-draft {
+      color: #e37400;
+      font-weight: 500;
+    }
+
+    /* Info box */
+    .info-box {
+      background: #e8f0fe;
+      border-left: 4px solid #1a73e8;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      border-radius: 0 4px 4px 0;
+      font-size: 13px;
+      color: #174ea6;
+    }
+  </style>
+</head>
+<body>
+  <!-- Top bar -->
+  <div class="topbar">
+    <span class="topbar-logo">Campaign Manager 360</span>
+    <span class="topbar-label">MOCK — Test Page for AdTraffic.ai Extension</span>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-section">Account</div>
+      <a class="sidebar-item active" data-account-id="67890" data-profile-id="12345">
+        Demo Agency <span class="item-id">#67890</span>
+      </a>
+
+      <div class="sidebar-section">Advertisers</div>
+      <div id="advertiser-list"></div>
+    </nav>
+
+    <!-- Main content -->
+    <div class="main" id="main-content">
+      <div class="info-box">
+        This is a mock CM360 page for testing the AdTraffic.ai Chrome extension.
+        Click an advertiser in the sidebar to simulate navigating CM360.
+        The extension's content script will detect context from the URL hash and DOM attributes.
+      </div>
+      <p style="color: #5f6368; margin-top: 12px;">Select an advertiser from the sidebar to get started.</p>
+    </div>
+  </div>
+
+  <script>
+    // ============================================================
+    // Mock CM360 Data (matches MockDataStore IDs from the backend)
+    // ============================================================
+    const ACCOUNT_ID = '67890';
+    const PROFILE_ID = '12345';
+
+    const advertisers = [
+      { id: '90000', name: 'Apex Motors' },
+      { id: '90001', name: 'Luminance Beauty' },
+      { id: '90002', name: 'TechNova Systems' },
+      { id: '90003', name: 'Verdant Foods' },
+      { id: '90004', name: 'Stellar Finance' },
+      { id: '90005', name: 'CloudPeak Software' },
+      { id: '90006', name: 'Horizon Airlines' },
+    ];
+
+    const campaigns = {
+      '90000': [
+        { id: '90014', name: 'Apex Motors — Q1 Brand Awareness', status: 'ACTIVE', start: '2026-01-01', end: '2026-03-31' },
+        { id: '90015', name: 'Apex Motors — Spring Sale', status: 'ACTIVE', start: '2026-03-01', end: '2026-05-31' },
+      ],
+      '90001': [
+        { id: '90016', name: 'Luminance — New Product Launch', status: 'ACTIVE', start: '2026-02-01', end: '2026-04-30' },
+        { id: '90017', name: 'Luminance — Holiday Campaign', status: 'DRAFT', start: '2026-11-01', end: '2026-12-31' },
+      ],
+      '90002': [
+        { id: '90018', name: 'TechNova — SaaS Lead Gen', status: 'ACTIVE', start: '2026-01-15', end: '2026-06-30' },
+      ],
+      '90003': [
+        { id: '90019', name: 'Verdant — Farm to Table', status: 'ACTIVE', start: '2026-01-01', end: '2026-12-31' },
+      ],
+      '90004': [
+        { id: '90020', name: 'Stellar — Investment App Launch', status: 'DRAFT', start: '2026-04-01', end: '2026-06-30' },
+      ],
+      '90005': [
+        { id: '90021', name: 'CloudPeak — Enterprise Cloud', status: 'ACTIVE', start: '2026-02-01', end: '2026-07-31' },
+      ],
+      '90006': [
+        { id: '90022', name: 'Horizon — Summer Routes', status: 'ACTIVE', start: '2026-05-01', end: '2026-08-31' },
+      ],
+    };
+
+    const placements = {
+      '90014': [
+        { id: '80001', name: 'Homepage Leaderboard 728x90', site: 'ESPN.com', size: '728x90', status: 'ACTIVE' },
+        { id: '80002', name: 'Article Right Rail 300x250', site: 'CNN.com', size: '300x250', status: 'ACTIVE' },
+        { id: '80003', name: 'Mobile Interstitial 320x480', site: 'Weather.com', size: '320x480', status: 'ACTIVE' },
+      ],
+      '90015': [
+        { id: '80004', name: 'Spring Banner 970x250', site: 'AutoTrader.com', size: '970x250', status: 'ACTIVE' },
+      ],
+      '90016': [
+        { id: '80005', name: 'Beauty Homepage 300x600', site: 'Allure.com', size: '300x600', status: 'ACTIVE' },
+        { id: '80006', name: 'Product Showcase 970x250', site: 'Vogue.com', size: '970x250', status: 'ACTIVE' },
+      ],
+      '90017': [],
+      '90018': [
+        { id: '80007', name: 'Tech Display 728x90', site: 'TechCrunch.com', size: '728x90', status: 'ACTIVE' },
+      ],
+      '90019': [
+        { id: '80008', name: 'Food Banner 300x250', site: 'FoodNetwork.com', size: '300x250', status: 'ACTIVE' },
+      ],
+      '90020': [],
+      '90021': [
+        { id: '80009', name: 'Cloud Hero 970x250', site: 'ZDNet.com', size: '970x250', status: 'ACTIVE' },
+      ],
+      '90022': [
+        { id: '80010', name: 'Travel Display 300x250', site: 'TripAdvisor.com', size: '300x250', status: 'DRAFT' },
+      ],
+    };
+
+    // ============================================================
+    // Render Functions
+    // ============================================================
+
+    function renderAdvertiserList() {
+      const container = document.getElementById('advertiser-list');
+      container.innerHTML = advertisers.map(adv =>
+        `<a class="sidebar-item" href="#/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/advertisers/${adv.id}/campaigns"
+            data-advertiser-id="${adv.id}"
+            onclick="navigateTo('advertiser', '${adv.id}'); return false;">
+          ${adv.name} <span class="item-id">#${adv.id}</span>
+        </a>`
+      ).join('');
+    }
+
+    function renderAdvertiserCampaigns(advertiserId) {
+      const adv = advertisers.find(a => a.id === advertiserId);
+      const advCampaigns = campaigns[advertiserId] || [];
+
+      const main = document.getElementById('main-content');
+      main.setAttribute('data-advertiser-id', advertiserId);
+      main.removeAttribute('data-campaign-id');
+
+      main.innerHTML = `
+        <div class="breadcrumb">
+          <a onclick="navigateTo('home'); return false;">Demo Agency</a>
+          <span class="sep">&rsaquo;</span>
+          <span>${adv ? adv.name : 'Unknown'}</span>
+        </div>
+        <h1 class="page-title">Campaigns</h1>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Campaign Name</th>
+              <th>ID</th>
+              <th>Status</th>
+              <th>Start Date</th>
+              <th>End Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${advCampaigns.length === 0
+              ? '<tr><td colspan="5" style="color:#80868b;text-align:center;padding:24px;">No campaigns yet</td></tr>'
+              : advCampaigns.map(c => `
+                <tr>
+                  <td>
+                    <a href="#/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/advertisers/${advertiserId}/campaigns/${c.id}/placements"
+                       onclick="navigateTo('campaign', '${advertiserId}', '${c.id}'); return false;"
+                       style="color:#1a73e8;text-decoration:none;cursor:pointer;">
+                      ${c.name}
+                    </a>
+                  </td>
+                  <td class="id-cell">${c.id}</td>
+                  <td class="${c.status === 'ACTIVE' ? 'status-active' : 'status-draft'}">${c.status}</td>
+                  <td>${c.start}</td>
+                  <td>${c.end}</td>
+                </tr>
+              `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Highlight active sidebar item
+      document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+      const activeItem = document.querySelector(`[data-advertiser-id="${advertiserId}"]`);
+      if (activeItem) activeItem.classList.add('active');
+    }
+
+    function renderCampaignPlacements(advertiserId, campaignId) {
+      const adv = advertisers.find(a => a.id === advertiserId);
+      const camp = (campaigns[advertiserId] || []).find(c => c.id === campaignId);
+      const campPlacements = placements[campaignId] || [];
+
+      const main = document.getElementById('main-content');
+      main.setAttribute('data-advertiser-id', advertiserId);
+      main.setAttribute('data-campaign-id', campaignId);
+
+      main.innerHTML = `
+        <div class="breadcrumb">
+          <a onclick="navigateTo('home'); return false;">Demo Agency</a>
+          <span class="sep">&rsaquo;</span>
+          <a onclick="navigateTo('advertiser', '${advertiserId}'); return false;">${adv ? adv.name : 'Unknown'}</a>
+          <span class="sep">&rsaquo;</span>
+          <span>${camp ? camp.name : 'Unknown'}</span>
+        </div>
+        <h1 class="page-title">Placements</h1>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Placement Name</th>
+              <th>ID</th>
+              <th>Site</th>
+              <th>Size</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${campPlacements.length === 0
+              ? '<tr><td colspan="5" style="color:#80868b;text-align:center;padding:24px;">No placements yet</td></tr>'
+              : campPlacements.map(p => `
+                <tr>
+                  <td>${p.name}</td>
+                  <td class="id-cell">${p.id}</td>
+                  <td>${p.site}</td>
+                  <td>${p.size}</td>
+                  <td class="${p.status === 'ACTIVE' ? 'status-active' : 'status-draft'}">${p.status}</td>
+                </tr>
+              `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Highlight active sidebar item
+      document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+      const activeItem = document.querySelector(`[data-advertiser-id="${advertiserId}"]`);
+      if (activeItem) activeItem.classList.add('active');
+    }
+
+    // ============================================================
+    // Navigation (hash-based, mimicking CM360's SPA routing)
+    // ============================================================
+
+    function navigateTo(page, advertiserId, campaignId) {
+      switch (page) {
+        case 'home':
+          window.location.hash = `#/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}`;
+          break;
+        case 'advertiser':
+          window.location.hash = `#/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/advertisers/${advertiserId}/campaigns`;
+          break;
+        case 'campaign':
+          window.location.hash = `#/accounts/${ACCOUNT_ID}/profiles/${PROFILE_ID}/advertisers/${advertiserId}/campaigns/${campaignId}/placements`;
+          break;
+      }
+    }
+
+    function handleHashChange() {
+      const hash = window.location.hash;
+
+      // Match: /accounts/.../advertisers/{id}/campaigns/{id}/placements
+      const campaignMatch = hash.match(/\/advertisers\/(\d+)\/campaigns\/(\d+)/);
+      if (campaignMatch) {
+        renderCampaignPlacements(campaignMatch[1], campaignMatch[2]);
+        return;
+      }
+
+      // Match: /accounts/.../advertisers/{id}/campaigns
+      const advertiserMatch = hash.match(/\/advertisers\/(\d+)/);
+      if (advertiserMatch) {
+        renderAdvertiserCampaigns(advertiserMatch[1]);
+        return;
+      }
+
+      // Default: show welcome
+      document.getElementById('main-content').innerHTML = `
+        <div class="info-box">
+          This is a mock CM360 page for testing the AdTraffic.ai Chrome extension.
+          Click an advertiser in the sidebar to simulate navigating CM360.
+          The extension's content script will detect context from the URL hash and DOM attributes.
+        </div>
+        <p style="color: #5f6368; margin-top: 12px;">Select an advertiser from the sidebar to get started.</p>
+      `;
+    }
+
+    // ============================================================
+    // Init
+    // ============================================================
+    renderAdvertiserList();
+    window.addEventListener('hashchange', handleHashChange);
+
+    // Handle initial hash if present
+    if (window.location.hash) {
+      handleHashChange();
+    }
+  </script>
+</body>
+</html>

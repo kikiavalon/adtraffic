@@ -1,0 +1,188 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 320px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #1e293b;
+  background: #fff;
+}
+
+.popup {
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+}
+
+/* Header */
+.popup-header {
+  padding: 16px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+}
+
+.popup-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.popup-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.brand-ai {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.popup-subtitle {
+  font-size: 11px;
+  opacity: 0.8;
+  margin-top: 2px;
+}
+
+/* Body */
+.popup-body {
+  padding: 16px;
+  flex: 1;
+}
+
+.context-section {
+  margin-bottom: 14px;
+}
+
+.context-placeholder {
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.context-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.context-item:last-child {
+  border-bottom: none;
+}
+
+.context-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.context-value {
+  color: #1e293b;
+  font-weight: 600;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+}
+
+.no-context {
+  text-align: center;
+  padding: 12px 0;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+/* Open Kiki Button */
+.open-kiki-btn {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.open-kiki-btn:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.open-kiki-btn:disabled {
+  background: #cbd5e1;
+  cursor: not-allowed;
+}
+
+/* Footer / Settings */
+.popup-footer {
+  padding: 10px 16px 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.settings-link {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.settings-link:hover {
+  color: #2563eb;
+}
+
+.settings-panel {
+  margin-top: 10px;
+}
+
+.settings-label {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.settings-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  margin-top: 4px;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+.save-settings-btn {
+  margin-top: 8px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.save-settings-btn:hover {
+  background: #e2e8f0;
+}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>AdTraffic.ai — Kiki</title>
+</head>
+<body>
+  <div class="popup">
+    <header class="popup-header">
+      <div class="popup-brand">
+        <div class="popup-avatar">K</div>
+        <div>
+          <strong>AdTraffic</strong><span class="brand-ai">.ai</span>
+          <div class="popup-subtitle">Kiki for CM360</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="popup-body">
+      <div id="context-display" class="context-section">
+        <div class="context-placeholder">Checking for CM360 page...</div>
+      </div>
+
+      <button id="open-kiki" class="open-kiki-btn" disabled>
+        Open Kiki
+      </button>
+    </main>
+
+    <footer class="popup-footer">
+      <button id="settings-toggle" class="settings-link">Settings</button>
+      <div id="settings-panel" class="settings-panel" hidden>
+        <label class="settings-label">
+          App URL
+          <input id="base-url-input" type="url" class="settings-input" placeholder="http://localhost:5173" />
+        </label>
+        <button id="save-settings" class="save-settings-btn">Save</button>
+      </div>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

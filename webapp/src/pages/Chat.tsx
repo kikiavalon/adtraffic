@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
 import ConversationSidebar from '../components/ConversationSidebar.js';
 import './Chat.css';
@@ -24,6 +24,7 @@ Here are some things you can try:
 What would you like to do?`;
 
 function Chat() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [conversationId, setConversationId] = useState<string>(() => {
     return sessionStorage.getItem('adtraffic-conv-id') ?? generateConversationId();
   });
@@ -58,6 +59,31 @@ function Chat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Accept context from companion Chrome extension (?advertiserId=X&campaignId=Y)
+  const extensionContextHandled = useRef(false);
+  useEffect(() => {
+    if (extensionContextHandled.current) return;
+    const advertiserId = searchParams.get('advertiserId');
+    const campaignId = searchParams.get('campaignId');
+    if (!advertiserId && !campaignId) return;
+
+    extensionContextHandled.current = true;
+
+    // Clear the query params from the URL
+    setSearchParams({}, { replace: true });
+
+    // Auto-send a contextual first message
+    const parts: string[] = [];
+    if (advertiserId) parts.push(`advertiser ${advertiserId}`);
+    if (campaignId) parts.push(`campaign ${campaignId}`);
+    const contextMsg = `I'm looking at ${parts.join(', ')} in CM360.`;
+
+    // Queue the message send after a short delay to allow the component to fully mount
+    setTimeout(() => {
+      sendMessage(contextMsg);
+    }, 300);
+  }, [searchParams, setSearchParams]);
 
   const startNewChat = useCallback(async () => {
     // Clear server-side conversation

@@ -456,4 +456,196 @@ describe('content script', () => {
       );
     });
   });
+
+  describe('FAB styling', () => {
+    it('FAB has width 56px', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.width).toBe('56px');
+    });
+
+    it('FAB has height 56px', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.height).toBe('56px');
+    });
+
+    it('FAB has bottom 24px', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.bottom).toBe('24px');
+    });
+
+    it('FAB has right 24px', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.right).toBe('24px');
+    });
+
+    it('FAB has cursor pointer', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.cursor).toBe('pointer');
+    });
+
+    it('FAB has border set to none', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      // jsdom parses shorthand "none" into individual border properties
+      expect(fab.style.borderStyle).toBe('none');
+    });
+
+    it('FAB has white text color', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      // jsdom normalizes #fff to rgb(255, 255, 255)
+      expect(fab.style.color).toBe('rgb(255, 255, 255)');
+    });
+
+    it('FAB has font-size 22px', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.fontSize).toBe('22px');
+    });
+
+    it('FAB has font-weight 700', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.fontWeight).toBe('700');
+    });
+
+    it('FAB has display flex', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.display).toBe('flex');
+    });
+
+    it('FAB has align-items center', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.alignItems).toBe('center');
+    });
+
+    it('FAB has justify-content center', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.justifyContent).toBe('center');
+    });
+
+    it('FAB has gradient background', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.background).toContain('linear-gradient');
+    });
+
+    it('FAB has transition for transform and box-shadow', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.transition).toContain('transform');
+      expect(fab.style.transition).toContain('box-shadow');
+    });
+  });
+
+  describe('FAB hover behavior', () => {
+    it('mouseenter scales FAB to 1.1', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+
+      fab.dispatchEvent(new MouseEvent('mouseenter'));
+      expect(fab.style.transform).toBe('scale(1.1)');
+    });
+
+    it('mouseenter increases box-shadow', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+
+      fab.dispatchEvent(new MouseEvent('mouseenter'));
+      expect(fab.style.boxShadow).toContain('20px');
+    });
+
+    it('mouseleave resets scale to 1', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+
+      fab.dispatchEvent(new MouseEvent('mouseenter'));
+      fab.dispatchEvent(new MouseEvent('mouseleave'));
+      expect(fab.style.transform).toBe('scale(1)');
+    });
+
+    it('mouseleave resets box-shadow', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+
+      fab.dispatchEvent(new MouseEvent('mouseenter'));
+      fab.dispatchEvent(new MouseEvent('mouseleave'));
+      expect(fab.style.boxShadow).toContain('14px');
+    });
+  });
+
+  describe('storage key format', () => {
+    it('stores context under "cm360Context" key', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+
+      const setCall = vi.mocked(chrome.storage.local.set).mock.calls[0][0] as Record<string, unknown>;
+      expect('cm360Context' in setCall).toBe(true);
+    });
+
+    it('message type is always CM360_CONTEXT', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+
+      const sendCall = vi.mocked(chrome.runtime.sendMessage).mock.calls[0][0] as { type: string };
+      expect(sendCall.type).toBe('CM360_CONTEXT');
+    });
+
+    it('message data matches stored context', async () => {
+      window.location.hash = '#/accounts/67890/profiles/12345/advertisers/90000/placements';
+      await loadContentScript();
+
+      const setCall = vi.mocked(chrome.storage.local.set).mock.calls[0][0] as { cm360Context: unknown };
+      const sendCall = vi.mocked(chrome.runtime.sendMessage).mock.calls[0][0] as { data: unknown };
+      expect(setCall.cm360Context).toEqual(sendCall.data);
+    });
+  });
+
+  describe('execution order', () => {
+    it('calls storage.set before sendMessage', async () => {
+      const callOrder: string[] = [];
+      vi.mocked(chrome.storage.local.set).mockImplementation((...args: unknown[]) => {
+        callOrder.push('storage.set');
+        const items = args[0] as Record<string, unknown>;
+        // Maintain mock behavior
+        Object.assign({}, items);
+      });
+      vi.mocked(chrome.runtime.sendMessage).mockImplementation(() => {
+        callOrder.push('sendMessage');
+      });
+
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+
+      const setIdx = callOrder.indexOf('storage.set');
+      const sendIdx = callOrder.indexOf('sendMessage');
+      expect(setIdx).toBeLessThan(sendIdx);
+    });
+  });
 });

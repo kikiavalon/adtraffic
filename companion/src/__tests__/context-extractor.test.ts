@@ -159,6 +159,121 @@ describe('extractContextFromHash', () => {
     expect(ctx.campaignId).toBe('6666666666');
     expect(ctx.pageType).toBe('placements');
   });
+
+  it('returns a plain object (not null/undefined)', () => {
+    const ctx = extractContextFromHash('');
+    expect(ctx).toBeDefined();
+    expect(typeof ctx).toBe('object');
+    expect(ctx).not.toBeNull();
+  });
+
+  it('handles trailing slash after pageType', () => {
+    const hash = '#/accounts/67890/profiles/12345/advertisers/90000/placements/';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.pageType).toBe('placements');
+  });
+
+  it('handles multiple trailing slashes', () => {
+    const hash = '#/accounts/67890/placements///';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.accountId).toBe('67890');
+    expect(ctx.pageType).toBe('placements');
+  });
+
+  it('extracts campaign without advertiser in path', () => {
+    const hash = '#/accounts/67890/campaigns/90014/placements';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.accountId).toBe('67890');
+    expect(ctx.campaignId).toBe('90014');
+    expect(ctx.advertiserId).toBeUndefined();
+    expect(ctx.pageType).toBe('placements');
+  });
+
+  it('handles mixed-case segment names (no match)', () => {
+    const hash = '#/Accounts/67890/Profiles/12345';
+    const ctx = extractContextFromHash(hash);
+    // Regex is case-sensitive: /accounts/ not /Accounts/
+    expect(ctx.accountId).toBeUndefined();
+    expect(ctx.profileId).toBeUndefined();
+  });
+
+  it('does not match accounts embedded in other words', () => {
+    const hash = '#/subaccounts/67890/profiles/12345';
+    const ctx = extractContextFromHash(hash);
+    // Regex /\/accounts\/(\d+)/ requires "/" before "accounts"
+    // In "/subaccounts/67890", "accounts" is preceded by "sub" not "/"
+    expect(ctx.accountId).toBeUndefined();
+    expect(ctx.profileId).toBe('12345');
+  });
+
+  it('handles "settings" as pageType', () => {
+    const hash = '#/accounts/67890/profiles/12345/settings';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.pageType).toBe('settings');
+  });
+
+  it('handles "floodlight" as pageType', () => {
+    const hash = '#/accounts/67890/profiles/12345/advertisers/90000/floodlight';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.pageType).toBe('floodlight');
+    expect(ctx.advertiserId).toBe('90000');
+  });
+
+  it('handles zero as a valid numeric ID', () => {
+    const hash = '#/accounts/0/profiles/0';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.accountId).toBe('0');
+    expect(ctx.profileId).toBe('0');
+  });
+
+  it('does not extract IDs with leading zeros differently', () => {
+    const hash = '#/accounts/007/profiles/042';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.accountId).toBe('007');
+    expect(ctx.profileId).toBe('042');
+  });
+
+  it('handles hash with only advertiser and campaign', () => {
+    const hash = '#/advertisers/90000/campaigns/90014';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.advertiserId).toBe('90000');
+    expect(ctx.campaignId).toBe('90014');
+    expect(ctx.accountId).toBeUndefined();
+    expect(ctx.profileId).toBeUndefined();
+    expect(ctx.pageType).toBeUndefined();
+  });
+
+  it('handles segments with hyphens as pageType', () => {
+    const hash = '#/accounts/67890/ad-server-settings';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.pageType).toBe('ad-server-settings');
+  });
+
+  it('handles segments with underscores as pageType', () => {
+    const hash = '#/accounts/67890/ad_placements';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.pageType).toBe('ad_placements');
+  });
+
+  it('handles deeply nested path with many levels', () => {
+    const hash = '#/accounts/1/profiles/2/advertisers/3/campaigns/4/placements/5/creatives/6/edit';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.accountId).toBe('1');
+    expect(ctx.profileId).toBe('2');
+    expect(ctx.advertiserId).toBe('3');
+    expect(ctx.campaignId).toBe('4');
+    expect(ctx.pageType).toBe('edit');
+  });
+
+  it('returns independent objects for separate calls', () => {
+    const ctx1 = extractContextFromHash('#/accounts/111');
+    const ctx2 = extractContextFromHash('#/accounts/222');
+    expect(ctx1.accountId).toBe('111');
+    expect(ctx2.accountId).toBe('222');
+    // Modifying one should not affect the other
+    ctx1.accountId = 'modified';
+    expect(ctx2.accountId).toBe('222');
+  });
 });
 
 describe('extractContextFromDOM', () => {
@@ -268,6 +383,71 @@ describe('extractContextFromDOM', () => {
     expect(ctx.campaignId).toBeUndefined();
     expect(ctx.accountId).toBeUndefined();
     expect(ctx.profileId).toBeUndefined();
+  });
+
+  it('extracts from input elements', () => {
+    document.body.innerHTML = '<input data-advertiser-id="90000" />';
+    const ctx = extractContextFromDOM();
+    expect(ctx.advertiserId).toBe('90000');
+  });
+
+  it('extracts from table elements', () => {
+    document.body.innerHTML = '<table data-campaign-id="90014"><tr><td>data</td></tr></table>';
+    const ctx = extractContextFromDOM();
+    expect(ctx.campaignId).toBe('90014');
+  });
+
+  it('extracts from span elements', () => {
+    document.body.innerHTML = '<span data-account-id="67890">Account</span>';
+    const ctx = extractContextFromDOM();
+    expect(ctx.accountId).toBe('67890');
+  });
+
+  it('extracts from body element itself', () => {
+    document.body.setAttribute('data-advertiser-id', '90000');
+    const ctx = extractContextFromDOM();
+    expect(ctx.advertiserId).toBe('90000');
+    document.body.removeAttribute('data-advertiser-id');
+  });
+
+  it('handles whitespace-only attribute values', () => {
+    document.body.innerHTML = '<div data-advertiser-id="  "></div>';
+    const ctx = extractContextFromDOM();
+    expect(ctx.advertiserId).toBe('  ');
+  });
+
+  it('handles numeric attribute values', () => {
+    document.body.innerHTML = '<div data-campaign-id="12345"></div>';
+    const ctx = extractContextFromDOM();
+    expect(ctx.campaignId).toBe('12345');
+    // Always returns string, not number
+    expect(typeof ctx.campaignId).toBe('string');
+  });
+
+  it('ignores unrelated data attributes', () => {
+    document.body.innerHTML = '<div data-foo="bar" data-campaign-name="test"></div>';
+    const ctx = extractContextFromDOM();
+    expect(ctx.advertiserId).toBeUndefined();
+    expect(ctx.campaignId).toBeUndefined();
+    expect(ctx.accountId).toBeUndefined();
+    expect(ctx.profileId).toBeUndefined();
+  });
+
+  it('returns independent objects for separate calls', () => {
+    document.body.innerHTML = '<div data-advertiser-id="90000"></div>';
+    const ctx1 = extractContextFromDOM();
+    document.body.innerHTML = '<div data-advertiser-id="99999"></div>';
+    const ctx2 = extractContextFromDOM();
+    expect(ctx1.advertiserId).toBe('90000');
+    expect(ctx2.advertiserId).toBe('99999');
+  });
+
+  it('handles mixed relevant and irrelevant attributes', () => {
+    document.body.innerHTML =
+      '<div data-advertiser-id="90000" data-irrelevant="foo" class="widget" id="test"></div>';
+    const ctx = extractContextFromDOM();
+    expect(ctx.advertiserId).toBe('90000');
+    expect(ctx.campaignId).toBeUndefined();
   });
 });
 
@@ -385,5 +565,73 @@ describe('mergeContexts', () => {
       expect.arrayContaining(['accountId', 'profileId', 'advertiserId', 'campaignId', 'pageType']),
     );
     expect(Object.keys(merged).length).toBe(5);
+  });
+
+  it('is not commutative when both have different values', () => {
+    const a = { accountId: 'A' };
+    const b = { accountId: 'B' };
+    expect(mergeContexts(a, b).accountId).toBe('A');
+    expect(mergeContexts(b, a).accountId).toBe('B');
+  });
+
+  it('merging with self returns equivalent object', () => {
+    const ctx = { accountId: '111', advertiserId: '222', pageType: 'ads' };
+    const merged = mergeContexts(ctx, ctx);
+    expect(merged.accountId).toBe('111');
+    expect(merged.advertiserId).toBe('222');
+    expect(merged.pageType).toBe('ads');
+  });
+
+  it('chained merges work correctly', () => {
+    const a = { accountId: '111' };
+    const b = { profileId: '222' };
+    const c = { advertiserId: '333' };
+    const merged = mergeContexts(mergeContexts(a, b), c);
+    expect(merged.accountId).toBe('111');
+    expect(merged.profileId).toBe('222');
+    expect(merged.advertiserId).toBe('333');
+  });
+
+  it('does not modify original objects', () => {
+    const primary = { accountId: '111' };
+    const fallback = { accountId: '999', advertiserId: '888' };
+    mergeContexts(primary, fallback);
+    expect(primary).toEqual({ accountId: '111' });
+    expect(fallback).toEqual({ accountId: '999', advertiserId: '888' });
+  });
+
+  it('handles fallback with all undefined values', () => {
+    const primary = { accountId: '111' };
+    const fallback = {
+      accountId: undefined,
+      profileId: undefined,
+      advertiserId: undefined,
+      campaignId: undefined,
+      pageType: undefined,
+    };
+    const merged = mergeContexts(primary, fallback);
+    expect(merged.accountId).toBe('111');
+    expect(merged.profileId).toBeUndefined();
+  });
+
+  it('primary empty string does not fall through to fallback', () => {
+    // Empty string is not nullish — ?? does NOT trigger
+    const primary = { accountId: '' };
+    const fallback = { accountId: '999' };
+    const merged = mergeContexts(primary, fallback);
+    expect(merged.accountId).toBe('');
+  });
+
+  it('merges complementary hash and DOM contexts realistically', () => {
+    // Hash provides account/profile/pageType, DOM provides advertiser/campaign
+    const hash = extractContextFromHash('#/accounts/67890/profiles/12345/placements');
+    const dom = { advertiserId: '90000', campaignId: '90014' };
+    const merged = mergeContexts(hash, dom);
+
+    expect(merged.accountId).toBe('67890');
+    expect(merged.profileId).toBe('12345');
+    expect(merged.advertiserId).toBe('90000');
+    expect(merged.campaignId).toBe('90014');
+    expect(merged.pageType).toBe('placements');
   });
 });

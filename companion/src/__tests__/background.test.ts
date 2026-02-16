@@ -340,6 +340,64 @@ describe('background service worker', () => {
         data: { advertiserId: '99999', pageType: 'ads' },
       });
     });
+
+    it('clears badge on file:// URL navigation', () => {
+      tabUpdateListener(1, { url: 'file:///Users/test/index.html' }, {});
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '' });
+    });
+
+    it('preserves badge for campaignmanager.google.com with hash', () => {
+      tabUpdateListener(
+        1,
+        { url: 'https://campaignmanager.google.com/#/accounts/67890/profiles/12345' },
+        {},
+      );
+      expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
+    });
+
+    it('preserves badge for campaignmanager.google.com with query params', () => {
+      tabUpdateListener(
+        1,
+        { url: 'https://campaignmanager.google.com/accounts?filter=active' },
+        {},
+      );
+      expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
+    });
+
+    it('clears badge for google.com (not campaignmanager subdomain)', () => {
+      tabUpdateListener(1, { url: 'https://www.google.com/search?q=cm360' }, {});
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '' });
+    });
+
+    it('clears badge for ads.google.com', () => {
+      tabUpdateListener(1, { url: 'https://ads.google.com/campaigns' }, {});
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '' });
+    });
+
+    it('handles different tab IDs', () => {
+      tabUpdateListener(42, { url: 'https://www.example.com' }, {});
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '' });
+    });
+
+    it('does not clear context on CM360 URL update', () => {
+      const sendResponse = vi.fn();
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { advertiserId: '90000', pageType: 'ads' } },
+        {},
+        sendResponse,
+      );
+
+      // Navigate to another CM360 page
+      tabUpdateListener(1, { url: 'https://campaignmanager.google.com/#/accounts/99999' }, {});
+
+      // Context should still be available
+      const getResponse = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse);
+      expect(getResponse).toHaveBeenCalledWith({
+        type: 'CONTEXT_RESPONSE',
+        data: { advertiserId: '90000', pageType: 'ads' },
+      });
+    });
   });
 
   describe('listener registration', () => {
@@ -357,6 +415,193 @@ describe('background service worker', () => {
 
     it('tab update listener is a function', () => {
       expect(typeof tabUpdateListener).toBe('function');
+    });
+  });
+
+  describe('context data integrity', () => {
+    it('preserves all fields of stored context', () => {
+      const sendResponse = vi.fn();
+      const fullContext = {
+        accountId: '67890',
+        profileId: '12345',
+        advertiserId: '90000',
+        campaignId: '90014',
+        pageType: 'placements',
+      };
+      messageListener(
+        { type: 'CM360_CONTEXT', data: fullContext },
+        {},
+        sendResponse,
+      );
+
+      const getResponse = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse);
+
+      const response = getResponse.mock.calls[0][0] as { data: typeof fullContext };
+      expect(response.data.accountId).toBe('67890');
+      expect(response.data.profileId).toBe('12345');
+      expect(response.data.advertiserId).toBe('90000');
+      expect(response.data.campaignId).toBe('90014');
+      expect(response.data.pageType).toBe('placements');
+    });
+
+    it('stores context with only accountId', () => {
+      const sendResponse = vi.fn();
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { accountId: '67890' } },
+        {},
+        sendResponse,
+      );
+
+      const getResponse = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse);
+
+      const response = getResponse.mock.calls[0][0] as { data: { accountId: string } };
+      expect(response.data.accountId).toBe('67890');
+    });
+
+    it('stores context with empty object', () => {
+      const sendResponse = vi.fn();
+      messageListener(
+        { type: 'CM360_CONTEXT', data: {} },
+        {},
+        sendResponse,
+      );
+
+      const getResponse = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse);
+
+      expect(getResponse).toHaveBeenCalledWith({
+        type: 'CONTEXT_RESPONSE',
+        data: {},
+      });
+    });
+
+    it('multiple GET_CONTEXT calls return same data', () => {
+      const sendResponse = vi.fn();
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { advertiserId: '90000' } },
+        {},
+        sendResponse,
+      );
+
+      const getResponse1 = vi.fn();
+      const getResponse2 = vi.fn();
+      const getResponse3 = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse1);
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse2);
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse3);
+
+      expect(getResponse1.mock.calls[0][0]).toEqual(getResponse2.mock.calls[0][0]);
+      expect(getResponse2.mock.calls[0][0]).toEqual(getResponse3.mock.calls[0][0]);
+    });
+
+    it('badge is always set with setBadgeText and setBadgeBackgroundColor together', () => {
+      const sendResponse = vi.fn();
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { pageType: 'ads' } },
+        {},
+        sendResponse,
+      );
+
+      expect(chrome.action.setBadgeText).toHaveBeenCalledTimes(1);
+      expect(chrome.action.setBadgeBackgroundColor).toHaveBeenCalledTimes(1);
+    });
+
+    it('badge color is always #16a34a (green)', () => {
+      const sendResponse = vi.fn();
+
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { pageType: 'ads' } },
+        {},
+        sendResponse,
+      );
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { pageType: 'placements' } },
+        {},
+        sendResponse,
+      );
+      messageListener(
+        { type: 'CM360_CONTEXT', data: {} },
+        {},
+        sendResponse,
+      );
+
+      const calls = chrome.action.setBadgeBackgroundColor.mock.calls;
+      for (const call of calls) {
+        expect(call[0]).toEqual({ color: '#16a34a' });
+      }
+    });
+  });
+
+  describe('full lifecycle', () => {
+    it('set → get → navigate away → get null → set new → get new', () => {
+      const sr = vi.fn();
+
+      // 1. Set initial context
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { advertiserId: '11111', pageType: 'ads' } },
+        {},
+        sr,
+      );
+
+      // 2. Get returns it
+      const get1 = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, get1);
+      expect(get1.mock.calls[0][0].data.advertiserId).toBe('11111');
+
+      // 3. Navigate away
+      tabUpdateListener(1, { url: 'https://example.com' }, {});
+
+      // 4. Get returns null
+      const get2 = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, get2);
+      expect(get2.mock.calls[0][0].data).toBeNull();
+
+      // 5. New context arrives
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { advertiserId: '22222', pageType: 'placements' } },
+        {},
+        sr,
+      );
+
+      // 6. Get returns new context
+      const get3 = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, get3);
+      expect(get3.mock.calls[0][0].data.advertiserId).toBe('22222');
+      expect(get3.mock.calls[0][0].data.pageType).toBe('placements');
+    });
+
+    it('rapid context updates keep only the latest', () => {
+      const sr = vi.fn();
+      for (let i = 1; i <= 10; i++) {
+        messageListener(
+          { type: 'CM360_CONTEXT', data: { advertiserId: String(i), pageType: 'ads' } },
+          {},
+          sr,
+        );
+      }
+
+      const getResponse = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse);
+      expect(getResponse.mock.calls[0][0].data.advertiserId).toBe('10');
+    });
+
+    it('navigate away clears even after many context sets', () => {
+      const sr = vi.fn();
+      for (let i = 0; i < 5; i++) {
+        messageListener(
+          { type: 'CM360_CONTEXT', data: { advertiserId: String(i) } },
+          {},
+          sr,
+        );
+      }
+
+      tabUpdateListener(1, { url: 'https://example.com' }, {});
+
+      const getResponse = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse);
+      expect(getResponse.mock.calls[0][0].data).toBeNull();
     });
   });
 });

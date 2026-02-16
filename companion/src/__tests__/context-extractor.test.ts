@@ -111,6 +111,44 @@ describe('extractContextFromHash', () => {
     expect(ctx.pageType).toBe('campaigns?sort=name');
   });
 
+  it('handles hash with only # character', () => {
+    const ctx = extractContextFromHash('#');
+    expect(ctx.accountId).toBeUndefined();
+    // '#' splits into ['#'] — '#' is non-numeric so becomes pageType
+    expect(ctx.pageType).toBe('#');
+  });
+
+  it('handles hash with only /', () => {
+    const ctx = extractContextFromHash('#/');
+    expect(ctx.accountId).toBeUndefined();
+    // '#/' splits into ['#'] after filter(Boolean) — '#' is non-numeric
+    expect(ctx.pageType).toBe('#');
+  });
+
+  it('extracts first match when duplicate segments exist', () => {
+    const hash = '#/accounts/11111/profiles/22222/accounts/99999';
+    const ctx = extractContextFromHash(hash);
+    // regex match returns first occurrence
+    expect(ctx.accountId).toBe('11111');
+  });
+
+  it('ignores non-numeric account IDs', () => {
+    const hash = '#/accounts/abc/profiles/12345';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.accountId).toBeUndefined();
+    expect(ctx.profileId).toBe('12345');
+  });
+
+  it('handles single-digit IDs', () => {
+    const hash = '#/accounts/1/profiles/2/advertisers/3/campaigns/4/ads';
+    const ctx = extractContextFromHash(hash);
+    expect(ctx.accountId).toBe('1');
+    expect(ctx.profileId).toBe('2');
+    expect(ctx.advertiserId).toBe('3');
+    expect(ctx.campaignId).toBe('4');
+    expect(ctx.pageType).toBe('ads');
+  });
+
   it('handles very large numeric IDs', () => {
     const hash = '#/accounts/9999999999/profiles/8888888888/advertisers/7777777777/campaigns/6666666666/placements';
     const ctx = extractContextFromHash(hash);
@@ -191,6 +229,45 @@ describe('extractContextFromDOM', () => {
     `;
     const ctx = extractContextFromDOM();
     expect(ctx.advertiserId).toBe('first');
+  });
+
+  it('extracts attributes from nested elements', () => {
+    document.body.innerHTML = `
+      <div class="outer">
+        <div class="inner">
+          <span data-advertiser-id="90000"></span>
+        </div>
+      </div>
+    `;
+    const ctx = extractContextFromDOM();
+    expect(ctx.advertiserId).toBe('90000');
+  });
+
+  it('extracts attributes from a single element with multiple data attrs', () => {
+    document.body.innerHTML =
+      '<div data-advertiser-id="90000" data-campaign-id="90014" data-account-id="67890" data-profile-id="12345"></div>';
+    const ctx = extractContextFromDOM();
+    expect(ctx.advertiserId).toBe('90000');
+    expect(ctx.campaignId).toBe('90014');
+    expect(ctx.accountId).toBe('67890');
+    expect(ctx.profileId).toBe('12345');
+  });
+
+  it('does not extract pageType from DOM', () => {
+    document.body.innerHTML = '<div data-advertiser-id="90000" data-page-type="placements"></div>';
+    const ctx = extractContextFromDOM();
+    expect(ctx.advertiserId).toBe('90000');
+    // extractContextFromDOM does not look for data-page-type
+    expect(ctx.pageType).toBeUndefined();
+  });
+
+  it('returns empty context when document.body is empty', () => {
+    document.body.innerHTML = '';
+    const ctx = extractContextFromDOM();
+    expect(ctx.advertiserId).toBeUndefined();
+    expect(ctx.campaignId).toBeUndefined();
+    expect(ctx.accountId).toBeUndefined();
+    expect(ctx.profileId).toBeUndefined();
   });
 });
 
@@ -289,5 +366,24 @@ describe('mergeContexts', () => {
     expect(merged.advertiserId).toBe('90000');
     expect(merged.campaignId).toBe('90014');
     expect(merged.pageType).toBe('placements');
+  });
+
+  it('DOM fills account/profile gaps when hash only has advertiser', () => {
+    const hashContext = extractContextFromHash('#/advertisers/90000/placements');
+    const domContext = { accountId: '67890', profileId: '12345' };
+    const merged = mergeContexts(hashContext, domContext);
+
+    expect(merged.accountId).toBe('67890');
+    expect(merged.profileId).toBe('12345');
+    expect(merged.advertiserId).toBe('90000');
+    expect(merged.pageType).toBe('placements');
+  });
+
+  it('returns object with all five keys even when both inputs are empty', () => {
+    const merged = mergeContexts({}, {});
+    expect(Object.keys(merged)).toEqual(
+      expect.arrayContaining(['accountId', 'profileId', 'advertiserId', 'campaignId', 'pageType']),
+    );
+    expect(Object.keys(merged).length).toBe(5);
   });
 });

@@ -123,6 +123,46 @@ describe('content script', () => {
       expect(fab).not.toBeNull();
     });
 
+    it('extracts context from DOM only when hash is empty', async () => {
+      window.location.hash = '';
+      document.body.innerHTML = '<div data-advertiser-id="90000" data-campaign-id="90014"></div>';
+
+      await loadContentScript();
+
+      expect(chrome.storage.local.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cm360Context: expect.objectContaining({
+            advertiserId: '90000',
+            campaignId: '90014',
+          }),
+        }),
+      );
+    });
+
+    it('FAB has title attribute set', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.title).toBe('Open Kiki — AdTraffic.ai');
+    });
+
+    it('FAB is appended to document.body', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.parentNode).toBe(document.body);
+    });
+
+    it('FAB has border-radius 50% (circular)', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      expect(fab.style.borderRadius).toBe('50%');
+    });
+
     it('sends context with all fields extracted from hash', async () => {
       window.location.hash =
         '#/accounts/11111/profiles/22222/advertisers/33333/campaigns/44444/ads';
@@ -226,6 +266,31 @@ describe('content script', () => {
       const url = openSpy.mock.calls[0][0] as string;
       expect(url).not.toContain('advertiserId');
       expect(url).not.toContain('campaignId');
+    });
+
+    it('opens window with _blank target', async () => {
+      window.location.hash = '#/accounts/67890/profiles/12345/advertisers/90000';
+
+      await loadContentScript();
+
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      fab.click();
+
+      expect(openSpy).toHaveBeenCalledWith(expect.any(String), '_blank');
+    });
+
+    it('includes only campaignId when advertiserId is missing from hash', async () => {
+      // Edge case: campaign without advertiser in hash
+      window.location.hash = '#/accounts/67890/campaigns/90014/placements';
+
+      await loadContentScript();
+
+      const fab = document.getElementById('adtraffic-kiki-fab')!;
+      fab.click();
+
+      const url = openSpy.mock.calls[0][0] as string;
+      expect(url).toContain('campaignId=90014');
+      expect(url).not.toContain('advertiserId');
     });
   });
 
@@ -333,6 +398,62 @@ describe('content script', () => {
       expect(originalFab.parentNode).toBeNull();
       // New FAB should exist
       expect(document.getElementById('adtraffic-kiki-fab')).not.toBeNull();
+    });
+
+    it('handles multiple rapid hashchanges', async () => {
+      window.location.hash = '#/accounts/67890';
+      await loadContentScript();
+
+      vi.mocked(chrome.runtime.sendMessage).mockClear();
+
+      // Rapid sequence of hashchanges
+      window.location.hash = '#/accounts/11111/advertisers/22222';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+      window.location.hash = '#/accounts/33333/advertisers/44444';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+      window.location.hash = '#/accounts/55555/advertisers/66666/placements';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+      // Should have called sendMessage at least 3 times (once per hashchange)
+      expect(chrome.runtime.sendMessage).toHaveBeenCalledTimes(
+        vi.mocked(chrome.runtime.sendMessage).mock.calls.length,
+      );
+
+      // Last sendMessage call should contain the final context
+      const calls = vi.mocked(chrome.runtime.sendMessage).mock.calls;
+      const lastCall = calls[calls.length - 1][0] as {
+        type: string;
+        data: { accountId: string; advertiserId: string };
+      };
+      expect(lastCall.data.accountId).toBe('55555');
+      expect(lastCall.data.advertiserId).toBe('66666');
+
+      // Still only one FAB in DOM
+      expect(document.querySelectorAll('#adtraffic-kiki-fab').length).toBe(1);
+    });
+
+    it('merges DOM context on hashchange', async () => {
+      window.location.hash = '#/accounts/67890';
+      document.body.innerHTML = '<div data-advertiser-id="90000"></div>';
+
+      await loadContentScript();
+
+      vi.mocked(chrome.storage.local.set).mockClear();
+
+      // Hashchange — DOM still has advertiser data attribute
+      window.location.hash = '#/accounts/11111/profiles/22222/campaigns';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+      expect(chrome.storage.local.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cm360Context: expect.objectContaining({
+            accountId: '11111',
+            profileId: '22222',
+            advertiserId: '90000',
+            pageType: 'campaigns',
+          }),
+        }),
+      );
     });
   });
 });

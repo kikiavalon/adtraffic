@@ -126,6 +126,48 @@ describe('background service worker', () => {
       expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: 'CAMP' });
     });
 
+    it('does not call sendResponse for CM360_CONTEXT', () => {
+      const sendResponse = vi.fn();
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { pageType: 'ads' } },
+        {},
+        sendResponse,
+      );
+      expect(sendResponse).not.toHaveBeenCalled();
+    });
+
+    it('does not return true for CM360_CONTEXT (no async channel)', () => {
+      const sendResponse = vi.fn();
+      const result = messageListener(
+        { type: 'CM360_CONTEXT', data: { pageType: 'ads' } },
+        {},
+        sendResponse,
+      );
+      expect(result).not.toBe(true);
+    });
+
+    it('latest CM360_CONTEXT overwrites previous context', () => {
+      const sendResponse = vi.fn();
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { advertiserId: '11111', pageType: 'ads' } },
+        {},
+        sendResponse,
+      );
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { advertiserId: '22222', pageType: 'placements' } },
+        {},
+        sendResponse,
+      );
+
+      const getResponse = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse);
+
+      expect(getResponse).toHaveBeenCalledWith({
+        type: 'CONTEXT_RESPONSE',
+        data: { advertiserId: '22222', pageType: 'placements' },
+      });
+    });
+
     it('stores context for later retrieval via GET_CONTEXT', () => {
       const sendResponse1 = vi.fn();
       const context = {
@@ -260,6 +302,61 @@ describe('background service worker', () => {
       );
 
       expect(chrome.action.setBadgeText).not.toHaveBeenCalled();
+    });
+
+    it('clears badge on about:blank navigation', () => {
+      tabUpdateListener(1, { url: 'about:blank' }, {});
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '' });
+    });
+
+    it('clears badge on chrome:// navigation', () => {
+      tabUpdateListener(1, { url: 'chrome://extensions/' }, {});
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '' });
+    });
+
+    it('context recovers after navigate-away then new CM360_CONTEXT', () => {
+      const sendResponse = vi.fn();
+      // Set initial context
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { advertiserId: '90000' } },
+        {},
+        sendResponse,
+      );
+      // Navigate away — clears context
+      tabUpdateListener(1, { url: 'https://www.google.com/' }, {});
+
+      // New context arrives
+      messageListener(
+        { type: 'CM360_CONTEXT', data: { advertiserId: '99999', pageType: 'ads' } },
+        {},
+        sendResponse,
+      );
+
+      const getResponse = vi.fn();
+      messageListener({ type: 'GET_CONTEXT' }, {}, getResponse);
+
+      expect(getResponse).toHaveBeenCalledWith({
+        type: 'CONTEXT_RESPONSE',
+        data: { advertiserId: '99999', pageType: 'ads' },
+      });
+    });
+  });
+
+  describe('listener registration', () => {
+    it('registers exactly one message listener', () => {
+      expect(chrome.runtime.onMessage.addListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('registers exactly one tab update listener', () => {
+      expect(chrome.tabs.onUpdated.addListener).toHaveBeenCalledTimes(1);
+    });
+
+    it('message listener is a function', () => {
+      expect(typeof messageListener).toBe('function');
+    });
+
+    it('tab update listener is a function', () => {
+      expect(typeof tabUpdateListener).toBe('function');
     });
   });
 });

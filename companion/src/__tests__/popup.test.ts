@@ -127,6 +127,56 @@ describe('popup', () => {
       expect(btn.disabled).toBe(false);
     });
 
+    it('does not render profileId alone as valid context', async () => {
+      await loadPopupWithContext({ profileId: '12345' });
+
+      const display = document.getElementById('context-display')!;
+      // profileId alone doesn't satisfy the "has at least one ID" check
+      // since the check is: !advertiserId && !campaignId && !accountId
+      expect(display.innerHTML).toContain('No CM360 page detected');
+    });
+
+    it('enables button when only accountId is present', async () => {
+      await loadPopupWithContext({ accountId: '67890' });
+
+      const btn = document.getElementById('open-kiki') as HTMLButtonElement;
+      expect(btn.disabled).toBe(false);
+    });
+
+    it('enables button when only campaignId is present', async () => {
+      await loadPopupWithContext({ campaignId: '90014' });
+
+      const btn = document.getElementById('open-kiki') as HTMLButtonElement;
+      expect(btn.disabled).toBe(false);
+    });
+
+    it('renders context items with correct CSS classes', async () => {
+      await loadPopupWithContext({ advertiserId: '90000' });
+
+      const display = document.getElementById('context-display')!;
+      expect(display.innerHTML).toContain('context-item');
+      expect(display.innerHTML).toContain('context-label');
+      expect(display.innerHTML).toContain('context-value');
+    });
+
+    it('renders fields in order: Account, Profile, Advertiser, Campaign, Page', async () => {
+      await loadPopupWithContext({
+        accountId: '67890',
+        profileId: '12345',
+        advertiserId: '90000',
+        campaignId: '90014',
+        pageType: 'placements',
+      });
+
+      const display = document.getElementById('context-display')!;
+      const labels = display.querySelectorAll('.context-label');
+      expect(labels[0]?.textContent).toBe('Account');
+      expect(labels[1]?.textContent).toBe('Profile');
+      expect(labels[2]?.textContent).toBe('Advertiser');
+      expect(labels[3]?.textContent).toBe('Campaign');
+      expect(labels[4]?.textContent).toBe('Page');
+    });
+
     it('renders all context fields when fully populated', async () => {
       await loadPopupWithContext({
         accountId: '67890',
@@ -227,6 +277,17 @@ describe('popup', () => {
       expect(call.url).toBe('http://localhost:5173');
     });
 
+    it('includes only campaignId when advertiserId is missing', async () => {
+      await loadPopupWithContext({ campaignId: '90014' });
+
+      const btn = document.getElementById('open-kiki') as HTMLButtonElement;
+      btn.click();
+
+      const call = chrome.tabs.create.mock.calls[0][0] as { url: string };
+      expect(call.url).toContain('campaignId=90014');
+      expect(call.url).not.toContain('advertiserId');
+    });
+
     it('includes only advertiserId when campaignId is missing', async () => {
       await loadPopupWithContext({ advertiserId: '90000' });
 
@@ -285,6 +346,51 @@ describe('popup', () => {
       saveBtn.click();
 
       expect(saveBtn.textContent).toBe('Saved!');
+    });
+
+    it('loads saved base URL into input on startup', async () => {
+      chrome.storage.local.set({ baseUrl: 'https://app.adtraffic.ai' });
+
+      await loadPopupWithContext(null);
+
+      const input = document.getElementById('base-url-input') as HTMLInputElement;
+      expect(input.value).toBe('https://app.adtraffic.ai');
+    });
+
+    it('loads default base URL when none saved', async () => {
+      await loadPopupWithContext(null);
+
+      const input = document.getElementById('base-url-input') as HTMLInputElement;
+      expect(input.value).toBe('http://localhost:5173');
+    });
+
+    it('saves empty string when input is cleared', async () => {
+      await loadPopupWithContext(null);
+
+      const input = document.getElementById('base-url-input') as HTMLInputElement;
+      const saveBtn = document.getElementById('save-settings')!;
+
+      input.value = '';
+      saveBtn.click();
+
+      expect(chrome.storage.local.set).toHaveBeenCalledWith(
+        { baseUrl: '' },
+        expect.any(Function),
+      );
+    });
+
+    it('settings panel starts hidden', async () => {
+      await loadPopupWithContext(null);
+
+      const panel = document.getElementById('settings-panel')!;
+      expect(panel.hidden).toBe(true);
+    });
+
+    it('settings toggle starts with text "Settings"', async () => {
+      await loadPopupWithContext(null);
+
+      const toggle = document.getElementById('settings-toggle')!;
+      expect(toggle.textContent).toBe('Settings');
     });
   });
 });

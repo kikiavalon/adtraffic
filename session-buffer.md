@@ -1,45 +1,49 @@
 # Session Buffer
-**Saved:** 2026-02-16
-**Reason:** Proactive save after third round of companion test expansion
+**Saved:** 2026-02-16 (end of day)
+**Reason:** Full day save — multiple sessions spanning feature builds, test infrastructure, and test expansion
 
-## What was accomplished
-- Expanded companion Chrome extension test suite from 9 to 235 tests (+226 new tests total across three rounds)
-- **Round 1 (+79 tests, 9→88):**
-  - Created `companion/vitest.config.ts` — jsdom environment + Chrome mock setup file
-  - Created `companion/src/__tests__/setup/chrome-mock.ts` — shared Chrome API mock with semi-functional in-memory storage, vi.fn() stubs for runtime, action, tabs APIs, reset in beforeEach
-  - Created `companion/src/__tests__/background.test.ts` (18 tests) — CM360_CONTEXT handler, GET_CONTEXT handler, tab update handler
-  - Created `companion/src/__tests__/content.test.ts` (20 tests) — initial load, FAB click handler, hashchange listener
-  - Created `companion/src/__tests__/popup.test.ts` (22 tests) — renderContext, fetchContext, Open Kiki button, settings panel
-  - Expanded `companion/src/__tests__/context-extractor.test.ts` from 9 to 28 tests — extractContextFromDOM, mergeContexts, hash edge cases
-  - Installed jsdom as companion devDependency
-- **Round 2 (+40 tests, 88→128):**
-  - context-extractor (+11): hash-only chars (#, #/), duplicate segments, non-numeric IDs, single-digit IDs, nested DOM elements, multi-attribute elements, missing pageType from DOM, empty body, merge key completeness
-  - background (+10): sendResponse not called for CM360_CONTEXT, no async channel, latest context overwrites, about:blank/chrome:// clearing, context recovery after navigate-away, listener registration counts
-  - content (+8): DOM-only context (no hash), FAB title/parent/border-radius, _blank target, campaignId-only URL, rapid hashchanges, DOM merge on hashchange
-  - popup (+11): profileId-only rejected, accountId/campaignId-only enable, CSS classes, field ordering, campaignId-only URL, settings input pre-population, default URL loading, empty save, initial panel state
-- **Round 3 (+107 tests, 128→235):**
-  - context-extractor (+31): trailing slashes, mixed-case segments, subaccounts edge case, zero IDs, leading zeros, hyphens/underscores in pageType, deeply nested paths, object independence, various DOM element types (input, table, span, body), whitespace values, unrelated attributes, merge commutativity/chaining/immutability, empty string primary values
-  - background (+16): file:// URL clearing, CM360 URL variations (with/without www, ports, paths), ads.google.com, different tab IDs, context preservation on CM360 navigation, data integrity (all fields preserved, empty objects, multiple GETs), badge color consistency, full lifecycle tests (set→get→navigate→get null→set new→get new)
-  - content (+22): 14 FAB styling tests (width, height, bottom, right, cursor, borderStyle, color, fontSize, fontWeight, display, alignItems, justifyContent, gradient background, transition), 4 hover behavior tests (mouseenter/mouseleave scale and boxShadow), 3 storage key format tests, 1 execution order test
-  - popup (+38): settings edge cases (empty save, trim/trailing slash), HTML structure (context-item counts, label/value spans, no-context class), URL construction (separators, param encoding, multiple clicks), fetchContext message format, button state management (enabled/disabled for various ID combinations), context display combinations
-- Updated CLAUDE.md with test counts (641 → 720 → 760 → 867)
-- All 867 tests passing (18 shared + 614 backend + 235 companion)
-- All commits pushed to origin/main
+## What was accomplished today (17 commits)
+
+### Session 6 — Feature builds (6 commits)
+- **Mock CM360 server** (`64b6276`): Added faker.js-based mock CM360 data and demo-ready UI polish
+- **Companion Chrome extension** (`9714735`): Full Manifest V3 scaffold — content script (context extraction from URL hash + DOM), background service worker (badge management, context relay), popup UI (branded, context display, "Open Kiki" launch button), programmatic PNG icon generation
+- **Prompt testing harness** (`2048cca`): 76 new tests — 34 standard prompts across 5 categories, 14 adversarial prompts (including prompt injection), 28 conversation-flow tests (6 multi-turn scenarios). Mocks Anthropic SDK with scripted tool_use/text response sequences.
+- **103 unit tests** (`9dc5be6`): conversation-store (16), system-prompt (17), tool-definitions (33), error-handler (5), auth-middleware (8), api-edge-cases (24)
+- **37 advanced tests** (`463c44a`): mock-data-store-advanced (37), tool-executor-advanced (15), kiki-service-advanced (12)
+- **324 behavioral tests** (`297168b`): teaching-mode (52), clarifying-questions (50), naming-convention (50), advanced-trafficking (59), video-trafficking (58). Added system prompt sections for each behavioral category.
+
+### Session 7 — Companion test expansion (8 commits)
+- **Round 1** (`9bc17ea`): +79 companion tests (9→88). Created vitest.config.ts, Chrome mock setup, background/content/popup test files, expanded context-extractor.
+- **Round 2** (`d2c4df7`): +40 companion tests (88→128). Edge cases across all four test files.
+- **Round 3** (`8d46b20`): +107 companion tests (128→235). Deep coverage — FAB styling, hover behavior, lifecycle tests, data integrity, merge properties, URL construction, button state management.
+- Doc updates and session buffer saves between rounds.
+
+### Final state
+- **867 tests passing** (18 shared + 614 backend + 235 companion)
+- All code pushed to origin/main
+- CLAUDE.md fully up to date
+
+## Test file inventory (companion — 235 tests)
+| File | Tests | Coverage |
+|---|---|---|
+| context-extractor.test.ts | 70 | hash parsing, DOM extraction, mergeContexts, edge cases, immutability |
+| background.test.ts | 44 | message handlers, badge, tab updates, data integrity, full lifecycle |
+| content.test.ts | 50 | FAB injection, styling (14 props), hover, click handler, hashchange, storage keys |
+| popup.test.ts | 71 | context rendering, fetchContext, Open Kiki, settings, URL construction, button state |
 
 ## In progress when saved
-- Nothing actively in progress — all three test expansion rounds complete
+- Nothing actively in progress — all work complete and pushed
 
-## Decisions made this session
-- Used jsdom environment globally via vitest.config.ts (not per-file pragmas) since 4/5 test files need DOM
-- Shared Chrome mock in setupFiles avoids duplication across test files
-- Dynamic `import()` with `vi.resetModules()` for side-effect modules (background, content, popup) — no source refactoring needed
-- Semi-functional storage mock (actually stores/retrieves data) for realistic testing
-- Fixed `toStartWith()` → `startsWith() + toBe(true)` since Vitest/Chai doesn't have toStartWith
-- Corrected empty-string pageType test — `''` is not nullish so `??` doesn't trigger, badge gets `''` not `'CM'`
-- Hash with only `#` or `#/` produces pageType `'#'` (correct per source code behavior — `#` passes through split/filter and is non-numeric)
-- Rapid hashchange test avoids asserting exact call count due to cumulative listeners from dynamic imports across tests
-- Round 3 jsdom quirks: `border: 'none'` normalizes to individual properties (use `borderStyle`), `#fff` normalizes to `rgb(255, 255, 255)`
-- Round 3: `/\/accounts\/(\d+)/` regex does NOT match `/subaccounts/67890` — the `accounts` is preceded by `sub` not `/`
+## Decisions made today
+- **Architecture:** Web platform + companion Chrome extension (not extension-only)
+- **Mock CM360 page:** `webapp/public/mock-cm360.html` for extension testing against mock data
+- **Extension → webapp handoff:** Query params (`?advertiserId=X&campaignId=Y`) from extension launch, Chat.tsx reads and auto-sends context to Kiki
+- **Test harness:** Mocks Anthropic SDK at the service level, intercepts real tool executor against real mock data store, evaluates with contains/not_contains/matches_pattern assertions
+- **Behavioral test system prompt sections:** Teaching mode, clarifying questions, naming conventions, advanced trafficking (macros, Adobe/Demandbase, UTM), video trafficking (VAST/VPAID)
+- **jsdom environment** globally via vitest.config.ts (not per-file pragmas)
+- **Chrome mock** shared in setupFiles with semi-functional in-memory storage
+- **Dynamic `import()` + `vi.resetModules()`** for side-effect modules — no source refactoring needed
+- **jsdom quirks discovered:** `toStartWith` doesn't exist (use `startsWith()`), `''` is not nullish for `??`, `#`-only hash produces pageType `'#'`, `border: 'none'` normalizes to individual properties, `#fff` normalizes to `rgb(255, 255, 255)`, `/\/accounts\/(\d+)/` doesn't match `/subaccounts/`
 
 ## Next steps
 - Phase 3 launch prep items remain (see CLAUDE.md "What Needs to Happen Next"):
@@ -54,4 +58,4 @@
   9. Beta testing
 
 ## Open questions
-- None from this session
+- None

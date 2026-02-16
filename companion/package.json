@@ -11,9 +11,10 @@
     "generate-icons": "node scripts/generate-icons.mjs"
   },
   "devDependencies": {
+    "jsdom": "^28.1.0",
     "typescript": "^5.3.3",
     "vite": "^6.0.0",
-    "vitest": "^2.1.0",
-    "vite-plugin-static-copy": "^2.2.0"
+    "vite-plugin-static-copy": "^2.2.0",
+    "vitest": "^2.1.0"
   }
 }

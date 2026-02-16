@@ -18,9 +18,6 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Session buffer (temporary context between sessions)
-session-buffer.md
-
 # Claude Code internals
 .claude/
 

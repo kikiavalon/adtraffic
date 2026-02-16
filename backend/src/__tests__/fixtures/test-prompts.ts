@@ -35,7 +35,12 @@ export type TestCategory =
   | 'ambiguous'
   | 'adversarial'
   | 'out-of-scope'
-  | 'multi-step';
+  | 'multi-step'
+  | 'teaching-mode'
+  | 'clarifying-questions'
+  | 'naming-convention'
+  | 'advanced-trafficking'
+  | 'video-trafficking';
 
 export interface MockResponse {
   content: MockContentBlock[];

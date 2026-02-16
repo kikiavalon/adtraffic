@@ -115,15 +115,22 @@ class MockDataStore {
       const pageIds: string[] = [];
 
       const pageSuffixes = ['', '/offers', '/products', '/signup', '/promo', '/landing'];
+      // Advertisers 0-2 (Apex, Luminance, Meridian) get UTM parameters on landing page URLs
+      const utmAdvertiserIndices = [0, 1, 2];
+      const advSlug = advName.toLowerCase().replace(/\s+/g, '-');
       for (let p = 0; p < count; p++) {
         const id = this.genId();
         pageIds.push(id);
         const suffix = pageSuffixes[p] ?? `/${faker.lorem.slug(1)}`;
+        const baseUrl = `https://www.${domain}${suffix}`;
+        const utmSuffix = utmAdvertiserIndices.includes(ai)
+          ? `?utm_source=cm360&utm_medium=display&utm_campaign=${advSlug}${suffix ? suffix.replace('/', '-') : '-homepage'}`
+          : '';
         this.landingPages.set(id, {
           id,
           name: p === 0 ? `${advName} Homepage` : `${advName} ${suffix.slice(1).charAt(0).toUpperCase() + suffix.slice(2)}`,
           advertiserId: advId,
-          url: `https://www.${domain}${suffix}`,
+          url: `${baseUrl}${utmSuffix}`,
           archived: false,
         });
       }

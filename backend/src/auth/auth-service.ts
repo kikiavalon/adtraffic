@@ -51,7 +51,7 @@ export async function register(email: string, password: string, name: string): P
 
   db.insert(schema.users).values(user).run();
 
-  const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
 
   return {
     token,
@@ -72,7 +72,7 @@ export async function login(email: string, password: string): Promise<AuthTokens
     throw new Error('Invalid email or password');
   }
 
-  const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
 
   return {
     token,
@@ -81,7 +81,7 @@ export async function login(email: string, password: string): Promise<AuthTokens
 }
 
 export function verifyToken(token: string): { userId: string; email: string } {
-  const decoded = jwt.verify(token, JWT_SECRET);
+  const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
   if (
     typeof decoded !== 'object' ||
     decoded === null ||

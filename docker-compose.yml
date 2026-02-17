@@ -3,22 +3,32 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    ports:
-      - "3001:3001"
+    # Backend is only accessible via nginx proxy — not exposed to the host
+    expose:
+      - "3001"
     environment:
       - NODE_ENV=production
       - PORT=3001
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET must be set}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     volumes:
       - backend-data:/app/backend/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
 
   webapp:
     build:
@@ -30,11 +40,21 @@ services:
       backend:
         condition: service_healthy
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.5"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
       interval: 30s
       timeout: 5s
       retries: 3
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
 
 volumes:
   backend-data:

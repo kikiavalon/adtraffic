@@ -39,7 +39,7 @@ describe('Auth API', () => {
         .send({ email: 'test@agency.com', password: 'DifferentPass456', name: 'User 2' });
 
       expect(res.status).toBe(409);
-      expect(res.body.error).toBe('Email already registered');
+      expect(res.body.error).toBe('Registration failed');
     });
 
     it('rejects short password', async () => {

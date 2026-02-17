@@ -1,0 +1,102 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Mondays at 9am UTC
+    - cron: '0 9 * * 1'
+
+jobs:
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+      - name: Check for critical vulnerabilities
+        run: |
+          RESULT=$(npm audit --json 2>/dev/null | node -e "
+            const data = require('fs').readFileSync('/dev/stdin', 'utf8');
+            const audit = JSON.parse(data);
+            const vulns = audit.vulnerabilities || {};
+            const critical = Object.values(vulns).filter(v => v.severity === 'critical');
+            if (critical.length > 0) {
+              console.error('CRITICAL vulnerabilities found:', critical.map(v => v.name).join(', '));
+              process.exit(1);
+            }
+            console.log('No critical vulnerabilities found');
+          ")
+          echo "$RESULT"
+
+  secrets-scan:
+    name: Secrets Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  lockfile-integrity:
+    name: Lockfile Integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify lockfile is in sync
+        run: npm ci --ignore-scripts
+      - name: Verify no floating versions
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkgFiles = [
+              'package.json',
+              'backend/package.json',
+              'webapp/package.json',
+              'shared/package.json',
+              'companion/package.json'
+            ];
+            let hasFloating = false;
+            for (const file of pkgFiles) {
+              const pkg = JSON.parse(fs.readFileSync(file, 'utf8'));
+              for (const depType of ['dependencies', 'devDependencies']) {
+                if (!pkg[depType]) continue;
+                for (const [name, version] of Object.entries(pkg[depType])) {
+                  if (name.startsWith('@adtraffic/')) continue;
+                  if (typeof version === 'string' && (version.startsWith('^') || version.startsWith('~'))) {
+                    console.error(\`FLOATING VERSION: \${file} -> \${name}: \${version}\`);
+                    hasFloating = true;
+                  }
+                }
+              }
+            }
+            if (hasFloating) process.exit(1);
+            console.log('All dependency versions are pinned');
+          "
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build --workspace=shared
+      - run: npm test

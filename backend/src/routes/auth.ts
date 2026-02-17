@@ -9,14 +9,14 @@ const loginLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
 const registerLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 5 });
 
 const RegisterSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  name: z.string().min(1, 'Name is required'),
+  email: z.string().email().max(254),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128, 'Password must not exceed 128 characters'),
+  name: z.string().min(1, 'Name is required').max(200),
 });
 
 const LoginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().email().max(254),
+  password: z.string().min(1).max(128),
 });
 
 router.post('/api/auth/register', registerLimiter, async (req, res) => {
@@ -32,7 +32,8 @@ router.post('/api/auth/register', registerLimiter, async (req, res) => {
     res.status(201).json(result);
   } catch (error) {
     if (error instanceof Error && error.message === 'Email already registered') {
-      res.status(409).json({ error: error.message });
+      // Return generic message to prevent email enumeration (CWE-209)
+      res.status(409).json({ error: 'Registration failed' });
       return;
     }
     throw error;

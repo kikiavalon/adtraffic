@@ -6,8 +6,12 @@ import type { ChatResponse } from '@adtraffic/shared';
 import { chat } from '../claude/kiki-service.js';
 import { requireAuth } from '../auth/middleware.js';
 import { saveMessage, getConversation } from '../db/conversation-store.js';
+import { createRateLimiter } from '../middleware/rate-limiter.js';
 
 const router = Router();
+
+// Rate limit chat: 20 requests per minute per IP
+const chatLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
 
 /**
  * POST /api/chat
@@ -15,8 +19,12 @@ const router = Router();
  * Receives a user message, forwards to Claude API via Kiki service,
  * returns Kiki's AI-generated response.
  * Uses a larger body limit (10mb) for messages that may include file uploads.
+ *
+ * Middleware order: rate limit → auth check → body parse.
+ * Auth runs before the body parser so unauthenticated requests
+ * cannot force the server to buffer large payloads (DoS prevention).
  */
-router.post('/api/chat', express.json({ limit: '10mb' }), requireAuth, async (req, res) => {
+router.post('/api/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' }), async (req, res) => {
   const parsed = ChatRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -58,7 +66,7 @@ router.post('/api/chat', express.json({ limit: '10mb' }), requireAuth, async (re
 
     res.json(response);
   } catch (error) {
-    console.error('Claude API error:', error);
+    console.error('Claude API error:', error instanceof Error ? error.message : 'Unknown error');
     res.status(500).json({
       error: 'Failed to get response from Kiki',
     });

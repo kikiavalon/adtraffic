@@ -12,18 +12,18 @@
   },
   "dependencies": {
     "@adtraffic/shared": "*",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.1.0",
-    "remark-gfm": "^4.0.1"
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-markdown": "10.1.0",
+    "react-router-dom": "7.13.0",
+    "remark-gfm": "4.0.1"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.3.0",
-    "typescript": "^5.3.3",
-    "vite": "^6.0.0",
-    "vitest": "^2.1.0"
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "4.7.0",
+    "typescript": "5.9.3",
+    "vite": "6.4.1",
+    "vitest": "2.1.9"
   }
 }

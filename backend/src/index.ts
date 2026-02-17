@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import healthRouter from './routes/health.js';
 import chatRouter from './routes/chat.js';
 import conversationsRouter from './routes/conversations.js';
@@ -11,7 +12,19 @@ import { sqlite } from './db/index.js';
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
+// Trust first proxy (nginx/Docker) for correct client IP in rate limiting and logging
+app.set('trust proxy', 1);
+
+// Security headers via helmet
+app.use(helmet({
+  contentSecurityPolicy: false, // CSP handled by nginx for the webapp; API responses don't serve HTML
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+}));
+
 // Middleware
+// CORS: In production, replace chrome-extension regex with specific extension ID
+// and localhost with the actual production origin (e.g., https://app.adtraffic.ai).
+// Current config is permissive for development. See SEC-003 in enterprise-backlog.md.
 app.use(cors({
   origin: [
     /^chrome-extension:\/\//,

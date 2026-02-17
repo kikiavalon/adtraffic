@@ -19,7 +19,7 @@ router.get('/api/conversations', requireAuth, (req, res) => {
     const conversations = getConversations(userId, limit, offset);
     res.json({ conversations });
   } catch (error) {
-    console.error('Error listing conversations:', error);
+    console.error('Error listing conversations:', error instanceof Error ? error.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to list conversations' });
   }
 });
@@ -50,7 +50,7 @@ router.get('/api/conversations/:id/messages', requireAuth, (req, res) => {
     const messages = getMessages(id, limit, offset);
     res.json({ messages });
   } catch (error) {
-    console.error('Error loading messages:', error);
+    console.error('Error loading messages:', error instanceof Error ? error.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to load messages' });
   }
 });
@@ -79,7 +79,7 @@ router.delete('/api/conversations/:id', requireAuth, (req, res) => {
     clearConversation(id);
     res.json({ success: true, conversationId: id });
   } catch (error) {
-    console.error('Error deleting conversation:', error);
+    console.error('Error deleting conversation:', error instanceof Error ? error.message : 'Unknown error');
     res.status(500).json({ error: 'Failed to delete conversation' });
   }
 });

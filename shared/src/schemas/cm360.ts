@@ -40,7 +40,7 @@ export const CreateLandingPageSchema = z.object({
 export const ListFilterSchema = z.object({
   advertiserId: z.string().optional(),
   campaignId: z.string().optional(),
-  searchString: z.string().optional(),
+  searchString: z.string().max(500).optional(),
   maxResults: z.number().int().min(1).max(1000).optional().default(100),
   pageToken: z.string().optional(),
 });

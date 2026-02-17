@@ -183,7 +183,7 @@ const markdownComponents = {
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
 function generateConversationId(): string {
-  return `conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `conv-${crypto.randomUUID()}`;
 }
 
 const WELCOME_MESSAGE = `Hey! I'm **Kiki**, your CM360 trafficking assistant. I'm connected to the Demo Agency account and ready to help.

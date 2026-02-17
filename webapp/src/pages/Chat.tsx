@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
 import ConversationSidebar from '../components/ConversationSidebar.js';
@@ -228,7 +229,7 @@ function Chat() {
                 <div className="chat-message-bubble">
                   <div className="chat-message-sender">Kiki</div>
                   <div className="chat-message-content">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                   </div>
                 </div>
               </div>

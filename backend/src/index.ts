@@ -33,7 +33,12 @@ app.use(errorHandler);
 // Only start server when run directly (not when imported for testing)
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
+    const model = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001';
+    const maxTokens = process.env.CLAUDE_MAX_TOKENS ?? '1024';
+    const dailyLimit = process.env.DAILY_API_LIMIT ?? '100';
     console.log(`AdTraffic.ai backend running on port ${PORT}`);
+    console.log(`  Model: ${model} | Max tokens: ${maxTokens} | Daily limit: ${dailyLimit} requests`);
+    console.log(`  Usage dashboard: http://localhost:${PORT}/api/usage`);
   });
 }
 

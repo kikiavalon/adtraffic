@@ -71,7 +71,7 @@ describe('kiki-service', () => {
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: 'claude-sonnet-4-5-20250929',
+        model: expect.stringMatching(/^claude-/),
         system: expect.stringContaining('Kiki'),
         tools: expect.arrayContaining([
           expect.objectContaining({ name: 'cm360_list_campaigns' }),

@@ -86,6 +86,7 @@ describe('kiki-service', () => {
           expect.objectContaining({ role: 'user', content: 'List my campaigns' }),
         ]),
       }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 

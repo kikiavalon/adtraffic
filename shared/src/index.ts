@@ -2,6 +2,7 @@
 export type {
   CM360UserProfile,
   CM360Advertiser,
+  CM360AdvertiserStatus,
   CM360Campaign,
   CM360CreateCampaignInput,
   CM360Site,
@@ -9,11 +10,15 @@ export type {
   CM360LandingPage,
   CM360CreateLandingPageInput,
   CM360Placement,
+  CM360PlacementStatus,
   CM360CreatePlacementInput,
   CM360PlacementGroup,
   CM360Ad,
   CM360Creative,
+  CM360CreativeType,
   CM360PlacementTag,
+  CM360TagFormat,
+  CM360BuildResource,
   CM360ListResponse,
 } from './types/cm360.js';
 

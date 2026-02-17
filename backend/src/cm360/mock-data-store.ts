@@ -190,7 +190,7 @@ class MockDataStore {
           id,
           name: `${advName}_${size.width}x${size.height}_v${cr + 1}`,
           advertiserId: advId,
-          type: 'DISPLAY_IMAGE_GALLERY',
+          type: 'DISPLAY',
           size: {
             id: `size-${size.width}x${size.height}`,
             width: size.width,
@@ -236,7 +236,7 @@ class MockDataStore {
               height: size.height,
               iab: true,
             },
-            status: faker.helpers.arrayElement(['ACTIVE', 'ACTIVE', 'ACTIVE', 'DRAFT']),
+            status: faker.helpers.arrayElement(['PAYMENT_ACCEPTED', 'PAYMENT_ACCEPTED', 'PAYMENT_ACCEPTED', 'DRAFT'] as const),
             pricingSchedule: {
               startDate: camp.startDate,
               endDate: camp.endDate,

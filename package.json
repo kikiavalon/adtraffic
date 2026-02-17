@@ -16,7 +16,7 @@
     "dev:webapp": "npm run dev --workspace=webapp",
     "test": "npm test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "clean": "rm -rf node_modules shared/node_modules backend/node_modules webapp/node_modules"
+    "clean": "rm -rf node_modules shared/node_modules shared/dist backend/node_modules backend/dist webapp/node_modules webapp/dist companion/dist"
   },
   "engines": {
     "node": ">=20.0.0"

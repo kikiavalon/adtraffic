@@ -1,6 +1,48 @@
 import type { CM360PageContext } from './types.js';
 import { extractContextFromHash, extractContextFromDOM, mergeContexts } from './context-extractor.js';
 
+/** Unique class name to scope FAB styles and avoid conflicts with host page */
+const FAB_CLASS = 'adtraffic-kiki-fab';
+const FAB_STYLE_ID = 'adtraffic-kiki-fab-style';
+
+/**
+ * Inject scoped CSS for the FAB if not already present.
+ */
+function ensureFabStyles(): void {
+  if (document.getElementById(FAB_STYLE_ID)) return;
+
+  const style = document.createElement('style');
+  style.id = FAB_STYLE_ID;
+  style.textContent = `
+    .${FAB_CLASS} {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      color: #fff;
+      border: none;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+      cursor: pointer;
+      z-index: 999999;
+      font-size: 22px;
+      font-weight: 700;
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .${FAB_CLASS}:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 /**
  * Inject a floating "Open Kiki" button on CM360 pages.
  */
@@ -8,35 +50,16 @@ function injectFloatingButton(context: CM360PageContext): void {
   // Don't inject twice
   if (document.getElementById('adtraffic-kiki-fab')) return;
 
+  ensureFabStyles();
+
   const fab = document.createElement('button');
   fab.id = 'adtraffic-kiki-fab';
+  fab.className = FAB_CLASS;
   fab.title = 'Open Kiki — AdTraffic.ai';
-
-  // Style the floating action button
-  Object.assign(fab.style, {
-    position: 'fixed',
-    bottom: '24px',
-    right: '24px',
-    width: '56px',
-    height: '56px',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-    color: '#fff',
-    border: 'none',
-    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.4)',
-    cursor: 'pointer',
-    zIndex: '999999',
-    fontSize: '22px',
-    fontWeight: '700',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transition: 'transform 0.2s, box-shadow 0.2s',
-  });
-
   fab.textContent = 'K';
 
+  // JS-based hover handlers for environments where CSS :hover may not apply
+  // (e.g., programmatic testing). The CSS :hover rule handles real browser behavior.
   fab.addEventListener('mouseenter', () => {
     fab.style.transform = 'scale(1.1)';
     fab.style.boxShadow = '0 6px 20px rgba(37, 99, 235, 0.5)';

@@ -1,4 +1,14 @@
+/**
+ * Database connection module.
+ *
+ * Schema creation is handled by Drizzle Kit (`drizzle-kit push`) — not by
+ * auto-migration at runtime. This is intentional: schema changes are applied
+ * explicitly during development or deployment, keeping the runtime startup
+ * fast and predictable.
+ */
+
 import Database from 'better-sqlite3';
+import type BetterSqlite3 from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema.js';
 import { join, dirname } from 'path';
@@ -14,7 +24,8 @@ const DB_PATH = process.env.DATABASE_URL ?? join(__dirname, '../../data/adtraffi
 const dataDir = dirname(DB_PATH);
 mkdirSync(dataDir, { recursive: true });
 
-const sqlite = new Database(DB_PATH);
+/** Raw SQLite connection — exported for graceful shutdown */
+export const sqlite: BetterSqlite3.Database = new Database(DB_PATH);
 
 // Enable WAL mode for better concurrent performance
 sqlite.pragma('journal_mode = WAL');

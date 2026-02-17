@@ -4,6 +4,8 @@ describe('content script', () => {
   beforeEach(() => {
     vi.resetModules();
     document.body.innerHTML = '';
+    // Remove injected style element from previous test
+    document.getElementById('adtraffic-kiki-fab-style')?.remove();
     // Reset location hash
     window.location.hash = '';
   });
@@ -69,14 +71,25 @@ describe('content script', () => {
       expect(fab?.textContent).toBe('K');
     });
 
-    it('FAB has position fixed and z-index 999999', async () => {
+    it('FAB has the adtraffic-kiki-fab class applied', async () => {
       window.location.hash = '#/accounts/67890';
 
       await loadContentScript();
 
       const fab = document.getElementById('adtraffic-kiki-fab');
-      expect(fab?.style.position).toBe('fixed');
-      expect(fab?.style.zIndex).toBe('999999');
+      expect(fab?.className).toBe('adtraffic-kiki-fab');
+    });
+
+    it('injects a <style> element with FAB CSS including position fixed and z-index', async () => {
+      window.location.hash = '#/accounts/67890';
+
+      await loadContentScript();
+
+      const style = document.getElementById('adtraffic-kiki-fab-style');
+      expect(style).not.toBeNull();
+      expect(style?.tagName).toBe('STYLE');
+      expect(style?.textContent).toContain('position: fixed');
+      expect(style?.textContent).toContain('z-index: 999999');
     });
 
     it('does not inject duplicate button on re-import', async () => {
@@ -155,12 +168,12 @@ describe('content script', () => {
       expect(fab.parentNode).toBe(document.body);
     });
 
-    it('FAB has border-radius 50% (circular)', async () => {
+    it('style element contains border-radius 50% (circular)', async () => {
       window.location.hash = '#/accounts/67890';
       await loadContentScript();
 
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.borderRadius).toBe('50%');
+      const style = document.getElementById('adtraffic-kiki-fab-style')!;
+      expect(style.textContent).toContain('border-radius: 50%');
     });
 
     it('sends context with all fields extracted from hash', async () => {
@@ -457,106 +470,102 @@ describe('content script', () => {
     });
   });
 
-  describe('FAB styling', () => {
-    it('FAB has width 56px', async () => {
+  describe('FAB styling (injected <style> element)', () => {
+    async function getStyleContent(): Promise<string> {
       window.location.hash = '#/accounts/67890';
       await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.width).toBe('56px');
+      const style = document.getElementById('adtraffic-kiki-fab-style')!;
+      return style.textContent ?? '';
+    }
+
+    it('style element contains width 56px', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('width: 56px');
     });
 
-    it('FAB has height 56px', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.height).toBe('56px');
+    it('style element contains height 56px', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('height: 56px');
     });
 
-    it('FAB has bottom 24px', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.bottom).toBe('24px');
+    it('style element contains bottom 24px', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('bottom: 24px');
     });
 
-    it('FAB has right 24px', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.right).toBe('24px');
+    it('style element contains right 24px', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('right: 24px');
     });
 
-    it('FAB has cursor pointer', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.cursor).toBe('pointer');
+    it('style element contains cursor pointer', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('cursor: pointer');
     });
 
-    it('FAB has border set to none', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      // jsdom parses shorthand "none" into individual border properties
-      expect(fab.style.borderStyle).toBe('none');
+    it('style element contains border none', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('border: none');
     });
 
-    it('FAB has white text color', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      // jsdom normalizes #fff to rgb(255, 255, 255)
-      expect(fab.style.color).toBe('rgb(255, 255, 255)');
+    it('style element contains white text color', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('color: #fff');
     });
 
-    it('FAB has font-size 22px', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.fontSize).toBe('22px');
+    it('style element contains font-size 22px', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('font-size: 22px');
     });
 
-    it('FAB has font-weight 700', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.fontWeight).toBe('700');
+    it('style element contains font-weight 700', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('font-weight: 700');
     });
 
-    it('FAB has display flex', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.display).toBe('flex');
+    it('style element contains display flex', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('display: flex');
     });
 
-    it('FAB has align-items center', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.alignItems).toBe('center');
+    it('style element contains align-items center', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('align-items: center');
     });
 
-    it('FAB has justify-content center', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.justifyContent).toBe('center');
+    it('style element contains justify-content center', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('justify-content: center');
     });
 
-    it('FAB has gradient background', async () => {
-      window.location.hash = '#/accounts/67890';
-      await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.background).toContain('linear-gradient');
+    it('style element contains gradient background', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('linear-gradient');
     });
 
-    it('FAB has transition for transform and box-shadow', async () => {
+    it('style element contains transition for transform and box-shadow', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain('transition:');
+      expect(css).toContain('transform');
+      expect(css).toContain('box-shadow');
+    });
+
+    it('style element contains :hover rule with scale(1.1)', async () => {
+      const css = await getStyleContent();
+      expect(css).toContain(':hover');
+      expect(css).toContain('scale(1.1)');
+    });
+
+    it('does not inject duplicate style element on hashchange', async () => {
       window.location.hash = '#/accounts/67890';
       await loadContentScript();
-      const fab = document.getElementById('adtraffic-kiki-fab')!;
-      expect(fab.style.transition).toContain('transform');
-      expect(fab.style.transition).toContain('box-shadow');
+
+      // Trigger hashchange which re-creates FAB
+      window.location.hash = '#/accounts/99999';
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+      const styles = document.querySelectorAll('#adtraffic-kiki-fab-style');
+      expect(styles.length).toBe(1);
     });
   });
 

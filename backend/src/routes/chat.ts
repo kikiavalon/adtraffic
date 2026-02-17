@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import express from 'express';
 import { randomUUID } from 'crypto';
 import { ChatRequestSchema } from '@adtraffic/shared';
 import type { ChatResponse } from '@adtraffic/shared';
@@ -13,8 +14,9 @@ const router = Router();
  *
  * Receives a user message, forwards to Claude API via Kiki service,
  * returns Kiki's AI-generated response.
+ * Uses a larger body limit (10mb) for messages that may include file uploads.
  */
-router.post('/api/chat', requireAuth, async (req, res) => {
+router.post('/api/chat', express.json({ limit: '10mb' }), requireAuth, async (req, res) => {
   const parsed = ChatRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {

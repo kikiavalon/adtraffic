@@ -1,5 +1,5 @@
 import { db, schema } from './index.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, asc } from 'drizzle-orm';
 import type Anthropic from '@anthropic-ai/sdk';
 
 // Cache Claude's full conversation history (with tool_use/tool_result blocks) in memory.
@@ -7,11 +7,35 @@ import type Anthropic from '@anthropic-ai/sdk';
 // On server restart, conversations start fresh (acceptable for MVP).
 const historyCache = new Map<string, Anthropic.MessageParam[]>();
 
+/** Maximum number of conversations to keep in the in-memory history cache. */
+const MAX_CACHE_SIZE = 100;
+
+/**
+ * Evict the oldest cache entry if the cache exceeds MAX_CACHE_SIZE.
+ * Maps maintain insertion order, so the first key is the oldest.
+ */
+function evictIfNeeded(): void {
+  if (historyCache.size > MAX_CACHE_SIZE) {
+    const oldestKey = historyCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      historyCache.delete(oldestKey);
+    }
+  }
+}
+
 /**
  * Get conversation history for Claude API calls.
+ * If the conversation is not in cache, initializes an empty array in the cache
+ * so that callers' mutations (push) are automatically reflected.
  */
 export function getHistory(conversationId: string): Anthropic.MessageParam[] {
-  return historyCache.get(conversationId) ?? [];
+  let history = historyCache.get(conversationId);
+  if (!history) {
+    history = [];
+    historyCache.set(conversationId, history);
+    evictIfNeeded();
+  }
+  return history;
 }
 
 /**
@@ -19,6 +43,7 @@ export function getHistory(conversationId: string): Anthropic.MessageParam[] {
  */
 export function saveHistory(conversationId: string, history: Anthropic.MessageParam[]): void {
   historyCache.set(conversationId, history);
+  evictIfNeeded();
 }
 
 /**
@@ -29,12 +54,8 @@ export function saveMessage(
   message: { id: string; role: 'user' | 'assistant'; content: string; timestamp: number },
   userId?: string,
 ): void {
-  // Ensure conversation exists
-  const existing = db.select().from(schema.conversations)
-    .where(eq(schema.conversations.id, conversationId))
-    .get();
-
-  if (!existing && userId) {
+  // Ensure conversation exists — use INSERT OR IGNORE to handle concurrent inserts safely
+  if (userId) {
     const now = new Date();
     db.insert(schema.conversations).values({
       id: conversationId,
@@ -42,7 +63,7 @@ export function saveMessage(
       title: message.role === 'user' ? message.content.slice(0, 100) : null,
       createdAt: now,
       updatedAt: now,
-    }).run();
+    }).onConflictDoNothing().run();
   }
 
   db.insert(schema.messages).values({
@@ -54,12 +75,10 @@ export function saveMessage(
   }).run();
 
   // Update conversation timestamp
-  if (existing) {
-    db.update(schema.conversations)
-      .set({ updatedAt: new Date() })
-      .where(eq(schema.conversations.id, conversationId))
-      .run();
-  }
+  db.update(schema.conversations)
+    .set({ updatedAt: new Date() })
+    .where(eq(schema.conversations.id, conversationId))
+    .run();
 }
 
 /**
@@ -103,9 +122,9 @@ export function getConversation(conversationId: string): {
 }
 
 /**
- * Get all conversations for a user, ordered by most recent.
+ * Get conversations for a user, ordered by most recent, with pagination.
  */
-export function getConversations(userId: string): Array<{
+export function getConversations(userId: string, limit = 50, offset = 0): Array<{
   id: string;
   title: string | null;
   createdAt: Date;
@@ -120,13 +139,15 @@ export function getConversations(userId: string): Array<{
     .from(schema.conversations)
     .where(eq(schema.conversations.userId, userId))
     .orderBy(desc(schema.conversations.updatedAt))
+    .limit(limit)
+    .offset(offset)
     .all();
 }
 
 /**
- * Get all display messages for a conversation.
+ * Get display messages for a conversation, ordered by timestamp, with pagination.
  */
-export function getMessages(conversationId: string): Array<{
+export function getMessages(conversationId: string, limit = 100, offset = 0): Array<{
   id: string;
   role: string;
   content: string;
@@ -140,5 +161,8 @@ export function getMessages(conversationId: string): Array<{
   })
     .from(schema.messages)
     .where(eq(schema.messages.conversationId, conversationId))
+    .orderBy(asc(schema.messages.timestamp))
+    .limit(limit)
+    .offset(offset)
     .all();
 }

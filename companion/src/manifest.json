@@ -3,7 +3,7 @@
   "name": "AdTraffic.ai — Kiki for CM360",
   "version": "0.1.0",
   "description": "Quick-launch Kiki, your CM360 trafficking assistant, with page context",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "tabs"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

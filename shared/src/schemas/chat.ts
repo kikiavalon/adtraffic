@@ -2,7 +2,12 @@ import { z } from 'zod';
 
 export const FileAttachmentSchema = z.object({
   name: z.string().min(1),
-  type: z.string().min(1),
+  type: z.enum([
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'text/csv',
+  ]),
   data: z.string().min(1, 'File data is required'),
   sizeBytes: z.number().int().positive(),
 });

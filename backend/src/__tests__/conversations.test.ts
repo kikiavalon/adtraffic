@@ -4,12 +4,12 @@ import app from '../index.js';
 import { db, schema } from '../db/index.js';
 
 vi.mock('../claude/kiki-service.js', () => ({
-  chat: vi.fn().mockResolvedValue({
+  chat: vi.fn().mockImplementation(() => Promise.resolve({
     id: 'mock-assistant-id',
     role: 'assistant',
     content: 'Mock response',
-    timestamp: 1234567890,
-  }),
+    timestamp: Date.now() + 100, // Ensure assistant timestamp is after user's Date.now()
+  })),
   clearConversation: vi.fn(),
 }));
 

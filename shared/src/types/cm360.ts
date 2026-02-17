@@ -4,6 +4,54 @@
  * Reference: https://developers.google.com/doubleclick-advertisers/rest/v5
  */
 
+/** CM360 placement status values per API v5 */
+export type CM360PlacementStatus =
+  | 'PENDING_REVIEW'
+  | 'PAYMENT_ACCEPTED'
+  | 'PAYMENT_REJECTED'
+  | 'ACKNOWLEDGE_REJECTION'
+  | 'ACKNOWLEDGE_ACCEPTANCE'
+  | 'DRAFT';
+
+/** CM360 creative type values per API v5 */
+export type CM360CreativeType =
+  | 'DISPLAY'
+  | 'DISPLAY_REDIRECT'
+  | 'HTML5_BANNER'
+  | 'IMAGE'
+  | 'INTERNAL_REDIRECT'
+  | 'RICH_MEDIA_DISPLAY_BANNER'
+  | 'RICH_MEDIA_DISPLAY_EXPANDING'
+  | 'RICH_MEDIA_DISPLAY_INTERSTITIAL'
+  | 'RICH_MEDIA_DISPLAY_MULTI_FLOATING_INTERSTITIAL'
+  | 'RICH_MEDIA_MOBILE_IN_APP'
+  | 'RICH_MEDIA_PEEL_DOWN'
+  | 'TRACKING'
+  | 'VAST_REDIRECT'
+  | 'VPAID_LINEAR'
+  | 'VPAID_NON_LINEAR';
+
+/** CM360 placement tag format values per API v5 */
+export type CM360TagFormat =
+  | 'PLACEMENT_TAG_STANDARD'
+  | 'PLACEMENT_TAG_IFRAME_JAVASCRIPT'
+  | 'PLACEMENT_TAG_IFRAME_JAVASCRIPT_LEGACY'
+  | 'PLACEMENT_TAG_INTERNAL_REDIRECT'
+  | 'PLACEMENT_TAG_JAVASCRIPT'
+  | 'PLACEMENT_TAG_INTERSTITIAL_IFRAME_JAVASCRIPT'
+  | 'PLACEMENT_TAG_INTERSTITIAL_INTERNAL_REDIRECT'
+  | 'PLACEMENT_TAG_INTERSTITIAL_JAVASCRIPT'
+  | 'PLACEMENT_TAG_CLICK_COMMANDS'
+  | 'PLACEMENT_TAG_TRACKING'
+  | 'PLACEMENT_TAG_TRACKING_IFRAME'
+  | 'PLACEMENT_TAG_TRACKING_JAVASCRIPT';
+
+/** CM360 advertiser status values per API v5 */
+export type CM360AdvertiserStatus = 'APPROVED' | 'ON_HOLD' | 'ARCHIVED';
+
+/** CM360 build operation resource types */
+export type CM360BuildResource = 'campaign' | 'placement' | 'ad' | 'creative' | 'landingPage' | 'site';
+
 export interface CM360UserProfile {
   profileId: string;
   accountId: string;
@@ -16,7 +64,7 @@ export interface CM360Advertiser {
   id: string;
   name: string;
   accountId: string;
-  status: 'APPROVED' | 'ON_HOLD';
+  status: CM360AdvertiserStatus;
   floodlightConfigurationId?: string;
 }
 
@@ -76,12 +124,13 @@ export interface CM360Placement {
   campaignId: string;
   siteId: string;
   size: CM360Size;
-  status: string;
+  status: CM360PlacementStatus;
   pricingSchedule: {
     startDate: string;
     endDate: string;
   };
-  tagFormats: string[];
+  tagFormats: CM360TagFormat[];
+  archived?: boolean;
 }
 
 export interface CM360CreatePlacementInput {
@@ -98,6 +147,8 @@ export interface CM360CreatePlacementInput {
 export interface CM360PlacementGroup {
   id: string;
   name: string;
+  accountId?: string;
+  advertiserId?: string;
   campaignId: string;
   siteId: string;
   placementGroupType: 'PLACEMENT_PACKAGE' | 'PLACEMENT_ROADBLOCK';
@@ -123,7 +174,7 @@ export interface CM360Creative {
   id: string;
   name: string;
   advertiserId: string;
-  type: string;
+  type: CM360CreativeType;
   size: CM360Size;
   active: boolean;
 }
@@ -131,7 +182,7 @@ export interface CM360Creative {
 export interface CM360PlacementTag {
   placementId: string;
   tagData: Array<{
-    format: string;
+    format: CM360TagFormat;
     impressionTag: string;
     clickTag: string;
   }>;

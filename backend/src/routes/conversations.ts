@@ -8,12 +8,15 @@ const router = Router();
 /**
  * GET /api/conversations
  *
- * List all conversations for the authenticated user.
+ * List conversations for the authenticated user with pagination.
+ * Query params: ?limit=50&offset=0
  */
 router.get('/api/conversations', requireAuth, (req, res) => {
   try {
     const userId = req.user!.userId;
-    const conversations = getConversations(userId);
+    const limit = Math.max(1, Math.min(200, parseInt(req.query['limit'] as string, 10) || 50));
+    const offset = Math.max(0, parseInt(req.query['offset'] as string, 10) || 0);
+    const conversations = getConversations(userId, limit, offset);
     res.json({ conversations });
   } catch (error) {
     console.error('Error listing conversations:', error);
@@ -42,7 +45,9 @@ router.get('/api/conversations/:id/messages', requireAuth, (req, res) => {
       return;
     }
 
-    const messages = getMessages(id);
+    const limit = Math.max(1, Math.min(500, parseInt(req.query['limit'] as string, 10) || 100));
+    const offset = Math.max(0, parseInt(req.query['offset'] as string, 10) || 0);
+    const messages = getMessages(id, limit, offset);
     res.json({ messages });
   } catch (error) {
     console.error('Error loading messages:', error);

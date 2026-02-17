@@ -6,6 +6,7 @@ export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /** Unix timestamp in milliseconds */
   timestamp: number;
   /** File attachment (IO upload) */
   attachment?: FileAttachment;
@@ -17,7 +18,7 @@ export interface ChatMessage {
 
 export interface FileAttachment {
   name: string;
-  type: 'application/pdf' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | string;
+  type: 'application/pdf' | 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' | 'application/vnd.ms-excel' | 'text/csv';
   /** Base64-encoded file content */
   data: string;
   sizeBytes: number;
@@ -65,7 +66,7 @@ export interface BuildPreview {
 
 export interface BuildOperation {
   type: 'create' | 'update' | 'rename';
-  resource: string; // 'campaign' | 'placement' | 'ad' | etc.
+  resource: import('./cm360.js').CM360BuildResource;
   summary: string;
   details: Record<string, unknown>;
 }

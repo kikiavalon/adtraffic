@@ -219,6 +219,7 @@ function Chat() {
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const { user, logout, authFetch } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -234,6 +235,13 @@ function Chat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Refocus input after loading finishes
+  useEffect(() => {
+    if (!isLoading) {
+      inputRef.current?.focus();
+    }
+  }, [isLoading]);
 
   // Abort in-flight request on unmount
   useEffect(() => {
@@ -477,6 +485,7 @@ function Chat() {
           +
         </button>
         <textarea
+          ref={inputRef}
           className="chat-message-input"
           value={input}
           onChange={(e) => setInput(e.target.value)}

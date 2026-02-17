@@ -8,7 +8,7 @@ let latestContext: CM360PageContext | null = null;
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, _sender, sendResponse) => {
     switch (message.type) {
-      case 'CM360_CONTEXT':
+      case 'CM360_CONTEXT': {
         latestContext = message.data;
 
         // Update badge to show we detected a CM360 page
@@ -16,10 +16,11 @@ chrome.runtime.onMessage.addListener(
         chrome.action.setBadgeText({ text: label });
         chrome.action.setBadgeBackgroundColor({ color: '#16a34a' }); // green
         break;
-
-      case 'GET_CONTEXT':
+      }
+      case 'GET_CONTEXT': {
         sendResponse({ type: 'CONTEXT_RESPONSE', data: latestContext });
         return true; // keep channel open for async sendResponse
+      }
     }
   },
 );

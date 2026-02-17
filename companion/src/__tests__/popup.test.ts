@@ -274,7 +274,7 @@ describe('popup', () => {
 
       const call = chrome.tabs.create.mock.calls[0][0] as { url: string };
       // URL should be base URL without query params
-      expect(call.url).toBe('http://localhost:5173');
+      expect(call.url).toBe('http://localhost:5173/');
     });
 
     it('includes only campaignId when advertiserId is missing', async () => {

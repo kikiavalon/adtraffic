@@ -19,7 +19,7 @@ router.post('/api/auth/register', async (req, res) => {
   const parsed = RegisterSchema.safeParse(req.body);
 
   if (!parsed.success) {
-    res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
+    res.status(400).json({ error: 'Invalid input' });
     return;
   }
 
@@ -39,7 +39,7 @@ router.post('/api/auth/login', async (req, res) => {
   const parsed = LoginSchema.safeParse(req.body);
 
   if (!parsed.success) {
-    res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
+    res.status(400).json({ error: 'Invalid input' });
     return;
   }
 

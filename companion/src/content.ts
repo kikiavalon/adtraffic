@@ -53,8 +53,19 @@ function injectFloatingButton(context: CM360PageContext): void {
 
     // Read the base URL from storage, default to localhost dev server
     chrome.storage.local.get({ baseUrl: 'http://localhost:5173' }, (result) => {
-      const url = `${result.baseUrl}/?${params.toString()}`;
-      window.open(url, '_blank');
+      const baseUrl = String(result.baseUrl);
+      // Validate URL is HTTP/HTTPS
+      try {
+        const parsed = new URL(baseUrl);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          console.error('Invalid baseUrl protocol:', parsed.protocol);
+          return;
+        }
+        const launchUrl = `${parsed.origin}${parsed.pathname}?${params.toString()}`;
+        window.open(launchUrl, '_blank');
+      } catch {
+        console.error('Invalid baseUrl:', baseUrl);
+      }
     });
   });
 
@@ -71,7 +82,11 @@ function main(): void {
 
   // Store context and notify background
   chrome.storage.local.set({ cm360Context: context });
-  chrome.runtime.sendMessage({ type: 'CM360_CONTEXT', data: context });
+  try {
+    chrome.runtime.sendMessage({ type: 'CM360_CONTEXT', data: context });
+  } catch {
+    // Background worker not yet active — expected in MV3
+  }
 
   // Inject the floating button
   injectFloatingButton(context);
@@ -83,7 +98,11 @@ function main(): void {
     const updatedContext = mergeContexts(updatedHash, updatedDom);
 
     chrome.storage.local.set({ cm360Context: updatedContext });
-    chrome.runtime.sendMessage({ type: 'CM360_CONTEXT', data: updatedContext });
+    try {
+      chrome.runtime.sendMessage({ type: 'CM360_CONTEXT', data: updatedContext });
+    } catch {
+      // Background worker not yet active — expected in MV3
+    }
 
     // Update the FAB's click handler with new context
     const existingFab = document.getElementById('adtraffic-kiki-fab');

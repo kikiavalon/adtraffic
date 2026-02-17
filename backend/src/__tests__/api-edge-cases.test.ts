@@ -210,20 +210,20 @@ describe('POST /api/chat — edge cases', () => {
 // ---------------------------------------------------------------------------
 
 describe('Conversations API — edge cases', () => {
-  it('GET /api/conversations/:id/messages returns empty for unknown ID', async () => {
+  it('GET /api/conversations/:id/messages returns 404 for unknown ID', async () => {
     const res = await request(app)
       .get('/api/conversations/unknown-id-12345/messages')
       .set('Authorization', `Bearer ${authToken}`);
-    expect(res.status).toBe(200);
-    expect(res.body.messages).toEqual([]);
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Conversation not found');
   });
 
-  it('DELETE /api/conversations/:id succeeds even if conversation does not exist', async () => {
+  it('DELETE /api/conversations/:id returns 404 if conversation does not exist', async () => {
     const res = await request(app)
       .delete('/api/conversations/never-existed')
       .set('Authorization', `Bearer ${authToken}`);
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Conversation not found');
   });
 
   it('conversation title is set from first user message', async () => {

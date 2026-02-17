@@ -27,7 +27,7 @@ function Login() {
         <h1 className="auth-title">AdTraffic.ai</h1>
         <p className="auth-subtitle">Sign in to chat with Kiki</p>
 
-        {error && <div className="auth-error">{error}</div>}
+        {error && <div className="auth-error" role="alert">{error}</div>}
 
         <form onSubmit={handleSubmit} className="auth-form">
           <label className="auth-label">

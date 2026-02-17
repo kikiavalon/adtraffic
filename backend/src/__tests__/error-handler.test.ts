@@ -2,7 +2,7 @@
  * Tests for the global error handler middleware.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
 import { errorHandler } from '../middleware/error-handler.js';
 
@@ -36,7 +36,6 @@ describe('errorHandler', () => {
     errorHandler(new Error('Sensitive internal error'), mockReq, res, mockNext);
     expect(res.json).toHaveBeenCalledWith({
       error: 'Internal server error',
-      message: 'Something went wrong',
     });
   });
 
@@ -45,8 +44,7 @@ describe('errorHandler', () => {
     const res = createMockRes();
     errorHandler(new Error('Debug info'), mockReq, res, mockNext);
     expect(res.json).toHaveBeenCalledWith({
-      error: 'Internal server error',
-      message: 'Debug info',
+      error: 'Debug info',
     });
   });
 

@@ -8,13 +8,13 @@ import authRouter from './routes/auth.js';
 import { errorHandler } from './middleware/error-handler.js';
 
 const app = express();
-const PORT = process.env.PORT ?? 3001;
+const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
 // Middleware
 app.use(cors({
   origin: [
     /^chrome-extension:\/\//,
-    /^http:\/\/localhost/,
+    /^http:\/\/localhost(:\d+)?$/,
   ],
   methods: ['GET', 'POST', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],

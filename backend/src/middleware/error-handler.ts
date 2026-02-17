@@ -8,7 +8,6 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
   console.error('Unhandled error:', err.message);
 
   res.status(500).json({
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
   });
 }

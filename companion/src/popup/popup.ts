@@ -10,12 +10,23 @@ const saveSettingsBtn = document.getElementById('save-settings')!;
 let currentContext: CM360PageContext | null = null;
 
 /**
+ * Render a "no context" message in the popup.
+ */
+function renderNoContext(): void {
+  contextDisplay.textContent = '';
+  const noCtx = document.createElement('div');
+  noCtx.className = 'no-context';
+  noCtx.textContent = 'No CM360 page detected. Navigate to a CM360 page or the mock test page.';
+  contextDisplay.appendChild(noCtx);
+  openKikiBtn.disabled = true;
+}
+
+/**
  * Render the detected CM360 context in the popup.
  */
 function renderContext(context: CM360PageContext | null): void {
   if (!context || (!context.advertiserId && !context.campaignId && !context.accountId)) {
-    contextDisplay.innerHTML = '<div class="no-context">No CM360 page detected.<br>Navigate to a CM360 page or the mock test page.</div>';
-    openKikiBtn.disabled = true;
+    renderNoContext();
     return;
   }
 
@@ -27,12 +38,20 @@ function renderContext(context: CM360PageContext | null): void {
   if (context.campaignId) items.push({ label: 'Campaign', value: context.campaignId });
   if (context.pageType) items.push({ label: 'Page', value: context.pageType });
 
-  contextDisplay.innerHTML = items
-    .map(
-      (item) =>
-        `<div class="context-item"><span class="context-label">${item.label}</span><span class="context-value">${item.value}</span></div>`,
-    )
-    .join('');
+  contextDisplay.textContent = '';
+  for (const item of items) {
+    const div = document.createElement('div');
+    div.className = 'context-item';
+    const label = document.createElement('span');
+    label.className = 'context-label';
+    label.textContent = item.label;
+    const value = document.createElement('span');
+    value.className = 'context-value';
+    value.textContent = item.value;
+    div.appendChild(label);
+    div.appendChild(value);
+    contextDisplay.appendChild(div);
+  }
 
   openKikiBtn.disabled = false;
 }
@@ -44,6 +63,11 @@ function fetchContext(): void {
   chrome.runtime.sendMessage(
     { type: 'GET_CONTEXT' } satisfies ExtensionMessage,
     (response: ExtensionMessage | undefined) => {
+      if (chrome.runtime.lastError) {
+        // Background worker not available
+        renderNoContext();
+        return;
+      }
       if (response?.type === 'CONTEXT_RESPONSE') {
         currentContext = response.data;
         renderContext(currentContext);
@@ -63,13 +87,26 @@ function fetchContext(): void {
  */
 openKikiBtn.addEventListener('click', () => {
   chrome.storage.local.get({ baseUrl: 'http://localhost:5173' }, (result) => {
-    const params = new URLSearchParams();
-    if (currentContext?.advertiserId) params.set('advertiserId', currentContext.advertiserId);
-    if (currentContext?.campaignId) params.set('campaignId', currentContext.campaignId);
+    const baseUrl = String(result.baseUrl);
+    // Validate URL is HTTP/HTTPS
+    try {
+      const parsed = new URL(baseUrl);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        console.error('Invalid baseUrl protocol:', parsed.protocol);
+        return;
+      }
+      const params = new URLSearchParams();
+      if (currentContext?.advertiserId) params.set('advertiserId', currentContext.advertiserId);
+      if (currentContext?.campaignId) params.set('campaignId', currentContext.campaignId);
 
-    const query = params.toString();
-    const url = query ? `${result.baseUrl}/?${query}` : result.baseUrl;
-    chrome.tabs.create({ url });
+      const query = params.toString();
+      const url = query
+        ? `${parsed.origin}${parsed.pathname}?${query}`
+        : `${parsed.origin}${parsed.pathname}`;
+      chrome.tabs.create({ url });
+    } catch {
+      console.error('Invalid baseUrl:', baseUrl);
+    }
   });
 });
 

@@ -283,6 +283,50 @@
   font-size: 13px;
 }
 
+/* Code block with copy button */
+.code-block-wrapper {
+  position: relative;
+  margin: 8px 0;
+}
+
+.code-block-wrapper pre {
+  background: #2d2d2d;
+  color: #f0f0f0;
+  padding: 12px;
+  padding-top: 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0;
+}
+
+.code-block-wrapper pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.code-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  z-index: 1;
+}
+
+.code-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+/* Fallback for pre blocks not inside wrapper (shouldn't happen but safety) */
 .chat-message-assistant .chat-message-content pre {
   background: #2d2d2d;
   color: #f0f0f0;
@@ -343,6 +387,93 @@
 .chat-user-name {
   font-size: 13px;
   color: #666;
+}
+
+/* Quick reply buttons */
+.quick-reply-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd;
+}
+
+.quick-reply-btn {
+  display: block;
+  text-align: left;
+  padding: 8px 14px;
+  border: 1px solid #b8d4ff;
+  border-radius: 20px;
+  background: #eef4ff;
+  color: #0052cc;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  line-height: 1.4;
+}
+
+.quick-reply-btn:hover:not(:disabled) {
+  background: #dce8ff;
+  border-color: #80b3ff;
+}
+
+.quick-reply-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.quick-reply-btn-open {
+  border-style: dashed;
+  color: #666;
+  background: #f7f7f7;
+  border-color: #ccc;
+}
+
+.quick-reply-btn-open:hover:not(:disabled) {
+  background: #eee;
+  border-color: #aaa;
+}
+
+.quick-reply-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.quick-reply-input {
+  flex: 1;
+  padding: 8px 14px;
+  border: 1px solid #b8d4ff;
+  border-radius: 20px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+}
+
+.quick-reply-input:focus {
+  border-color: #0066ff;
+}
+
+.quick-reply-send {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 20px;
+  background: #0066ff;
+  color: white;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.quick-reply-send:hover:not(:disabled) {
+  background: #0052cc;
+}
+
+.quick-reply-send:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* Responsive sidebar support */

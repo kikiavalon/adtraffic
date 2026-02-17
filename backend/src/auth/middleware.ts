@@ -13,7 +13,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   try {
     const payload = verifyToken(token);
-    (req as Request & { user: { userId: string; email: string } }).user = payload;
+    req.user = payload;
     next();
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });

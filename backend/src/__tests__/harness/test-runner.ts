@@ -10,7 +10,7 @@
  * calls return real mock CM360 data. Only Claude's responses are scripted.
  */
 
-import type { TestPrompt, MockResponse, ResponseAssertion } from '../fixtures/test-prompts.js';
+import type { TestPrompt, ResponseAssertion } from '../fixtures/test-prompts.js';
 
 export interface ToolCallRecord {
   toolName: string;

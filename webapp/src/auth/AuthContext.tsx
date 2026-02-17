@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
@@ -33,6 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem('adtraffic-token');
   });
   const [isLoading, setIsLoading] = useState(false);
+
+  const tokenRef = useRef(token);
+  useEffect(() => { tokenRef.current = token; }, [token]);
 
   useEffect(() => {
     if (token && user) {
@@ -99,21 +102,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ...options,
       headers: {
         ...options?.headers,
-        'Authorization': `Bearer ${token}`,
+        ...(tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {}),
       },
     });
 
     if (res.status === 401) {
       setToken(null);
       setUser(null);
-      sessionStorage.clear();
+      localStorage.removeItem('adtraffic-token');
+      localStorage.removeItem('adtraffic-user');
     }
 
     return res;
-  }, [token]);
+  }, []);
+
+  const value = useMemo(() => ({ user, token, login, register, logout, isLoading, authFetch }), [user, token, login, register, logout, isLoading, authFetch]);
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isLoading, authFetch }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

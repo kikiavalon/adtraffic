@@ -64,6 +64,8 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
           className="sidebar-toggle"
           onClick={() => setIsOpen(!isOpen)}
           title="Conversation history"
+          aria-label={isOpen ? 'Close sidebar' : 'Open sidebar'}
+          aria-expanded={isOpen}
         >
           {isOpen ? '\u2715' : '\u2630'}
         </button>

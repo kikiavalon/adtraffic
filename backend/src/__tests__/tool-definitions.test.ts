@@ -53,7 +53,7 @@ describe('Tool schema structure', () => {
   it.each(CM360_TOOLS.map((t) => [t.name, t]))('%s has valid schema structure', (_name, tool) => {
     expect(tool.name).toMatch(/^cm360_/);
     expect(tool.description).toBeTruthy();
-    expect(tool.description.length).toBeGreaterThan(10);
+    expect(tool.description!.length).toBeGreaterThan(10);
     expect(tool.input_schema).toBeDefined();
     expect(tool.input_schema.type).toBe('object');
     expect(tool.input_schema.properties).toBeDefined();

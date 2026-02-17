@@ -36,7 +36,22 @@ describe('Conversations API', () => {
       expect(res.status).toBe(401);
     });
 
+    it('returns 404 when conversation does not exist', async () => {
+      const res = await request(app)
+        .delete('/api/conversations/test-conv-1')
+        .set('Authorization', `Bearer ${authToken}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Conversation not found');
+    });
+
     it('clears a conversation and returns success', async () => {
+      // First create the conversation by sending a chat message
+      await request(app)
+        .post('/api/chat')
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ conversationId: 'test-conv-1', message: 'Hello Kiki' });
+
       const res = await request(app)
         .delete('/api/conversations/test-conv-1')
         .set('Authorization', `Bearer ${authToken}`);
@@ -104,13 +119,13 @@ describe('Conversations API', () => {
       expect(res.body.messages[1].content).toBe('Mock response');
     });
 
-    it('returns empty list for non-existent conversation', async () => {
+    it('returns 404 for non-existent conversation', async () => {
       const res = await request(app)
         .get('/api/conversations/nonexistent/messages')
         .set('Authorization', `Bearer ${authToken}`);
 
-      expect(res.status).toBe(200);
-      expect(res.body.messages).toEqual([]);
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('Conversation not found');
     });
   });
 });

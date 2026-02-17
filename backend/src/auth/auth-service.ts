@@ -4,7 +4,16 @@ import { randomUUID } from 'crypto';
 import { db, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'dev-secret-change-in-production';
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set in production environment');
+  }
+  return 'dev-secret-change-in-production';
+}
+
+const JWT_SECRET = getJwtSecret();
 const SALT_ROUNDS = 10;
 
 export interface AuthUser {
@@ -65,5 +74,14 @@ export async function login(email: string, password: string): Promise<AuthTokens
 }
 
 export function verifyToken(token: string): { userId: string; email: string } {
-  return jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+  const decoded = jwt.verify(token, JWT_SECRET);
+  if (
+    typeof decoded !== 'object' ||
+    decoded === null ||
+    typeof (decoded as Record<string, unknown>).userId !== 'string' ||
+    typeof (decoded as Record<string, unknown>).email !== 'string'
+  ) {
+    throw new Error('Invalid token payload');
+  }
+  return { userId: (decoded as Record<string, unknown>).userId as string, email: (decoded as Record<string, unknown>).email as string };
 }

@@ -81,6 +81,28 @@ export function getHistoryLength(conversationId: string): number {
 }
 
 /**
+ * Get a single conversation by ID.
+ */
+export function getConversation(conversationId: string): {
+  id: string;
+  userId: string;
+  title: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+} | undefined {
+  return db.select({
+    id: schema.conversations.id,
+    userId: schema.conversations.userId,
+    title: schema.conversations.title,
+    createdAt: schema.conversations.createdAt,
+    updatedAt: schema.conversations.updatedAt,
+  })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.id, conversationId))
+    .get();
+}
+
+/**
  * Get all conversations for a user, ordered by most recent.
  */
 export function getConversations(userId: string): Array<{

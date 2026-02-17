@@ -30,7 +30,7 @@ export async function chat(
     return {
       id: uuidv4(),
       role: 'assistant',
-      content: limitCheck.message!,
+      content: limitCheck.message,
       timestamp: Date.now(),
     };
   }
@@ -49,7 +49,7 @@ export async function chat(
       return {
         id: uuidv4(),
         role: 'assistant',
-        content: roundLimitCheck.message!,
+        content: roundLimitCheck.message,
         timestamp: Date.now(),
       };
     }

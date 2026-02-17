@@ -16,7 +16,6 @@ import type { TestResult } from './harness/test-runner.js';
 // Mock setup — intercept Anthropic SDK + track tool executor calls
 // ---------------------------------------------------------------------------
 
-let mockResponseQueue: MockResponse[] = [];
 const toolCallLog: ToolCallRecord[] = [];
 
 const { mockCreate } = vi.hoisted(() => ({
@@ -55,7 +54,6 @@ import { mockStore } from '../cm360/mock-data-store.js';
 const allResults: TestResult[] = [];
 
 function setupMockSequence(responses: MockResponse[]): void {
-  mockResponseQueue = [...responses];
   mockCreate.mockReset();
   for (const response of responses) {
     mockCreate.mockResolvedValueOnce({

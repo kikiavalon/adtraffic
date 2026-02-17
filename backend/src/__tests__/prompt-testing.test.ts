@@ -15,7 +15,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import type { ToolCallRecord } from './harness/test-runner.js';
 import { evaluateResponse, generateReport } from './harness/test-runner.js';
-import type { TestPrompt, MockResponse } from './fixtures/test-prompts.js';
+import type { MockResponse } from './fixtures/test-prompts.js';
 import { STANDARD_TEST_PROMPTS } from './fixtures/test-prompts.js';
 import { ADVERSARIAL_TEST_PROMPTS } from './fixtures/adversarial-prompts.js';
 import type { TestResult } from './harness/test-runner.js';
@@ -24,7 +24,6 @@ import type { TestResult } from './harness/test-runner.js';
 // Mock setup — intercept Anthropic SDK + track tool executor calls
 // ---------------------------------------------------------------------------
 
-let mockResponseQueue: MockResponse[] = [];
 const toolCallLog: ToolCallRecord[] = [];
 
 const { mockCreate } = vi.hoisted(() => ({
@@ -65,7 +64,6 @@ import { mockStore } from '../cm360/mock-data-store.js';
 const allResults: TestResult[] = [];
 
 function setupMockSequence(responses: MockResponse[]): void {
-  mockResponseQueue = [...responses];
   mockCreate.mockReset();
 
   for (const response of responses) {

@@ -2,10 +2,183 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type { PluggableList } from 'unified';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
 import ConversationSidebar from '../components/ConversationSidebar.js';
 import './Chat.css';
+
+interface QuickReplyOption {
+  label: string;
+  isOpenEnded: boolean;
+}
+
+interface ParsedQuickReplies {
+  cleanContent: string;
+  options: QuickReplyOption[];
+}
+
+const OPEN_ENDED_PATTERNS = [
+  /^something\s+else/i,
+  /^other/i,
+  /^none\s+of\s+(the\s+above|these)/i,
+  /^(a\s+)?different/i,
+  /^custom/i,
+  /^not\s+sure/i,
+  /^i('m|\s+am)\s+not\s+sure/i,
+  /^tell\s+me\s+more/i,
+];
+
+function parseQuickReplies(content: string): ParsedQuickReplies {
+  const lines = content.split('\n');
+
+  // Walk backwards from the end to find a trailing numbered or bulleted list
+  let listStartIdx = lines.length;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const trimmed = (lines[i] ?? '').trim();
+    if (trimmed === '') {
+      // Allow blank lines between list and preceding content
+      continue;
+    }
+    if (/^\d+\.\s+/.test(trimmed) || /^[-*]\s+/.test(trimmed)) {
+      listStartIdx = i;
+    } else {
+      break;
+    }
+  }
+
+  // Extract list items (skip blank lines within the range)
+  const listLines = lines.slice(listStartIdx).filter((l) => l.trim() !== '');
+  if (listLines.length < 2) {
+    return { cleanContent: content, options: [] };
+  }
+
+  const options: QuickReplyOption[] = listLines.map((line) => {
+    // Strip the list marker (numbered or bulleted)
+    const label = line.trim().replace(/^\d+\.\s+/, '').replace(/^[-*]\s+/, '');
+    const isOpenEnded = OPEN_ENDED_PATTERNS.some((p) => p.test(label));
+    return { label, isOpenEnded };
+  });
+
+  // Build clean content: everything before the list, trimmed
+  const cleanContent = lines.slice(0, listStartIdx).join('\n').trimEnd();
+
+  return { cleanContent, options };
+}
+
+function QuickReplyButtons({
+  options,
+  onSelect,
+  disabled,
+}: {
+  options: QuickReplyOption[];
+  onSelect: (text: string) => void;
+  disabled: boolean;
+}) {
+  const [openEndedActive, setOpenEndedActive] = useState(false);
+  const [openEndedText, setOpenEndedText] = useState('');
+  const openEndedRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (openEndedActive && openEndedRef.current) {
+      openEndedRef.current.focus();
+    }
+  }, [openEndedActive]);
+
+  const handleOpenEndedSubmit = () => {
+    if (openEndedText.trim()) {
+      onSelect(openEndedText.trim());
+    }
+  };
+
+  return (
+    <div className="quick-reply-container">
+      {options.map((opt) =>
+        opt.isOpenEnded && openEndedActive ? (
+          <div key={opt.label} className="quick-reply-input-row">
+            <input
+              ref={openEndedRef}
+              className="quick-reply-input"
+              type="text"
+              value={openEndedText}
+              onChange={(e) => setOpenEndedText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleOpenEndedSubmit();
+                }
+              }}
+              placeholder="Type your answer..."
+              disabled={disabled}
+            />
+            <button
+              className="quick-reply-send"
+              onClick={handleOpenEndedSubmit}
+              disabled={disabled || !openEndedText.trim()}
+            >
+              Send
+            </button>
+          </div>
+        ) : (
+          <button
+            key={opt.label}
+            className={`quick-reply-btn${opt.isOpenEnded ? ' quick-reply-btn-open' : ''}`}
+            onClick={() => {
+              if (opt.isOpenEnded) {
+                setOpenEndedActive(true);
+              } else {
+                onSelect(opt.label);
+              }
+            }}
+            disabled={disabled}
+          >
+            {opt.label}
+          </button>
+        ),
+      )}
+    </div>
+  );
+}
+
+function CodeBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    // Extract text content from the <code> child inside <pre>
+    const text =
+      typeof children === 'string'
+        ? children
+        : (() => {
+            // children is the <code> element rendered by ReactMarkdown
+            const codeEl = Array.isArray(children) ? children[0] : children;
+            if (codeEl && typeof codeEl === 'object' && 'props' in codeEl) {
+              const codeChildren = (codeEl as React.ReactElement<{ children?: React.ReactNode }>).props.children;
+              return typeof codeChildren === 'string' ? codeChildren : String(codeChildren ?? '');
+            }
+            return String(children ?? '');
+          })();
+
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  };
+
+  return (
+    <div className="code-block-wrapper">
+      <button className="code-copy-btn" onClick={handleCopy} aria-label="Copy code">
+        {copied ? 'Copied!' : 'Copy'}
+      </button>
+      <pre {...props}>{children}</pre>
+    </div>
+  );
+}
+
+const remarkPlugins: PluggableList = [remarkGfm];
+
+const markdownComponents = {
+  pre: CodeBlock,
+};
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
@@ -47,6 +220,7 @@ function Chat() {
   const { user, logout, authFetch } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Persist conversation state
   useEffect(() => {
@@ -60,6 +234,61 @@ function Chat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Abort in-flight request on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort();
+    };
+  }, []);
+
+  const sendMessage = useCallback(async (text: string) => {
+    if (!text.trim() || isLoading) return;
+
+    // Abort any previous in-flight request
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: text,
+      timestamp: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      const response = await authFetch(`${API_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId, message: text }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setMessages((prev) => [...prev, data.message]);
+      setSidebarRefresh((n) => n + 1);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      const errorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `Sorry, I had trouble connecting. Make sure the backend is running. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading, conversationId, authFetch]);
 
   // Accept context from companion Chrome extension (?advertiserId=X&campaignId=Y)
   const extensionContextHandled = useRef(false);
@@ -84,7 +313,7 @@ function Chat() {
     setTimeout(() => {
       sendMessage(contextMsg);
     }, 300);
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, sendMessage]);
 
   const startNewChat = useCallback(async () => {
     // Clear server-side conversation
@@ -106,7 +335,7 @@ function Chat() {
     }]);
     setInput('');
     setSidebarRefresh((n) => n + 1);
-  }, [conversationId]);
+  }, [conversationId, authFetch]);
 
   const handleSelectConversation = useCallback((convId: string, msgs: Array<{ id: string; role: string; content: string; timestamp: number }>) => {
     setConversationId(convId);
@@ -123,47 +352,6 @@ function Chat() {
     }]);
     setInput('');
   }, []);
-
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return;
-
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: text,
-      timestamp: Date.now(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      const response = await authFetch(`${API_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, message: text }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Backend error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setMessages((prev) => [...prev, data.message]);
-      setSidebarRefresh((n) => n + 1);
-    } catch (error) {
-      const errorMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: `Sorry, I had trouble connecting. Make sure the backend is running. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -221,31 +409,51 @@ function Chat() {
       </header>
 
       <main className="chat-messages">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`chat-message chat-message-${msg.role}`}>
-            {msg.role === 'assistant' && (
-              <div className="chat-message-row">
-                <div className="kiki-avatar">K</div>
-                <div className="chat-message-bubble">
-                  <div className="chat-message-sender">Kiki</div>
-                  <div className="chat-message-content">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+        {messages.map((msg, idx) => {
+          const isLastAssistant =
+            msg.role === 'assistant' &&
+            !isLoading &&
+            idx === messages.length - 1;
+          const parsed = isLastAssistant
+            ? parseQuickReplies(msg.content)
+            : null;
+          const showQuickReplies = parsed && parsed.options.length > 0;
+
+          return (
+            <div key={msg.id} className={`chat-message chat-message-${msg.role}`}>
+              {msg.role === 'assistant' && (
+                <div className="chat-message-row">
+                  <div className="kiki-avatar">K</div>
+                  <div className="chat-message-bubble">
+                    <div className="chat-message-sender">Kiki</div>
+                    <div className="chat-message-content">
+                      <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+                        {showQuickReplies ? parsed.cleanContent : msg.content}
+                      </ReactMarkdown>
+                    </div>
+                    {showQuickReplies && (
+                      <QuickReplyButtons
+                        options={parsed.options}
+                        onSelect={sendMessage}
+                        disabled={isLoading}
+                      />
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
-            {msg.role === 'user' && (
-              <div className="chat-message-content">{msg.content}</div>
-            )}
-          </div>
-        ))}
+              )}
+              {msg.role === 'user' && (
+                <div className="chat-message-content">{msg.content}</div>
+              )}
+            </div>
+          );
+        })}
         {isLoading && (
           <div className="chat-message chat-message-assistant">
             <div className="chat-message-row">
               <div className="kiki-avatar">K</div>
               <div className="chat-message-bubble">
                 <div className="chat-message-sender">Kiki</div>
-                <div className="chat-message-content typing-indicator">
+                <div className="chat-message-content typing-indicator" role="status" aria-label="Kiki is typing">
                   <span className="typing-dot" />
                   <span className="typing-dot" />
                   <span className="typing-dot" />
@@ -265,7 +473,7 @@ function Chat() {
           onChange={handleFileChange}
           hidden
         />
-        <button className="chat-upload-btn" onClick={handleFileUpload} title="Upload IO">
+        <button className="chat-upload-btn" onClick={handleFileUpload} title="Upload IO" aria-label="Upload file">
           +
         </button>
         <textarea

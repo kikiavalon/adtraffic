@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import type { Request } from 'express';
 import { randomUUID } from 'crypto';
 import { ChatRequestSchema } from '@adtraffic/shared';
 import type { ChatResponse } from '@adtraffic/shared';
@@ -21,7 +20,6 @@ router.post('/api/chat', requireAuth, async (req, res) => {
   if (!parsed.success) {
     res.status(400).json({
       error: 'Invalid request',
-      details: parsed.error.issues,
     });
     return;
   }
@@ -29,7 +27,7 @@ router.post('/api/chat', requireAuth, async (req, res) => {
   const { conversationId, message } = parsed.data;
 
   try {
-    const userId = (req as Request & { user: { userId: string } }).user.userId;
+    const userId = req.user!.userId;
 
     // Save user message to DB
     saveMessage(conversationId, {
@@ -54,7 +52,6 @@ router.post('/api/chat', requireAuth, async (req, res) => {
     console.error('Claude API error:', error);
     res.status(500).json({
       error: 'Failed to get response from Kiki',
-      message: error instanceof Error ? error.message : 'Unknown error',
     });
   }
 });

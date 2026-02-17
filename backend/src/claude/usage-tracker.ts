@@ -5,6 +5,8 @@
  * Resets daily. Not persisted — restarts clear the counters.
  */
 
+export type LimitCheck = { allowed: true } | { allowed: false; message: string };
+
 interface UsageEntry {
   timestamp: number;
   model: string;
@@ -26,6 +28,10 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'claude-sonnet-4-5-20250929': { input: 3.00, output: 15.00 },
   'claude-opus-4-6': { input: 15.00, output: 75.00 },
 };
+
+function getDailyLimit(): number {
+  return parseInt(process.env.DAILY_API_LIMIT ?? '100', 10);
+}
 
 let dailyUsage: DailyUsage = {
   date: todayKey(),
@@ -57,9 +63,9 @@ function resetIfNewDay(): void {
  * Check if we've hit the daily request limit.
  * Returns { allowed: true } or { allowed: false, message: string }.
  */
-export function checkLimit(): { allowed: boolean; message?: string } {
+export function checkLimit(): LimitCheck {
   resetIfNewDay();
-  const limit = parseInt(process.env.DAILY_API_LIMIT ?? '100', 10);
+  const limit = getDailyLimit();
   if (dailyUsage.requests >= limit) {
     return {
       allowed: false,
@@ -94,7 +100,7 @@ export function recordUsage(model: string, inputTokens: number, outputTokens: nu
     ? `~$${((dailyUsage.inputTokens * pricing.input + dailyUsage.outputTokens * pricing.output) / 1_000_000).toFixed(4)}`
     : 'unknown';
 
-  const limit = parseInt(process.env.DAILY_API_LIMIT ?? '100', 10);
+  const limit = getDailyLimit();
 
   console.log(
     `[usage] ${model} | in: ${inputTokens} out: ${outputTokens} | cost: ${costStr} | daily: ${dailyUsage.requests}/${limit} reqs, ${dailyUsage.inputTokens + dailyUsage.outputTokens} tokens, ${totalCostStr} total`,
@@ -114,7 +120,7 @@ export function getUsageSummary(): {
   estimatedCost: string;
 } {
   resetIfNewDay();
-  const limit = parseInt(process.env.DAILY_API_LIMIT ?? '100', 10);
+  const limit = getDailyLimit();
 
   // Estimate cost using the most common model in today's entries
   let estimatedCost = 0;

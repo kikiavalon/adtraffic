@@ -11,6 +11,12 @@ vi.mock('@anthropic-ai/sdk', () => ({
   })),
 }));
 
+vi.mock('../claude/usage-tracker.js', () => ({
+  checkLimit: () => ({ allowed: true }),
+  recordUsage: () => {},
+  getUsageSummary: () => ({ date: '2026-01-01', requests: 0, limit: 999999, inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCost: '$0.0000' }),
+}));
+
 import { chat, clearConversation } from '../claude/kiki-service.js';
 
 describe('tool execution loop', () => {

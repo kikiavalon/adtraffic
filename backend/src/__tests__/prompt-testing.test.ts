@@ -36,6 +36,13 @@ vi.mock('@anthropic-ai/sdk', () => ({
   })),
 }));
 
+// Bypass usage tracker limits in tests
+vi.mock('../claude/usage-tracker.js', () => ({
+  checkLimit: () => ({ allowed: true }),
+  recordUsage: () => {},
+  getUsageSummary: () => ({ date: '2026-01-01', requests: 0, limit: 999999, inputTokens: 0, outputTokens: 0, totalTokens: 0, estimatedCost: '$0.0000' }),
+}));
+
 // Spy on the real tool executor to record calls
 const originalExecuteTool = vi.hoisted(() => ({ fn: null as unknown }));
 

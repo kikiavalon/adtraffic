@@ -1,8 +1,12 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { register, login } from '../auth/auth-service.js';
+import { createRateLimiter } from '../middleware/rate-limiter.js';
 
 const router = Router();
+
+const loginLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
+const registerLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 5 });
 
 const RegisterSchema = z.object({
   email: z.string().email(),
@@ -15,7 +19,7 @@ const LoginSchema = z.object({
   password: z.string().min(1),
 });
 
-router.post('/api/auth/register', async (req, res) => {
+router.post('/api/auth/register', registerLimiter, async (req, res) => {
   const parsed = RegisterSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -35,7 +39,7 @@ router.post('/api/auth/register', async (req, res) => {
   }
 });
 
-router.post('/api/auth/login', async (req, res) => {
+router.post('/api/auth/login', loginLimiter, async (req, res) => {
   const parsed = LoginSchema.safeParse(req.body);
 
   if (!parsed.success) {

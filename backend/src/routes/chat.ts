@@ -5,7 +5,7 @@ import { ChatRequestSchema } from '@adtraffic/shared';
 import type { ChatResponse } from '@adtraffic/shared';
 import { chat } from '../claude/kiki-service.js';
 import { requireAuth } from '../auth/middleware.js';
-import { saveMessage } from '../db/conversation-store.js';
+import { saveMessage, getConversation } from '../db/conversation-store.js';
 
 const router = Router();
 
@@ -30,6 +30,13 @@ router.post('/api/chat', express.json({ limit: '10mb' }), requireAuth, async (re
 
   try {
     const userId = req.user!.userId;
+
+    // Verify conversation ownership — prevent cross-user access (IDOR)
+    const existing = getConversation(conversationId);
+    if (existing && existing.userId !== userId) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
 
     // Save user message to DB
     saveMessage(conversationId, {

@@ -19,4 +19,9 @@ RUN npm run build --workspace=webapp
 FROM nginx:alpine
 COPY --from=builder /app/webapp/dist /usr/share/nginx/html
 COPY webapp/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Ensure nginx user owns the html directory
+RUN chown -R nginx:nginx /usr/share/nginx/html
+
 EXPOSE 80
+USER nginx

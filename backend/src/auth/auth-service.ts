@@ -16,6 +16,11 @@ function getJwtSecret(): string {
 const JWT_SECRET = getJwtSecret();
 const SALT_ROUNDS = 10;
 
+// Pre-computed dummy hash for timing-safe login rejection.
+// When a user is not found, we still run bcrypt.compare against this hash
+// so the response time is indistinguishable from a wrong-password case.
+const DUMMY_HASH = bcrypt.hashSync('timing-safe-dummy-padding', SALT_ROUNDS);
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -57,6 +62,8 @@ export async function register(email: string, password: string, name: string): P
 export async function login(email: string, password: string): Promise<AuthTokens> {
   const user = db.select().from(schema.users).where(eq(schema.users.email, email)).get();
   if (!user) {
+    // Run bcrypt.compare against dummy hash to prevent timing-based email enumeration
+    await bcrypt.compare(password, DUMMY_HASH);
     throw new Error('Invalid email or password');
   }
 

@@ -1,7 +1,7 @@
 /**
  * API pagination tests.
  *
- * Validates that GET /api/conversations and GET /api/conversations/:id/messages
+ * Validates that GET /api/v1/conversations and GET /api/v1/conversations/:id/messages
  * correctly handle limit, offset, boundary values, and ordering.
  */
 
@@ -31,23 +31,23 @@ let token: string;
 let userId: string;
 
 beforeEach(async () => {
-  db.delete(schema.messages).run();
-  db.delete(schema.conversations).run();
-  db.delete(schema.users).run();
+  await db.delete(schema.messages);
+  await db.delete(schema.conversations);
+  await db.delete(schema.users);
 
   const ts = Date.now();
   const res = await request(app)
-    .post('/api/auth/register')
+    .post('/api/v1/auth/register')
     .send({ email: `pagination-${ts}@agency.com`, password: 'SecurePass123', name: 'Pagination Tester' });
   token = res.body.token;
   userId = res.body.user.id;
 });
 
-describe('GET /api/conversations — pagination', () => {
+describe('GET /api/v1/conversations — pagination', () => {
   async function createConversations(count: number) {
     for (let i = 0; i < count; i++) {
       await request(app)
-        .post('/api/chat')
+        .post('/api/v1/chat')
         .set('Authorization', `Bearer ${token}`)
         .send({ conversationId: `conv-${String(i).padStart(3, '0')}`, message: `Message ${i}` });
       // Small delay to ensure distinct updatedAt timestamps for ordering
@@ -58,7 +58,7 @@ describe('GET /api/conversations — pagination', () => {
     await createConversations(3);
 
     const res = await request(app)
-      .get('/api/conversations')
+      .get('/api/v1/conversations')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -69,7 +69,7 @@ describe('GET /api/conversations — pagination', () => {
     await createConversations(5);
 
     const res = await request(app)
-      .get('/api/conversations?limit=2')
+      .get('/api/v1/conversations?limit=2')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -80,11 +80,11 @@ describe('GET /api/conversations — pagination', () => {
     await createConversations(5);
 
     const page1 = await request(app)
-      .get('/api/conversations?limit=2&offset=0')
+      .get('/api/v1/conversations?limit=2&offset=0')
       .set('Authorization', `Bearer ${token}`);
 
     const page2 = await request(app)
-      .get('/api/conversations?limit=2&offset=2')
+      .get('/api/v1/conversations?limit=2&offset=2')
       .set('Authorization', `Bearer ${token}`);
 
     expect(page1.body.conversations).toHaveLength(2);
@@ -100,7 +100,7 @@ describe('GET /api/conversations — pagination', () => {
     await createConversations(3);
 
     const res = await request(app)
-      .get('/api/conversations?offset=100')
+      .get('/api/v1/conversations?offset=100')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -111,7 +111,7 @@ describe('GET /api/conversations — pagination', () => {
     await createConversations(3);
 
     const res = await request(app)
-      .get('/api/conversations?limit=0')
+      .get('/api/v1/conversations?limit=0')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -122,7 +122,7 @@ describe('GET /api/conversations — pagination', () => {
   it('clamps limit to maximum 200', async () => {
     // Just verify it doesn't error — we won't create 201 conversations
     const res = await request(app)
-      .get('/api/conversations?limit=999')
+      .get('/api/v1/conversations?limit=999')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -132,7 +132,7 @@ describe('GET /api/conversations — pagination', () => {
     await createConversations(3);
 
     const res = await request(app)
-      .get('/api/conversations?offset=-5')
+      .get('/api/v1/conversations?offset=-5')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -143,7 +143,7 @@ describe('GET /api/conversations — pagination', () => {
     await createConversations(3);
 
     const res = await request(app)
-      .get('/api/conversations?limit=abc')
+      .get('/api/v1/conversations?limit=abc')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -154,7 +154,7 @@ describe('GET /api/conversations — pagination', () => {
     await createConversations(3);
 
     const res = await request(app)
-      .get('/api/conversations')
+      .get('/api/v1/conversations')
       .set('Authorization', `Bearer ${token}`);
 
     const conversations = res.body.conversations;
@@ -167,37 +167,37 @@ describe('GET /api/conversations — pagination', () => {
   });
 });
 
-describe('GET /api/conversations/:id/messages — pagination', () => {
+describe('GET /api/v1/conversations/:id/messages — pagination', () => {
   const convId = 'msg-page-test';
 
   async function createMessages(count: number) {
     for (let i = 0; i < count; i++) {
-      db.insert(schema.messages).values({
+      await db.insert(schema.messages).values({
         id: randomUUID(),
         conversationId: convId,
         role: 'user',
         content: `Message ${String(i).padStart(3, '0')}`,
         timestamp: Date.now() + i * 100,
-      }).run();
+      });
     }
   }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Create the conversation owned by our test user
-    db.insert(schema.conversations).values({
+    await db.insert(schema.conversations).values({
       id: convId,
       userId,
       title: 'Pagination test',
       createdAt: new Date(),
       updatedAt: new Date(),
-    }).run();
+    });
   });
 
   it('returns all messages when count < default limit', async () => {
-    createMessages(5);
+    await createMessages(5);
 
     const res = await request(app)
-      .get(`/api/conversations/${convId}/messages`)
+      .get(`/api/v1/conversations/${convId}/messages`)
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -205,10 +205,10 @@ describe('GET /api/conversations/:id/messages — pagination', () => {
   });
 
   it('respects custom limit parameter', async () => {
-    createMessages(10);
+    await createMessages(10);
 
     const res = await request(app)
-      .get(`/api/conversations/${convId}/messages?limit=3`)
+      .get(`/api/v1/conversations/${convId}/messages?limit=3`)
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -216,14 +216,14 @@ describe('GET /api/conversations/:id/messages — pagination', () => {
   });
 
   it('respects offset for message paging', async () => {
-    createMessages(10);
+    await createMessages(10);
 
     const page1 = await request(app)
-      .get(`/api/conversations/${convId}/messages?limit=5&offset=0`)
+      .get(`/api/v1/conversations/${convId}/messages?limit=5&offset=0`)
       .set('Authorization', `Bearer ${token}`);
 
     const page2 = await request(app)
-      .get(`/api/conversations/${convId}/messages?limit=5&offset=5`)
+      .get(`/api/v1/conversations/${convId}/messages?limit=5&offset=5`)
       .set('Authorization', `Bearer ${token}`);
 
     expect(page1.body.messages).toHaveLength(5);
@@ -235,17 +235,17 @@ describe('GET /api/conversations/:id/messages — pagination', () => {
 
   it('clamps message limit to maximum 500', async () => {
     const res = await request(app)
-      .get(`/api/conversations/${convId}/messages?limit=999`)
+      .get(`/api/v1/conversations/${convId}/messages?limit=999`)
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
   });
 
   it('orders messages by timestamp ascending (oldest first)', async () => {
-    createMessages(5);
+    await createMessages(5);
 
     const res = await request(app)
-      .get(`/api/conversations/${convId}/messages`)
+      .get(`/api/v1/conversations/${convId}/messages`)
       .set('Authorization', `Bearer ${token}`);
 
     const messages = res.body.messages;

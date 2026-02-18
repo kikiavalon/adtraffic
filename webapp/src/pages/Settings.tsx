@@ -22,7 +22,7 @@ function Settings() {
 
   const fetchUsage = useCallback(async () => {
     try {
-      const res = await authFetch(`${API_URL}/api/usage`);
+      const res = await authFetch(`${API_URL}/api/v1/usage`);
       if (res.ok) {
         setUsage(await res.json());
         setUsageError('');

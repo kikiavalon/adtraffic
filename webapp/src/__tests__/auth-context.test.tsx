@@ -63,7 +63,7 @@ describe('AuthContext', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/auth/login'),
+      expect.stringContaining('/api/v1/auth/login'),
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ email: 'test@agency.com', password: 'password123' }),
@@ -114,7 +114,7 @@ describe('AuthContext', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/auth/register'),
+      expect.stringContaining('/api/v1/auth/register'),
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ email: 'test@agency.com', password: 'password123', name: 'Test User' }),

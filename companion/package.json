@@ -9,9 +9,11 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "generate-icons": "node scripts/generate-icons.mjs",
-    "typecheck": "tsc --noEmit"
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit -p tsconfig.check.json"
   },
   "devDependencies": {
+    "@types/chrome": "0.0.306",
     "jsdom": "28.1.0",
     "typescript": "5.9.3",
     "vite": "6.4.1",

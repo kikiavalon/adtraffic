@@ -1,4 +1,9 @@
 import 'dotenv/config';
+import { initSentry, Sentry } from './sentry.js';
+
+// Sentry must be initialized before importing Express
+initSentry();
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -6,8 +11,9 @@ import healthRouter from './routes/health.js';
 import chatRouter from './routes/chat.js';
 import conversationsRouter from './routes/conversations.js';
 import authRouter from './routes/auth.js';
+import usageRouter from './routes/usage.js';
 import { errorHandler } from './middleware/error-handler.js';
-import { sqlite } from './db/index.js';
+import { sql } from './db/index.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -35,13 +41,17 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '100kb' }));
 
-// Routes
+// Routes — /health is unversioned; everything else under /api/v1
 app.use(healthRouter);
-app.use(chatRouter);
-app.use(conversationsRouter);
-app.use(authRouter);
+app.use('/api/v1', authRouter);
+app.use('/api/v1', chatRouter);
+app.use('/api/v1', conversationsRouter);
+app.use('/api/v1', usageRouter);
 
-// Global error handler (must be after all routes)
+// Sentry error handler (captures exceptions before our custom error handler)
+Sentry.setupExpressErrorHandler(app);
+
+// Global error handler (must be after Sentry and all routes)
 app.use(errorHandler);
 
 // Only start server when run directly (not when imported for testing)
@@ -52,14 +62,13 @@ if (process.env.NODE_ENV !== 'test') {
     const dailyLimit = process.env.DAILY_API_LIMIT ?? '100';
     console.log(`AdTraffic.ai backend running on port ${PORT}`);
     console.log(`  Model: ${model} | Max tokens: ${maxTokens} | Daily limit: ${dailyLimit} requests`);
-    console.log(`  Usage dashboard: http://localhost:${PORT}/api/usage`);
+    console.log(`  Usage dashboard: http://localhost:${PORT}/api/v1/usage`);
   });
 
   const shutdown = () => {
     console.log('Shutting down gracefully...');
     server.close(() => {
-      sqlite.close();
-      process.exit(0);
+      void sql.end().then(() => process.exit(0));
     });
   };
 

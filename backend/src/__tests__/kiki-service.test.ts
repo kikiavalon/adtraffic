@@ -93,7 +93,6 @@ describe('kiki-service', () => {
   it('handles empty text response gracefully', async () => {
     const mockInstance = new Anthropic();
     const mockCreate = vi.mocked(mockInstance.messages.create);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockCreate.mockResolvedValueOnce({
       content: [],
       role: 'assistant',

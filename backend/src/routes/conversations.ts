@@ -6,17 +6,17 @@ import { getConversations, getMessages, getConversation } from '../db/conversati
 const router = Router();
 
 /**
- * GET /api/conversations
+ * GET /conversations
  *
  * List conversations for the authenticated user with pagination.
  * Query params: ?limit=50&offset=0
  */
-router.get('/api/conversations', requireAuth, (req, res) => {
+router.get('/conversations', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.userId;
     const limit = Math.max(1, Math.min(200, parseInt(req.query['limit'] as string, 10) || 50));
     const offset = Math.max(0, parseInt(req.query['offset'] as string, 10) || 0);
-    const conversations = getConversations(userId, limit, offset);
+    const conversations = await getConversations(userId, limit, offset);
     res.json({ conversations });
   } catch (error) {
     console.error('Error listing conversations:', error instanceof Error ? error.message : 'Unknown error');
@@ -25,17 +25,17 @@ router.get('/api/conversations', requireAuth, (req, res) => {
 });
 
 /**
- * GET /api/conversations/:id/messages
+ * GET /conversations/:id/messages
  *
  * Load all messages for a specific conversation.
  * Verifies the conversation belongs to the authenticated user.
  */
-router.get('/api/conversations/:id/messages', requireAuth, (req, res) => {
+router.get('/conversations/:id/messages', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.userId;
     const id = req.params['id'] as string;
 
-    const conversation = getConversation(id);
+    const conversation = await getConversation(id);
     if (!conversation) {
       res.status(404).json({ error: 'Conversation not found' });
       return;
@@ -47,7 +47,7 @@ router.get('/api/conversations/:id/messages', requireAuth, (req, res) => {
 
     const limit = Math.max(1, Math.min(500, parseInt(req.query['limit'] as string, 10) || 100));
     const offset = Math.max(0, parseInt(req.query['offset'] as string, 10) || 0);
-    const messages = getMessages(id, limit, offset);
+    const messages = await getMessages(id, limit, offset);
     res.json({ messages });
   } catch (error) {
     console.error('Error loading messages:', error instanceof Error ? error.message : 'Unknown error');
@@ -56,17 +56,17 @@ router.get('/api/conversations/:id/messages', requireAuth, (req, res) => {
 });
 
 /**
- * DELETE /api/conversations/:id
+ * DELETE /conversations/:id
  *
  * Clears conversation history. Useful for "New Chat" functionality.
  * Verifies the conversation belongs to the authenticated user.
  */
-router.delete('/api/conversations/:id', requireAuth, (req, res) => {
+router.delete('/conversations/:id', requireAuth, async (req, res) => {
   try {
     const userId = req.user!.userId;
     const id = req.params['id'] as string;
 
-    const conversation = getConversation(id);
+    const conversation = await getConversation(id);
     if (!conversation) {
       res.status(404).json({ error: 'Conversation not found' });
       return;
@@ -76,7 +76,7 @@ router.delete('/api/conversations/:id', requireAuth, (req, res) => {
       return;
     }
 
-    clearConversation(id);
+    await clearConversation(id);
     res.json({ success: true, conversationId: id });
   } catch (error) {
     console.error('Error deleting conversation:', error instanceof Error ? error.message : 'Unknown error');

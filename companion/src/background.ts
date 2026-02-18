@@ -28,8 +28,8 @@ chrome.runtime.onMessage.addListener(
         // Update badge to show we detected a CM360 page
         const label = message.data.pageType?.slice(0, 4).toUpperCase() ?? 'CM';
         const badgeTarget = tabId != null ? { tabId } : undefined;
-        chrome.action.setBadgeText({ text: label, ...badgeTarget });
-        chrome.action.setBadgeBackgroundColor({ color: '#16a34a', ...badgeTarget }); // green
+        void chrome.action.setBadgeText({ text: label, ...badgeTarget });
+        void chrome.action.setBadgeBackgroundColor({ color: '#16a34a', ...badgeTarget }); // green
         break;
       }
       case 'GET_CONTEXT': {
@@ -64,7 +64,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
       if (lastUpdatedTabId === tabId) {
         lastUpdatedTabId = null;
       }
-      chrome.action.setBadgeText({ text: '', tabId });
+      void chrome.action.setBadgeText({ text: '', tabId });
     }
   }
 });

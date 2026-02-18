@@ -28,35 +28,35 @@ let tokenB: string;
 
 describe('Cross-user IDOR protection', () => {
   beforeEach(async () => {
-    db.delete(schema.messages).run();
-    db.delete(schema.conversations).run();
-    db.delete(schema.users).run();
+    await db.delete(schema.messages);
+    await db.delete(schema.conversations);
+    await db.delete(schema.users);
 
     const ts = Date.now();
 
     // Create User A
     const resA = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: `idor-a-${ts}@agency.com`, password: 'SecurePass123', name: 'User A' });
     tokenA = resA.body.token;
 
     // Create User B
     const resB = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: `idor-b-${ts}@agency.com`, password: 'SecurePass123', name: 'User B' });
     tokenB = resB.body.token;
 
     // User A creates a conversation
     await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${tokenA}`)
       .send({ conversationId: 'userA-conv-1', message: 'Hello from User A' });
   });
 
-  describe('GET /api/conversations', () => {
+  describe('GET /api/v1/conversations', () => {
     it('User B cannot see User A\'s conversations in listing', async () => {
       const res = await request(app)
-        .get('/api/conversations')
+        .get('/api/v1/conversations')
         .set('Authorization', `Bearer ${tokenB}`);
 
       expect(res.status).toBe(200);
@@ -66,12 +66,12 @@ describe('Cross-user IDOR protection', () => {
     it('User A sees only their own conversations', async () => {
       // User B creates their own conversation
       await request(app)
-        .post('/api/chat')
+        .post('/api/v1/chat')
         .set('Authorization', `Bearer ${tokenB}`)
         .send({ conversationId: 'userB-conv-1', message: 'Hello from User B' });
 
       const resA = await request(app)
-        .get('/api/conversations')
+        .get('/api/v1/conversations')
         .set('Authorization', `Bearer ${tokenA}`);
 
       expect(resA.status).toBe(200);
@@ -80,10 +80,10 @@ describe('Cross-user IDOR protection', () => {
     });
   });
 
-  describe('GET /api/conversations/:id/messages', () => {
+  describe('GET /api/v1/conversations/:id/messages', () => {
     it('User B cannot read User A\'s messages by ID', async () => {
       const res = await request(app)
-        .get('/api/conversations/userA-conv-1/messages')
+        .get('/api/v1/conversations/userA-conv-1/messages')
         .set('Authorization', `Bearer ${tokenB}`);
 
       expect(res.status).toBe(403);
@@ -92,7 +92,7 @@ describe('Cross-user IDOR protection', () => {
 
     it('User A can read their own messages', async () => {
       const res = await request(app)
-        .get('/api/conversations/userA-conv-1/messages')
+        .get('/api/v1/conversations/userA-conv-1/messages')
         .set('Authorization', `Bearer ${tokenA}`);
 
       expect(res.status).toBe(200);
@@ -100,10 +100,10 @@ describe('Cross-user IDOR protection', () => {
     });
   });
 
-  describe('DELETE /api/conversations/:id', () => {
+  describe('DELETE /api/v1/conversations/:id', () => {
     it('User B cannot delete User A\'s conversation', async () => {
       const res = await request(app)
-        .delete('/api/conversations/userA-conv-1')
+        .delete('/api/v1/conversations/userA-conv-1')
         .set('Authorization', `Bearer ${tokenB}`);
 
       expect(res.status).toBe(403);
@@ -113,12 +113,12 @@ describe('Cross-user IDOR protection', () => {
     it('User A\'s conversation still exists after User B\'s failed delete attempt', async () => {
       // User B tries to delete
       await request(app)
-        .delete('/api/conversations/userA-conv-1')
+        .delete('/api/v1/conversations/userA-conv-1')
         .set('Authorization', `Bearer ${tokenB}`);
 
       // User A can still access it
       const res = await request(app)
-        .get('/api/conversations/userA-conv-1/messages')
+        .get('/api/v1/conversations/userA-conv-1/messages')
         .set('Authorization', `Bearer ${tokenA}`);
 
       expect(res.status).toBe(200);
@@ -127,7 +127,7 @@ describe('Cross-user IDOR protection', () => {
 
     it('User A can delete their own conversation', async () => {
       const res = await request(app)
-        .delete('/api/conversations/userA-conv-1')
+        .delete('/api/v1/conversations/userA-conv-1')
         .set('Authorization', `Bearer ${tokenA}`);
 
       expect(res.status).toBe(200);
@@ -135,10 +135,10 @@ describe('Cross-user IDOR protection', () => {
     });
   });
 
-  describe('POST /api/chat (conversation hijacking)', () => {
+  describe('POST /api/v1/chat (conversation hijacking)', () => {
     it('User B cannot post to User A\'s existing conversation', async () => {
       const res = await request(app)
-        .post('/api/chat')
+        .post('/api/v1/chat')
         .set('Authorization', `Bearer ${tokenB}`)
         .send({ conversationId: 'userA-conv-1', message: 'Hijacking attempt' });
 
@@ -149,13 +149,13 @@ describe('Cross-user IDOR protection', () => {
     it('User A\'s conversation is unmodified after hijack attempt', async () => {
       // User B tries to inject a message
       await request(app)
-        .post('/api/chat')
+        .post('/api/v1/chat')
         .set('Authorization', `Bearer ${tokenB}`)
         .send({ conversationId: 'userA-conv-1', message: 'Hijacking attempt' });
 
       // User A checks messages — should only see original messages
       const res = await request(app)
-        .get('/api/conversations/userA-conv-1/messages')
+        .get('/api/v1/conversations/userA-conv-1/messages')
         .set('Authorization', `Bearer ${tokenA}`);
 
       expect(res.status).toBe(200);

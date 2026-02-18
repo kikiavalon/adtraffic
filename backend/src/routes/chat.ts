@@ -24,7 +24,7 @@ const chatLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
  * Auth runs before the body parser so unauthenticated requests
  * cannot force the server to buffer large payloads (DoS prevention).
  */
-router.post('/api/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' }), async (req, res) => {
+router.post('/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' }), async (req, res) => {
   const parsed = ChatRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -40,14 +40,14 @@ router.post('/api/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' 
     const userId = req.user!.userId;
 
     // Verify conversation ownership — prevent cross-user access (IDOR)
-    const existing = getConversation(conversationId);
+    const existing = await getConversation(conversationId);
     if (existing && existing.userId !== userId) {
       res.status(403).json({ error: 'Access denied' });
       return;
     }
 
     // Save user message to DB
-    saveMessage(conversationId, {
+    await saveMessage(conversationId, {
       id: randomUUID(),
       role: 'user',
       content: message,
@@ -57,7 +57,7 @@ router.post('/api/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' 
     const assistantMessage = await chat(conversationId, message);
 
     // Save assistant message to DB
-    saveMessage(conversationId, assistantMessage);
+    await saveMessage(conversationId, assistantMessage);
 
     const response: ChatResponse = {
       conversationId,

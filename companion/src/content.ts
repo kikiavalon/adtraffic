@@ -104,9 +104,9 @@ function main(): void {
   const context = mergeContexts(hashContext, domContext);
 
   // Store context and notify background
-  chrome.storage.local.set({ cm360Context: context });
+  void chrome.storage.local.set({ cm360Context: context });
   try {
-    chrome.runtime.sendMessage({ type: 'CM360_CONTEXT', data: context });
+    void chrome.runtime.sendMessage({ type: 'CM360_CONTEXT', data: context });
   } catch {
     // Background worker not yet active — expected in MV3
   }
@@ -120,9 +120,9 @@ function main(): void {
     const updatedDom = extractContextFromDOM();
     const updatedContext = mergeContexts(updatedHash, updatedDom);
 
-    chrome.storage.local.set({ cm360Context: updatedContext });
+    void chrome.storage.local.set({ cm360Context: updatedContext });
     try {
-      chrome.runtime.sendMessage({ type: 'CM360_CONTEXT', data: updatedContext });
+      void chrome.runtime.sendMessage({ type: 'CM360_CONTEXT', data: updatedContext });
     } catch {
       // Background worker not yet active — expected in MV3
     }

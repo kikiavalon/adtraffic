@@ -15,23 +15,23 @@ vi.mock('../claude/kiki-service.js', () => ({
 
 let authToken: string;
 
-describe('POST /api/chat', () => {
+describe('POST /api/v1/chat', () => {
   beforeEach(async () => {
     // Clear all data in correct order (messages first due to FK)
-    db.delete(schema.messages).run();
-    db.delete(schema.conversations).run();
-    db.delete(schema.users).run();
+    await db.delete(schema.messages);
+    await db.delete(schema.conversations);
+    await db.delete(schema.users);
 
     const email = `chat-test-${Date.now()}@agency.com`;
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email, password: 'SecurePass123', name: 'Test' });
     authToken = res.body.token;
   });
 
   it('returns 401 without auth token', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .send({ conversationId: 'test-1', message: 'Hello' });
 
     expect(res.status).toBe(401);
@@ -39,7 +39,7 @@ describe('POST /api/chat', () => {
 
   it('returns Kiki response for valid chat request', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ conversationId: 'test-1', message: 'Hello Kiki' });
 
@@ -51,7 +51,7 @@ describe('POST /api/chat', () => {
 
   it('rejects missing message field', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ conversationId: 'test-1' });
 
@@ -60,7 +60,7 @@ describe('POST /api/chat', () => {
 
   it('rejects missing conversationId field', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ message: 'Hello' });
 
@@ -69,7 +69,7 @@ describe('POST /api/chat', () => {
 
   it('rejects empty message', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ conversationId: 'test-1', message: '' });
 

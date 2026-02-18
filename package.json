@@ -16,12 +16,16 @@
     "dev:webapp": "npm run dev --workspace=webapp",
     "test": "npm test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "clean": "rm -rf node_modules shared/node_modules shared/dist backend/node_modules backend/dist webapp/node_modules webapp/dist companion/dist"
   },
   "engines": {
     "node": ">=20.0.0"
   },
   "devDependencies": {
-    "concurrently": "9.2.1"
+    "@eslint/js": "9.20.0",
+    "concurrently": "9.2.1",
+    "eslint": "9.20.0",
+    "typescript-eslint": "8.25.0"
   }
 }

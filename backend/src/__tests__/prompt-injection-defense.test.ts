@@ -121,19 +121,19 @@ describe('API input validation — injection defense', () => {
   let token: string;
 
   beforeAll(async () => {
-    db.delete(schema.messages).run();
-    db.delete(schema.conversations).run();
-    db.delete(schema.users).run();
+    await db.delete(schema.messages);
+    await db.delete(schema.conversations);
+    await db.delete(schema.users);
 
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: 'injection-test@agency.com', password: 'SecurePass123', name: 'Tester' });
     token = res.body.token;
   });
 
   it('rejects messages exceeding 10000 character limit', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
       .send({
         conversationId: 'injection-test',
@@ -146,7 +146,7 @@ describe('API input validation — injection defense', () => {
 
   it('rejects empty messages', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
       .send({
         conversationId: 'injection-test',
@@ -158,7 +158,7 @@ describe('API input validation — injection defense', () => {
 
   it('rejects conversationId exceeding 200 characters', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
       .send({
         conversationId: 'x'.repeat(201),
@@ -170,7 +170,7 @@ describe('API input validation — injection defense', () => {
 
   it('rejects non-string message types', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
       .send({
         conversationId: 'injection-test',
@@ -182,7 +182,7 @@ describe('API input validation — injection defense', () => {
 
   it('rejects missing conversationId', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
       .send({
         message: 'Hello',
@@ -194,7 +194,7 @@ describe('API input validation — injection defense', () => {
   it('strips unknown fields from request body', async () => {
     // Should succeed (unknown fields stripped by Zod, not rejected)
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
       .send({
         conversationId: 'injection-test',
@@ -210,7 +210,7 @@ describe('API input validation — injection defense', () => {
 describe('Auth input validation — injection defense', () => {
   it('rejects email exceeding max length', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({
         email: 'x'.repeat(300) + '@test.com',
         password: 'SecurePass123',
@@ -222,7 +222,7 @@ describe('Auth input validation — injection defense', () => {
 
   it('rejects password exceeding max length', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({
         email: 'test-maxpw@agency.com',
         password: 'x'.repeat(200),
@@ -234,7 +234,7 @@ describe('Auth input validation — injection defense', () => {
 
   it('rejects name exceeding max length', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({
         email: 'test-maxname@agency.com',
         password: 'SecurePass123',
@@ -246,7 +246,7 @@ describe('Auth input validation — injection defense', () => {
 
   it('rejects SQL injection in email field', async () => {
     const res = await request(app)
-      .post('/api/auth/login')
+      .post('/api/v1/auth/login')
       .send({
         email: "admin'--",
         password: 'password',
@@ -259,7 +259,7 @@ describe('Auth input validation — injection defense', () => {
 
   it('rejects SQL injection in password field', async () => {
     const res = await request(app)
-      .post('/api/auth/login')
+      .post('/api/v1/auth/login')
       .send({
         email: 'test@agency.com',
         password: "' OR '1'='1",

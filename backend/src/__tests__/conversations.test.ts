@@ -18,27 +18,27 @@ let authToken: string;
 describe('Conversations API', () => {
   beforeEach(async () => {
     // Clear all data in correct order (messages first due to FK)
-    db.delete(schema.messages).run();
-    db.delete(schema.conversations).run();
-    db.delete(schema.users).run();
+    await db.delete(schema.messages);
+    await db.delete(schema.conversations);
+    await db.delete(schema.users);
 
     // Register test user with unique email
     const email = `conv-test-${Date.now()}@agency.com`;
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email, password: 'SecurePass123', name: 'Test' });
     authToken = res.body.token;
   });
 
-  describe('DELETE /api/conversations/:id', () => {
+  describe('DELETE /api/v1/conversations/:id', () => {
     it('returns 401 without auth token', async () => {
-      const res = await request(app).delete('/api/conversations/test-conv-1');
+      const res = await request(app).delete('/api/v1/conversations/test-conv-1');
       expect(res.status).toBe(401);
     });
 
     it('returns 404 when conversation does not exist', async () => {
       const res = await request(app)
-        .delete('/api/conversations/test-conv-1')
+        .delete('/api/v1/conversations/test-conv-1')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(res.status).toBe(404);
@@ -48,12 +48,12 @@ describe('Conversations API', () => {
     it('clears a conversation and returns success', async () => {
       // First create the conversation by sending a chat message
       await request(app)
-        .post('/api/chat')
+        .post('/api/v1/chat')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ conversationId: 'test-conv-1', message: 'Hello Kiki' });
 
       const res = await request(app)
-        .delete('/api/conversations/test-conv-1')
+        .delete('/api/v1/conversations/test-conv-1')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(res.status).toBe(200);
@@ -61,15 +61,15 @@ describe('Conversations API', () => {
     });
   });
 
-  describe('GET /api/conversations', () => {
+  describe('GET /api/v1/conversations', () => {
     it('returns 401 without auth token', async () => {
-      const res = await request(app).get('/api/conversations');
+      const res = await request(app).get('/api/v1/conversations');
       expect(res.status).toBe(401);
     });
 
     it('returns empty list when no conversations', async () => {
       const res = await request(app)
-        .get('/api/conversations')
+        .get('/api/v1/conversations')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(res.status).toBe(200);
@@ -79,12 +79,12 @@ describe('Conversations API', () => {
     it('returns conversations after chatting', async () => {
       // Send a chat message (triggers message persistence)
       await request(app)
-        .post('/api/chat')
+        .post('/api/v1/chat')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ conversationId: 'test-conv-1', message: 'Hello Kiki' });
 
       const res = await request(app)
-        .get('/api/conversations')
+        .get('/api/v1/conversations')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(res.status).toBe(200);
@@ -94,21 +94,21 @@ describe('Conversations API', () => {
     });
   });
 
-  describe('GET /api/conversations/:id/messages', () => {
+  describe('GET /api/v1/conversations/:id/messages', () => {
     it('returns 401 without auth token', async () => {
-      const res = await request(app).get('/api/conversations/test-conv-1/messages');
+      const res = await request(app).get('/api/v1/conversations/test-conv-1/messages');
       expect(res.status).toBe(401);
     });
 
     it('returns messages for a conversation', async () => {
       // Send a chat message
       await request(app)
-        .post('/api/chat')
+        .post('/api/v1/chat')
         .set('Authorization', `Bearer ${authToken}`)
         .send({ conversationId: 'test-conv-2', message: 'What campaigns exist?' });
 
       const res = await request(app)
-        .get('/api/conversations/test-conv-2/messages')
+        .get('/api/v1/conversations/test-conv-2/messages')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(res.status).toBe(200);
@@ -121,7 +121,7 @@ describe('Conversations API', () => {
 
     it('returns 404 for non-existent conversation', async () => {
       const res = await request(app)
-        .get('/api/conversations/nonexistent/messages')
+        .get('/api/v1/conversations/nonexistent/messages')
         .set('Authorization', `Bearer ${authToken}`);
 
       expect(res.status).toBe(404);

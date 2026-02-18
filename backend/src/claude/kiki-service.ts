@@ -143,8 +143,8 @@ export async function chat(
 /**
  * Clear a conversation's history.
  */
-export function clearConversation(conversationId: string): void {
-  clearHistory(conversationId);
+export async function clearConversation(conversationId: string): Promise<void> {
+  await clearHistory(conversationId);
 }
 
 /**

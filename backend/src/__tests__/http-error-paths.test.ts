@@ -7,7 +7,7 @@
  * Covers:
  * - 500 paths in conversations (list, messages, delete)
  * - 500 path in chat (Claude API failure)
- * - 401 on /api/usage without auth
+ * - 401 on /api/v1/usage without auth
  * - 429 rate limit response shape
  */
 
@@ -38,20 +38,20 @@ vi.mock('../claude/usage-tracker.js', () => ({
 let token: string;
 
 beforeEach(async () => {
-  db.delete(schema.messages).run();
-  db.delete(schema.conversations).run();
-  db.delete(schema.users).run();
+  await db.delete(schema.messages);
+  await db.delete(schema.conversations);
+  await db.delete(schema.users);
 
   const ts = Date.now();
   const res = await request(app)
-    .post('/api/auth/register')
+    .post('/api/v1/auth/register')
     .send({ email: `error-test-${ts}@agency.com`, password: 'SecurePass123', name: 'Error Tester' });
   token = res.body.token;
 });
 
-describe('GET /api/usage', () => {
+describe('GET /api/v1/usage', () => {
   it('returns 401 without auth token', async () => {
-    const res = await request(app).get('/api/usage');
+    const res = await request(app).get('/api/v1/usage');
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('Authentication required');
@@ -59,7 +59,7 @@ describe('GET /api/usage', () => {
 
   it('returns 200 with valid auth', async () => {
     const res = await request(app)
-      .get('/api/usage')
+      .get('/api/v1/usage')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(200);
@@ -70,16 +70,15 @@ describe('GET /api/usage', () => {
 });
 
 describe('Conversation 500 error paths', () => {
-  it('GET /api/conversations returns 500 when DB throws', async () => {
+  it('GET /api/v1/conversations returns 500 when DB throws', async () => {
     // Temporarily break the getConversations function by corrupting the query
     const conversationStore = await import('../db/conversation-store.js');
-    const originalFn = conversationStore.getConversations;
     vi.spyOn(conversationStore, 'getConversations').mockImplementation(() => {
       throw new Error('DB connection lost');
     });
 
     const res = await request(app)
-      .get('/api/conversations')
+      .get('/api/v1/conversations')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(500);
@@ -89,14 +88,14 @@ describe('Conversation 500 error paths', () => {
     vi.mocked(conversationStore.getConversations).mockRestore();
   });
 
-  it('GET /api/conversations/:id/messages returns 500 when DB throws', async () => {
+  it('GET /api/v1/conversations/:id/messages returns 500 when DB throws', async () => {
     const conversationStore = await import('../db/conversation-store.js');
     vi.spyOn(conversationStore, 'getConversation').mockImplementation(() => {
       throw new Error('Disk I/O error');
     });
 
     const res = await request(app)
-      .get('/api/conversations/some-conv/messages')
+      .get('/api/v1/conversations/some-conv/messages')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(500);
@@ -105,14 +104,14 @@ describe('Conversation 500 error paths', () => {
     vi.mocked(conversationStore.getConversation).mockRestore();
   });
 
-  it('DELETE /api/conversations/:id returns 500 when DB throws', async () => {
+  it('DELETE /api/v1/conversations/:id returns 500 when DB throws', async () => {
     const conversationStore = await import('../db/conversation-store.js');
     vi.spyOn(conversationStore, 'getConversation').mockImplementation(() => {
       throw new Error('Cannot acquire lock');
     });
 
     const res = await request(app)
-      .delete('/api/conversations/some-conv')
+      .delete('/api/v1/conversations/some-conv')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(500);
@@ -123,12 +122,12 @@ describe('Conversation 500 error paths', () => {
 });
 
 describe('Chat 500 error path', () => {
-  it('POST /api/chat returns 500 when Claude API throws', async () => {
+  it('POST /api/v1/chat returns 500 when Claude API throws', async () => {
     const kikiService = await import('../claude/kiki-service.js');
     vi.mocked(kikiService.chat).mockRejectedValueOnce(new Error('Anthropic API timeout'));
 
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
       .send({ conversationId: 'error-test-conv', message: 'Hello' });
 
@@ -140,7 +139,7 @@ describe('Chat 500 error path', () => {
 describe('Consistent error response shape', () => {
   it('all 400 errors have { error: string } shape', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
       .send({ bad: 'payload' });
 
@@ -151,7 +150,7 @@ describe('Consistent error response shape', () => {
 
   it('all 401 errors have { error: string } shape', async () => {
     const res = await request(app)
-      .get('/api/conversations')
+      .get('/api/v1/conversations')
       .set('Authorization', 'Bearer invalid-token');
 
     expect(res.status).toBe(401);
@@ -161,7 +160,7 @@ describe('Consistent error response shape', () => {
 
   it('all 404 errors have { error: string } shape', async () => {
     const res = await request(app)
-      .get('/api/conversations/nonexistent/messages')
+      .get('/api/v1/conversations/nonexistent/messages')
       .set('Authorization', `Bearer ${token}`);
 
     expect(res.status).toBe(404);
@@ -173,7 +172,7 @@ describe('Consistent error response shape', () => {
     vi.mocked(kikiService.chat).mockRejectedValueOnce(new Error('Detailed internal error with stack'));
 
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${token}`)
       .send({ conversationId: 'shape-test', message: 'test' });
 

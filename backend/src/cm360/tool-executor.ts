@@ -31,7 +31,9 @@ export interface ToolResult {
 
 /**
  * Execute a CM360 tool call and return the result.
+ * Currently synchronous (mock data) — will have real await when CM360 API is connected.
  */
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function executeTool(
   toolName: string,
   toolInput: Record<string, unknown>,

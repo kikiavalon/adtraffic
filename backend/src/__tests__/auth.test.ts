@@ -4,17 +4,17 @@ import app from '../index.js';
 import { db, schema } from '../db/index.js';
 
 describe('Auth API', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     // Clear all data in correct order (messages first due to FK)
-    db.delete(schema.messages).run();
-    db.delete(schema.conversations).run();
-    db.delete(schema.users).run();
+    await db.delete(schema.messages);
+    await db.delete(schema.conversations);
+    await db.delete(schema.users);
   });
 
-  describe('POST /api/auth/register', () => {
+  describe('POST /api/v1/auth/register', () => {
     it('registers a new user and returns token', async () => {
       const res = await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send({
           email: 'test@agency.com',
           password: 'SecurePass123',
@@ -31,11 +31,11 @@ describe('Auth API', () => {
 
     it('rejects duplicate email', async () => {
       await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send({ email: 'test@agency.com', password: 'SecurePass123', name: 'User 1' });
 
       const res = await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send({ email: 'test@agency.com', password: 'DifferentPass456', name: 'User 2' });
 
       expect(res.status).toBe(409);
@@ -44,7 +44,7 @@ describe('Auth API', () => {
 
     it('rejects short password', async () => {
       const res = await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send({ email: 'test@agency.com', password: 'short', name: 'User' });
 
       expect(res.status).toBe(400);
@@ -52,21 +52,21 @@ describe('Auth API', () => {
 
     it('rejects invalid email', async () => {
       const res = await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send({ email: 'not-an-email', password: 'SecurePass123', name: 'User' });
 
       expect(res.status).toBe(400);
     });
   });
 
-  describe('POST /api/auth/login', () => {
+  describe('POST /api/v1/auth/login', () => {
     it('logs in with valid credentials', async () => {
       await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send({ email: 'login@agency.com', password: 'SecurePass123', name: 'Login User' });
 
       const res = await request(app)
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: 'login@agency.com', password: 'SecurePass123' });
 
       expect(res.status).toBe(200);
@@ -76,11 +76,11 @@ describe('Auth API', () => {
 
     it('rejects wrong password', async () => {
       await request(app)
-        .post('/api/auth/register')
+        .post('/api/v1/auth/register')
         .send({ email: 'wrong@agency.com', password: 'SecurePass123', name: 'User' });
 
       const res = await request(app)
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: 'wrong@agency.com', password: 'WrongPassword' });
 
       expect(res.status).toBe(401);
@@ -89,7 +89,7 @@ describe('Auth API', () => {
 
     it('rejects non-existent user', async () => {
       const res = await request(app)
-        .post('/api/auth/login')
+        .post('/api/v1/auth/login')
         .send({ email: 'nobody@agency.com', password: 'Whatever123' });
 
       expect(res.status).toBe(401);

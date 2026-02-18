@@ -32,7 +32,7 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
 
   const loadConversations = useCallback(async () => {
     try {
-      const res = await authFetch(`${API_URL}/api/conversations`);
+      const res = await authFetch(`${API_URL}/api/v1/conversations`);
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations);
@@ -46,7 +46,7 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
 
   const handleSelect = async (convId: string) => {
     try {
-      const res = await authFetch(`${API_URL}/api/conversations/${convId}/messages`);
+      const res = await authFetch(`${API_URL}/api/v1/conversations/${convId}/messages`);
       if (res.ok) {
         const data = await res.json();
         onSelectConversation(convId, data.messages);

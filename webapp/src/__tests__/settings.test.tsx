@@ -49,7 +49,7 @@ describe('Settings', () => {
   it('fetches /api/usage on mount', () => {
     mockAuthFetch.mockResolvedValue({ ok: false });
     renderSettings();
-    expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('/api/usage'));
+    expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('/api/v1/usage'));
   });
 
   it('displays usage data when fetch succeeds', async () => {

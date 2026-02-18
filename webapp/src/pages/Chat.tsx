@@ -210,7 +210,7 @@ function Chat() {
     setIsLoading(true);
 
     try {
-      const response = await authFetch(`${API_URL}/api/chat`, {
+      const response = await authFetch(`${API_URL}/api/v1/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId, message: text }),
@@ -266,7 +266,7 @@ function Chat() {
   const startNewChat = useCallback(async () => {
     // Clear server-side conversation
     try {
-      await authFetch(`${API_URL}/api/conversations/${conversationId}`, {
+      await authFetch(`${API_URL}/api/v1/conversations/${conversationId}`, {
         method: 'DELETE',
       });
     } catch { /* best effort */ }

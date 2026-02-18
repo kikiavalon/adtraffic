@@ -1,6 +1,4 @@
 import { Router } from 'express';
-import { getUsageSummary } from '../claude/usage-tracker.js';
-import { requireAuth } from '../auth/middleware.js';
 
 const router = Router();
 
@@ -12,12 +10,11 @@ router.get('/health', (_req, res) => {
   });
 });
 
-/**
- * GET /api/usage
- * Returns today's API usage stats. Auth required to prevent exposure of usage data.
- */
-router.get('/api/usage', requireAuth, (_req, res) => {
-  res.json(getUsageSummary());
-});
+// Dev-only endpoint to test Sentry error capture
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/debug-sentry', () => {
+    throw new Error('Sentry test error');
+  });
+}
 
 export default router;

@@ -19,7 +19,7 @@ const LoginSchema = z.object({
   password: z.string().min(1).max(128),
 });
 
-router.post('/api/auth/register', registerLimiter, async (req, res) => {
+router.post('/auth/register', registerLimiter, async (req, res) => {
   const parsed = RegisterSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -40,7 +40,7 @@ router.post('/api/auth/register', registerLimiter, async (req, res) => {
   }
 });
 
-router.post('/api/auth/login', loginLimiter, async (req, res) => {
+router.post('/auth/login', loginLimiter, async (req, res) => {
   const parsed = LoginSchema.safeParse(req.body);
 
   if (!parsed.success) {

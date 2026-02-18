@@ -7,30 +7,22 @@
  * fast and predictable.
  */
 
-import Database from 'better-sqlite3';
-import type BetterSqlite3 from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from './schema.js';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { mkdirSync } from 'fs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString && process.env.NODE_ENV !== 'test') {
+  throw new Error('DATABASE_URL environment variable must be set');
+}
 
-// SQLite database file path (in backend/ directory, gitignored)
-const DB_PATH = process.env.DATABASE_URL ?? join(__dirname, '../../data/adtraffic.db');
+/** PostgreSQL connection pool — exported for graceful shutdown */
+export const sql = postgres(connectionString ?? 'postgres://localhost:5432/adtraffic_test', {
+  max: 10,
+  idle_timeout: 20,
+  connect_timeout: 10,
+});
 
-// Ensure the data directory exists
-const dataDir = dirname(DB_PATH);
-mkdirSync(dataDir, { recursive: true });
-
-/** Raw SQLite connection — exported for graceful shutdown */
-export const sqlite: BetterSqlite3.Database = new Database(DB_PATH);
-
-// Enable WAL mode for better concurrent performance
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
-
-export const db = drizzle(sqlite, { schema });
+export const db = drizzle(sql, { schema });
 
 export { schema };

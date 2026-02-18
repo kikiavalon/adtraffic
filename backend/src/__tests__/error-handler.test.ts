@@ -4,7 +4,18 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { Request, Response, NextFunction } from 'express';
+
+vi.mock('../lib/logger.js', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 import { errorHandler } from '../middleware/error-handler.js';
+import { logger } from '../lib/logger.js';
 
 function createMockRes(): Response {
   const res = {
@@ -59,11 +70,13 @@ describe('errorHandler', () => {
     expect(JSON.stringify(jsonArg)).not.toContain('/secret/path');
   });
 
-  it('logs the error message to console', () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('logs the error message via structured logger', () => {
+    vi.mocked(logger.error).mockClear();
     const res = createMockRes();
     errorHandler(new Error('Logged error'), mockReq, res, mockNext);
-    expect(spy).toHaveBeenCalledWith('Unhandled error:', 'Logged error');
-    spy.mockRestore();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ err: { message: 'Logged error' } }),
+      'Unhandled error',
+    );
   });
 });

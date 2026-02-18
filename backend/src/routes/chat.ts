@@ -7,6 +7,8 @@ import { chat } from '../claude/kiki-service.js';
 import { requireAuth } from '../auth/middleware.js';
 import { saveMessage, getConversation } from '../db/conversation-store.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
+import { logger } from '../lib/logger.js';
+import { featureFlagsMiddleware } from '../feature-flags/flag-middleware.js';
 
 const router = Router();
 
@@ -24,7 +26,7 @@ const chatLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
  * Auth runs before the body parser so unauthenticated requests
  * cannot force the server to buffer large payloads (DoS prevention).
  */
-router.post('/api/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' }), async (req, res) => {
+router.post('/chat', chatLimiter, requireAuth, featureFlagsMiddleware, express.json({ limit: '10mb' }), async (req, res) => {
   const parsed = ChatRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -40,24 +42,24 @@ router.post('/api/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' 
     const userId = req.user!.userId;
 
     // Verify conversation ownership — prevent cross-user access (IDOR)
-    const existing = getConversation(conversationId);
+    const existing = await getConversation(conversationId);
     if (existing && existing.userId !== userId) {
       res.status(403).json({ error: 'Access denied' });
       return;
     }
 
     // Save user message to DB
-    saveMessage(conversationId, {
+    await saveMessage(conversationId, {
       id: randomUUID(),
       role: 'user',
       content: message,
       timestamp: Date.now(),
     }, userId);
 
-    const assistantMessage = await chat(conversationId, message);
+    const assistantMessage = await chat(conversationId, message, req.featureFlags);
 
     // Save assistant message to DB
-    saveMessage(conversationId, assistantMessage);
+    await saveMessage(conversationId, assistantMessage);
 
     const response: ChatResponse = {
       conversationId,
@@ -66,7 +68,7 @@ router.post('/api/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' 
 
     res.json(response);
   } catch (error) {
-    console.error('Claude API error:', error instanceof Error ? error.message : 'Unknown error');
+    logger.error({ err: { message: error instanceof Error ? error.message : 'Unknown error' }, requestId: req.requestId }, 'Claude API error');
     res.status(500).json({
       error: 'Failed to get response from Kiki',
     });

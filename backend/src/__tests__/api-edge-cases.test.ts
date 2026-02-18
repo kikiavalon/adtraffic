@@ -25,13 +25,13 @@ vi.mock('../claude/kiki-service.js', () => ({
 let authToken: string;
 
 beforeEach(async () => {
-  db.delete(schema.messages).run();
-  db.delete(schema.conversations).run();
-  db.delete(schema.users).run();
+  await db.delete(schema.messages);
+  await db.delete(schema.conversations);
+  await db.delete(schema.users);
 
   const email = `edge-${Date.now()}@test.com`;
   const res = await request(app)
-    .post('/api/auth/register')
+    .post('/api/v1/auth/register')
     .send({ email, password: 'SecurePass123', name: 'Edge Tester' });
   authToken = res.body.token;
 });
@@ -56,64 +56,64 @@ describe('Unknown routes', () => {
 // Auth registration edge cases
 // ---------------------------------------------------------------------------
 
-describe('POST /api/auth/register — edge cases', () => {
+describe('POST /api/v1/auth/register — edge cases', () => {
   it('rejects empty body', async () => {
-    const res = await request(app).post('/api/auth/register').send({});
+    const res = await request(app).post('/api/v1/auth/register').send({});
     expect(res.status).toBe(400);
   });
 
   it('rejects missing name', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: 'valid@test.com', password: 'SecurePass123' });
     expect(res.status).toBe(400);
   });
 
   it('rejects missing email', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ password: 'SecurePass123', name: 'Test' });
     expect(res.status).toBe(400);
   });
 
   it('rejects missing password', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: 'valid@test.com', name: 'Test' });
     expect(res.status).toBe(400);
   });
 
   it('rejects exactly 7-character password', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: 'short@test.com', password: '1234567', name: 'Test' });
     expect(res.status).toBe(400);
   });
 
   it('accepts exactly 8-character password', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: 'eight@test.com', password: '12345678', name: 'Test' });
     expect(res.status).toBe(201);
   });
 
   it('rejects email without @ sign', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: 'not-an-email', password: 'SecurePass123', name: 'Test' });
     expect(res.status).toBe(400);
   });
 
   it('rejects empty string name', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: 'empty@test.com', password: 'SecurePass123', name: '' });
     expect(res.status).toBe(400);
   });
 
   it('returns token and user object on success (no sensitive fields)', async () => {
     const res = await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: 'clean@test.com', password: 'SecurePass123', name: 'Clean' });
 
     expect(res.status).toBe(201);
@@ -131,15 +131,15 @@ describe('POST /api/auth/register — edge cases', () => {
 // Auth login edge cases
 // ---------------------------------------------------------------------------
 
-describe('POST /api/auth/login — edge cases', () => {
+describe('POST /api/v1/auth/login — edge cases', () => {
   it('rejects empty body', async () => {
-    const res = await request(app).post('/api/auth/login').send({});
+    const res = await request(app).post('/api/v1/auth/login').send({});
     expect(res.status).toBe(400);
   });
 
   it('rejects missing password', async () => {
     const res = await request(app)
-      .post('/api/auth/login')
+      .post('/api/v1/auth/login')
       .send({ email: 'test@test.com' });
     expect(res.status).toBe(400);
   });
@@ -147,17 +147,17 @@ describe('POST /api/auth/login — edge cases', () => {
   it('returns same error for wrong email and wrong password', async () => {
     // Register a user
     await request(app)
-      .post('/api/auth/register')
+      .post('/api/v1/auth/register')
       .send({ email: 'timing@test.com', password: 'SecurePass123', name: 'Timing' });
 
     // Wrong email
     const wrongEmail = await request(app)
-      .post('/api/auth/login')
+      .post('/api/v1/auth/login')
       .send({ email: 'wrong@test.com', password: 'SecurePass123' });
 
     // Wrong password
     const wrongPass = await request(app)
-      .post('/api/auth/login')
+      .post('/api/v1/auth/login')
       .send({ email: 'timing@test.com', password: 'WrongPassword1' });
 
     // Same error message for both (prevents email enumeration)
@@ -172,17 +172,17 @@ describe('POST /api/auth/login — edge cases', () => {
 // Chat API edge cases
 // ---------------------------------------------------------------------------
 
-describe('POST /api/chat — edge cases', () => {
+describe('POST /api/v1/chat — edge cases', () => {
   it('rejects request without auth', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .send({ conversationId: 'test', message: 'Hello' });
     expect(res.status).toBe(401);
   });
 
   it('rejects empty message', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ conversationId: 'test', message: '' });
     expect(res.status).toBe(400);
@@ -190,7 +190,7 @@ describe('POST /api/chat — edge cases', () => {
 
   it('rejects missing conversationId', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ message: 'Hello' });
     expect(res.status).toBe(400);
@@ -198,7 +198,7 @@ describe('POST /api/chat — edge cases', () => {
 
   it('rejects missing message', async () => {
     const res = await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ conversationId: 'test' });
     expect(res.status).toBe(400);
@@ -210,17 +210,17 @@ describe('POST /api/chat — edge cases', () => {
 // ---------------------------------------------------------------------------
 
 describe('Conversations API — edge cases', () => {
-  it('GET /api/conversations/:id/messages returns 404 for unknown ID', async () => {
+  it('GET /api/v1/conversations/:id/messages returns 404 for unknown ID', async () => {
     const res = await request(app)
-      .get('/api/conversations/unknown-id-12345/messages')
+      .get('/api/v1/conversations/unknown-id-12345/messages')
       .set('Authorization', `Bearer ${authToken}`);
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Conversation not found');
   });
 
-  it('DELETE /api/conversations/:id returns 404 if conversation does not exist', async () => {
+  it('DELETE /api/v1/conversations/:id returns 404 if conversation does not exist', async () => {
     const res = await request(app)
-      .delete('/api/conversations/never-existed')
+      .delete('/api/v1/conversations/never-existed')
       .set('Authorization', `Bearer ${authToken}`);
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Conversation not found');
@@ -228,12 +228,12 @@ describe('Conversations API — edge cases', () => {
 
   it('conversation title is set from first user message', async () => {
     await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ conversationId: 'title-test', message: 'What advertisers exist?' });
 
     const res = await request(app)
-      .get('/api/conversations')
+      .get('/api/v1/conversations')
       .set('Authorization', `Bearer ${authToken}`);
 
     expect(res.body.conversations).toHaveLength(1);
@@ -242,7 +242,7 @@ describe('Conversations API — edge cases', () => {
 
   it('multiple conversations are returned in order', async () => {
     await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ conversationId: 'conv-older', message: 'First chat' });
 
@@ -250,12 +250,12 @@ describe('Conversations API — edge cases', () => {
     await new Promise((r) => setTimeout(r, 1100));
 
     await request(app)
-      .post('/api/chat')
+      .post('/api/v1/chat')
       .set('Authorization', `Bearer ${authToken}`)
       .send({ conversationId: 'conv-newer', message: 'Second chat' });
 
     const res = await request(app)
-      .get('/api/conversations')
+      .get('/api/v1/conversations')
       .set('Authorization', `Bearer ${authToken}`);
 
     expect(res.body.conversations).toHaveLength(2);

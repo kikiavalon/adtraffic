@@ -103,7 +103,7 @@ openKikiBtn.addEventListener('click', () => {
       const url = query
         ? `${parsed.origin}${parsed.pathname}?${query}`
         : `${parsed.origin}${parsed.pathname}`;
-      chrome.tabs.create({ url });
+      void chrome.tabs.create({ url });
     } catch {
       console.error('Invalid baseUrl:', baseUrl);
     }

@@ -1,6 +1,5 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { randomUUID } from 'crypto';
 import { db, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 
@@ -33,34 +32,39 @@ export interface AuthTokens {
 }
 
 export async function register(email: string, password: string, name: string): Promise<AuthTokens> {
-  const existing = db.select().from(schema.users).where(eq(schema.users.email, email)).get();
-  if (existing) {
+  const existing = await db.select().from(schema.users).where(eq(schema.users.email, email));
+  if (existing[0]) {
     throw new Error('Email already registered');
   }
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-  const now = new Date();
-  const user = {
-    id: randomUUID(),
+
+  const result = await db.insert(schema.users).values({
     email,
     passwordHash,
     name,
-    createdAt: now,
-    updatedAt: now,
-  };
+  }).returning({
+    id: schema.users.id,
+    email: schema.users.email,
+    name: schema.users.name,
+  });
 
-  db.insert(schema.users).values(user).run();
+  const insertedUser = result[0];
+  if (!insertedUser) {
+    throw new Error('Failed to create user');
+  }
 
-  const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+  const token = jwt.sign({ userId: insertedUser.id, email: insertedUser.email }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
 
   return {
     token,
-    user: { id: user.id, email: user.email, name: user.name },
+    user: { id: insertedUser.id, email: insertedUser.email, name: insertedUser.name },
   };
 }
 
 export async function login(email: string, password: string): Promise<AuthTokens> {
-  const user = db.select().from(schema.users).where(eq(schema.users.email, email)).get();
+  const result = await db.select().from(schema.users).where(eq(schema.users.email, email));
+  const user = result[0];
   if (!user) {
     // Run bcrypt.compare against dummy hash to prevent timing-based email enumeration
     await bcrypt.compare(password, DUMMY_HASH);

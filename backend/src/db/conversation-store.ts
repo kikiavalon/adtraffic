@@ -49,47 +49,42 @@ export function saveHistory(conversationId: string, history: Anthropic.MessagePa
 /**
  * Save a display message to the database.
  */
-export function saveMessage(
+export async function saveMessage(
   conversationId: string,
   message: { id: string; role: 'user' | 'assistant'; content: string; timestamp: number },
   userId?: string,
-): void {
+): Promise<void> {
   // Ensure conversation exists — use INSERT OR IGNORE to handle concurrent inserts safely
   if (userId) {
-    const now = new Date();
-    db.insert(schema.conversations).values({
+    await db.insert(schema.conversations).values({
       id: conversationId,
       userId,
       title: message.role === 'user' ? message.content.slice(0, 100) : null,
-      createdAt: now,
-      updatedAt: now,
-    }).onConflictDoNothing().run();
+    }).onConflictDoNothing();
   }
 
-  db.insert(schema.messages).values({
+  await db.insert(schema.messages).values({
     id: message.id,
     conversationId,
     role: message.role,
     content: message.content,
     timestamp: message.timestamp,
-  }).run();
+  });
 
   // Update conversation timestamp
-  db.update(schema.conversations)
+  await db.update(schema.conversations)
     .set({ updatedAt: new Date() })
-    .where(eq(schema.conversations.id, conversationId))
-    .run();
+    .where(eq(schema.conversations.id, conversationId));
 }
 
 /**
  * Clear a conversation's history (both cache and database).
  */
-export function clearHistory(conversationId: string): void {
+export async function clearHistory(conversationId: string): Promise<void> {
   historyCache.delete(conversationId);
   // Messages cascade-delete when conversation is deleted
-  db.delete(schema.conversations)
-    .where(eq(schema.conversations.id, conversationId))
-    .run();
+  await db.delete(schema.conversations)
+    .where(eq(schema.conversations.id, conversationId));
 }
 
 /**
@@ -102,14 +97,14 @@ export function getHistoryLength(conversationId: string): number {
 /**
  * Get a single conversation by ID.
  */
-export function getConversation(conversationId: string): {
+export async function getConversation(conversationId: string): Promise<{
   id: string;
   userId: string;
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
-} | undefined {
-  return db.select({
+} | undefined> {
+  const result = await db.select({
     id: schema.conversations.id,
     userId: schema.conversations.userId,
     title: schema.conversations.title,
@@ -117,19 +112,19 @@ export function getConversation(conversationId: string): {
     updatedAt: schema.conversations.updatedAt,
   })
     .from(schema.conversations)
-    .where(eq(schema.conversations.id, conversationId))
-    .get();
+    .where(eq(schema.conversations.id, conversationId));
+  return result[0];
 }
 
 /**
  * Get conversations for a user, ordered by most recent, with pagination.
  */
-export function getConversations(userId: string, limit = 50, offset = 0): Array<{
+export async function getConversations(userId: string, limit = 50, offset = 0): Promise<Array<{
   id: string;
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
-}> {
+}>> {
   return db.select({
     id: schema.conversations.id,
     title: schema.conversations.title,
@@ -140,19 +135,18 @@ export function getConversations(userId: string, limit = 50, offset = 0): Array<
     .where(eq(schema.conversations.userId, userId))
     .orderBy(desc(schema.conversations.updatedAt))
     .limit(limit)
-    .offset(offset)
-    .all();
+    .offset(offset);
 }
 
 /**
  * Get display messages for a conversation, ordered by timestamp, with pagination.
  */
-export function getMessages(conversationId: string, limit = 100, offset = 0): Array<{
+export async function getMessages(conversationId: string, limit = 100, offset = 0): Promise<Array<{
   id: string;
   role: string;
   content: string;
   timestamp: number;
-}> {
+}>> {
   return db.select({
     id: schema.messages.id,
     role: schema.messages.role,
@@ -163,6 +157,5 @@ export function getMessages(conversationId: string, limit = 100, offset = 0): Ar
     .where(eq(schema.messages.conversationId, conversationId))
     .orderBy(asc(schema.messages.timestamp))
     .limit(limit)
-    .offset(offset)
-    .all();
+    .offset(offset);
 }

@@ -1,4 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
+import type { BooleanFlagName, ResolvedFlags } from '../feature-flags/flag-registry.js';
 
 /**
  * CM360 tool definitions for Claude's tool use.
@@ -222,3 +223,39 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
     },
   },
 ];
+
+/**
+ * Maps each tool name to the boolean feature flag that gates it.
+ * If the flag is false, the tool is excluded from the Claude API call.
+ */
+export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
+  // Read tools
+  cm360_list_profiles: 'cm360.read_operations',
+  cm360_list_advertisers: 'cm360.read_operations',
+  cm360_get_advertiser: 'cm360.read_operations',
+  cm360_list_campaigns: 'cm360.read_operations',
+  cm360_list_sites: 'cm360.read_operations',
+  cm360_list_landing_pages: 'cm360.read_operations',
+  cm360_list_placements: 'cm360.read_operations',
+  cm360_list_creatives: 'cm360.read_operations',
+  cm360_list_ads: 'cm360.read_operations',
+  // Write tools
+  cm360_create_campaign: 'cm360.write_operations',
+  cm360_create_placement: 'cm360.write_operations',
+  cm360_create_ad: 'cm360.write_operations',
+  cm360_create_landing_page: 'cm360.write_operations',
+  // Tag generation
+  cm360_generate_tags: 'cm360.tag_generation',
+};
+
+/**
+ * Filter CM360_TOOLS based on the user's resolved feature flags.
+ * Returns only the tools whose gating flag is enabled.
+ */
+export function getEnabledTools(flags: ResolvedFlags): Anthropic.Tool[] {
+  return CM360_TOOLS.filter((tool) => {
+    const flagName = TOOL_FLAG_MAP[tool.name];
+    if (!flagName) return true; // No flag mapping = always enabled
+    return flags[flagName];
+  });
+}

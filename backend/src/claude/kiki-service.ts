@@ -2,14 +2,15 @@ import Anthropic from '@anthropic-ai/sdk';
 import { v4 as uuidv4 } from 'uuid';
 import type { ChatMessage } from '@adtraffic/shared';
 import { getSystemPrompt } from './system-prompt.js';
-import { CM360_TOOLS } from './tool-definitions.js';
+import { CM360_TOOLS, getEnabledTools } from './tool-definitions.js';
+import type { ResolvedFlags } from '../feature-flags/flag-registry.js';
 import { executeTool } from '../cm360/tool-executor.js';
 import { getHistory, saveHistory, clearHistory, getHistoryLength } from '../db/conversation-store.js';
 import { checkLimit, recordUsage } from './usage-tracker.js';
 
 const anthropic = new Anthropic();
 
-const MAX_TOOL_ROUNDS = 5;
+const DEFAULT_MAX_TOOL_ROUNDS = 5;
 
 // Configurable via env vars — defaults are cost-conscious for testing
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001';
@@ -19,13 +20,31 @@ const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS ?? '1024', 10);
  * Send a message to Kiki and get a response.
  * Handles the full agentic loop: Claude may call tools multiple times
  * before producing a final text response.
+ *
+ * @param flags - Optional resolved feature flags for the current user.
+ *                Controls tool availability, daily limits, and max tool rounds.
  */
 export async function chat(
   conversationId: string,
   userMessage: string,
+  flags?: ResolvedFlags,
 ): Promise<ChatMessage> {
+  // Check if chat is enabled via feature flags
+  if (flags && !flags['chat.enabled']) {
+    return {
+      id: uuidv4(),
+      role: 'assistant',
+      content: 'Chat is currently disabled for your account. Please contact support.',
+      timestamp: Date.now(),
+    };
+  }
+
+  const dailyLimit = flags?.['limits.daily_api_requests'];
+  const maxToolRounds = flags?.['limits.max_tool_rounds'] ?? DEFAULT_MAX_TOOL_ROUNDS;
+  const tools = flags ? getEnabledTools(flags) : CM360_TOOLS;
+
   // Check daily usage limit before making any API call
-  const limitCheck = checkLimit();
+  const limitCheck = checkLimit(dailyLimit);
   if (!limitCheck.allowed) {
     return {
       id: uuidv4(),
@@ -42,9 +61,9 @@ export async function chat(
   let toolRounds = 0;
 
   try {
-    while (toolRounds < MAX_TOOL_ROUNDS) {
+    while (toolRounds < maxToolRounds) {
       // Re-check limit before each API call (tool loops make multiple calls)
-      const roundLimitCheck = checkLimit();
+      const roundLimitCheck = checkLimit(dailyLimit);
       if (!roundLimitCheck.allowed) {
         return {
           id: uuidv4(),
@@ -65,7 +84,7 @@ export async function chat(
             model: CLAUDE_MODEL,
             max_tokens: CLAUDE_MAX_TOKENS,
             system: getSystemPrompt(),
-            tools: CM360_TOOLS,
+            tools,
             messages: history,
           },
           { signal: controller.signal },

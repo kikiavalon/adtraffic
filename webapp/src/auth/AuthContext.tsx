@@ -9,9 +9,12 @@ interface AuthUser {
   name: string;
 }
 
+type FeatureFlags = Record<string, boolean | number>;
+
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
+  featureFlags: FeatureFlags | null;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
@@ -33,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return localStorage.getItem('adtraffic-token');
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
 
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; }, [token]);
@@ -46,6 +50,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('adtraffic-user');
     }
   }, [token, user]);
+
+  const fetchFlags = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/feature-flags`, {
+        headers: tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFeatureFlags(data.flags);
+      }
+    } catch { /* silently fail — flags are non-critical */ }
+  }, []);
+
+  // Fetch flags on initial load when user is already authenticated
+  useEffect(() => {
+    if (token && user) { fetchFlags(); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
@@ -64,10 +85,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       setToken(data.token);
       setUser(data.user);
+      tokenRef.current = data.token;
+      // Fetch feature flags after login
+      fetchFlags();
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchFlags]);
 
   const register = useCallback(async (email: string, password: string, name: string) => {
     setIsLoading(true);
@@ -86,14 +110,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       setToken(data.token);
       setUser(data.user);
+      tokenRef.current = data.token;
+      // Fetch feature flags after registration
+      fetchFlags();
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchFlags]);
 
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
+    setFeatureFlags(null);
     sessionStorage.clear();
   }, []);
 
@@ -116,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res;
   }, []);
 
-  const value = useMemo(() => ({ user, token, login, register, logout, isLoading, authFetch }), [user, token, login, register, logout, isLoading, authFetch]);
+  const value = useMemo(() => ({ user, token, featureFlags, login, register, logout, isLoading, authFetch }), [user, token, featureFlags, login, register, logout, isLoading, authFetch]);
 
   return (
     <AuthContext.Provider value={value}>

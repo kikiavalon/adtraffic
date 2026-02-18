@@ -132,6 +132,15 @@
   background: #dc2626;
 }
 
+.flag-enabled {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.flag-disabled {
+  color: #9ca3af;
+}
+
 .settings-logout-btn {
   padding: 10px 20px;
   background: white;

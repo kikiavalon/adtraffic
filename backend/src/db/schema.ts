@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, bigint } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, bigint, unique } from 'drizzle-orm/pg-core';
 
 /**
  * Database schema for AdTraffic.ai
@@ -33,6 +33,18 @@ export const messages = pgTable('messages', {
   content: text('content').notNull(),
   timestamp: bigint('timestamp', { mode: 'number' }).notNull(),
 });
+
+/** Feature flag overrides — per-user flag customization */
+export const featureFlagOverrides = pgTable('feature_flag_overrides', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  flagName: text('flag_name').notNull(),
+  value: text('value').notNull(), // JSON-encoded boolean or number
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (table) => ({
+  uniqueUserFlag: unique().on(table.userId, table.flagName),
+}));
 
 /** OAuth tokens — encrypted CM360 tokens (future) */
 export const oauthTokens = pgTable('oauth_tokens', {

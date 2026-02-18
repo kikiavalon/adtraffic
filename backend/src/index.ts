@@ -13,6 +13,7 @@ import chatRouter from './routes/chat.js';
 import conversationsRouter from './routes/conversations.js';
 import authRouter from './routes/auth.js';
 import usageRouter from './routes/usage.js';
+import featureFlagsRouter from './routes/feature-flags.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { requestLoggerMiddleware } from './middleware/request-logger.js';
@@ -58,6 +59,7 @@ app.use('/api/v1', authRouter);
 app.use('/api/v1', chatRouter);
 app.use('/api/v1', conversationsRouter);
 app.use('/api/v1', usageRouter);
+app.use('/api/v1', featureFlagsRouter);
 
 // Sentry error handler (captures exceptions before our custom error handler)
 Sentry.setupExpressErrorHandler(app);

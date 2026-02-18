@@ -8,6 +8,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { saveMessage, getConversation } from '../db/conversation-store.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
 import { logger } from '../lib/logger.js';
+import { featureFlagsMiddleware } from '../feature-flags/flag-middleware.js';
 
 const router = Router();
 
@@ -25,7 +26,7 @@ const chatLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
  * Auth runs before the body parser so unauthenticated requests
  * cannot force the server to buffer large payloads (DoS prevention).
  */
-router.post('/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' }), async (req, res) => {
+router.post('/chat', chatLimiter, requireAuth, featureFlagsMiddleware, express.json({ limit: '10mb' }), async (req, res) => {
   const parsed = ChatRequestSchema.safeParse(req.body);
 
   if (!parsed.success) {
@@ -55,7 +56,7 @@ router.post('/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' }), 
       timestamp: Date.now(),
     }, userId);
 
-    const assistantMessage = await chat(conversationId, message);
+    const assistantMessage = await chat(conversationId, message, req.featureFlags);
 
     // Save assistant message to DB
     await saveMessage(conversationId, assistantMessage);

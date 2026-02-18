@@ -68,10 +68,12 @@ function resetIfNewDay(): void {
 /**
  * Check if we've hit the daily request limit.
  * Returns { allowed: true } or { allowed: false, message: string }.
+ *
+ * @param dailyLimit - Optional per-user limit from feature flags. Falls back to env/default.
  */
-export function checkLimit(): LimitCheck {
+export function checkLimit(dailyLimit?: number): LimitCheck {
   resetIfNewDay();
-  const limit = getDailyLimit();
+  const limit = dailyLimit ?? getDailyLimit();
   if (dailyUsage.requests >= limit) {
     return {
       allowed: false,

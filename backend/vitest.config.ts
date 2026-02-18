@@ -6,5 +6,8 @@ export default defineConfig({
     // share a single SQLite database and concurrent table mutations
     // cause FK constraint race conditions.
     fileParallelism: false,
+    // Ensure database tables exist before tests run (needed in CI where
+    // there's no pre-existing database from drizzle-kit push)
+    globalSetup: './vitest.setup.ts',
   },
 });

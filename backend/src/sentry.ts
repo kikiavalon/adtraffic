@@ -1,5 +1,6 @@
 import * as Sentry from '@sentry/node';
 import { nodeProfilingIntegration } from '@sentry/profiling-node';
+import { logger } from './lib/logger.js';
 
 /**
  * Initialize Sentry error reporting.
@@ -9,7 +10,7 @@ import { nodeProfilingIntegration } from '@sentry/profiling-node';
 export function initSentry(): void {
   const dsn = process.env.SENTRY_DSN;
   if (!dsn) {
-    console.log('Sentry disabled (SENTRY_DSN not set)');
+    logger.info('Sentry disabled (SENTRY_DSN not set)');
     return;
   }
 
@@ -42,7 +43,7 @@ export function initSentry(): void {
     },
   });
 
-  console.log(`Sentry initialized (env: ${environment}, traces: ${isProduction ? '10%' : '100%'})`);
+  logger.info({ environment, tracesSampleRate: isProduction ? '10%' : '100%' }, 'Sentry initialized');
 }
 
 export { Sentry };

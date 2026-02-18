@@ -8,6 +8,21 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+// Mock logger and metrics before any imports
+vi.mock('../lib/logger.js', () => ({
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
+vi.mock('../lib/metrics.js', () => ({
+  claudeApiRequestsTotal: { inc: vi.fn() },
+  claudeApiTokensTotal: { inc: vi.fn() },
+}));
+
 // We need to re-import the module for each test to reset the internal state.
 // vitest's dynamic import + resetModules handles this.
 let checkLimit: typeof import('../claude/usage-tracker.js')['checkLimit'];
@@ -16,8 +31,6 @@ let getUsageSummary: typeof import('../claude/usage-tracker.js')['getUsageSummar
 
 beforeEach(async () => {
   vi.resetModules();
-  // Suppress console.log from usage tracker
-  vi.spyOn(console, 'log').mockImplementation(() => {});
   const mod = await import('../claude/usage-tracker.js');
   checkLimit = mod.checkLimit;
   recordUsage = mod.recordUsage;
@@ -108,10 +121,14 @@ describe('recordUsage', () => {
     expect(getUsageSummary().requests).toBe(5);
   });
 
-  it('logs usage to console', () => {
-    const logSpy = vi.spyOn(console, 'log');
+  it('logs usage via structured logger', async () => {
+    const { logger } = await import('../lib/logger.js');
+    vi.mocked(logger.info).mockClear();
     recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('[usage]'));
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'claude-haiku-4-5-20251001', inputTokens: 100, outputTokens: 50 }),
+      'API usage recorded',
+    );
   });
 });
 

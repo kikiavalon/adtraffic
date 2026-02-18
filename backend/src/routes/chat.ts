@@ -7,6 +7,7 @@ import { chat } from '../claude/kiki-service.js';
 import { requireAuth } from '../auth/middleware.js';
 import { saveMessage, getConversation } from '../db/conversation-store.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -66,7 +67,7 @@ router.post('/chat', chatLimiter, requireAuth, express.json({ limit: '10mb' }), 
 
     res.json(response);
   } catch (error) {
-    console.error('Claude API error:', error instanceof Error ? error.message : 'Unknown error');
+    logger.error({ err: { message: error instanceof Error ? error.message : 'Unknown error' }, requestId: req.requestId }, 'Claude API error');
     res.status(500).json({
       error: 'Failed to get response from Kiki',
     });

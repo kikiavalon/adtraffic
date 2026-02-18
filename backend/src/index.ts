@@ -8,11 +8,16 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import healthRouter from './routes/health.js';
+import metricsRouter from './routes/metrics.js';
 import chatRouter from './routes/chat.js';
 import conversationsRouter from './routes/conversations.js';
 import authRouter from './routes/auth.js';
 import usageRouter from './routes/usage.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { requestIdMiddleware } from './middleware/request-id.js';
+import { requestLoggerMiddleware } from './middleware/request-logger.js';
+import { metricsCollectorMiddleware } from './middleware/metrics-collector.js';
+import { logger } from './lib/logger.js';
 import { sql } from './db/index.js';
 
 const app = express();
@@ -26,6 +31,11 @@ app.use(helmet({
   contentSecurityPolicy: false, // CSP handled by nginx for the webapp; API responses don't serve HTML
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
 }));
+
+// Observability middleware (runs before auth/body parsing for full coverage)
+app.use(requestIdMiddleware);
+app.use(requestLoggerMiddleware);
+app.use(metricsCollectorMiddleware);
 
 // Middleware
 // CORS: In production, replace chrome-extension regex with specific extension ID
@@ -41,8 +51,9 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '100kb' }));
 
-// Routes — /health is unversioned; everything else under /api/v1
+// Routes — /health and /metrics are unversioned; everything else under /api/v1
 app.use(healthRouter);
+app.use(metricsRouter);
 app.use('/api/v1', authRouter);
 app.use('/api/v1', chatRouter);
 app.use('/api/v1', conversationsRouter);
@@ -60,13 +71,14 @@ if (process.env.NODE_ENV !== 'test') {
     const model = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001';
     const maxTokens = process.env.CLAUDE_MAX_TOKENS ?? '1024';
     const dailyLimit = process.env.DAILY_API_LIMIT ?? '100';
-    console.log(`AdTraffic.ai backend running on port ${PORT}`);
-    console.log(`  Model: ${model} | Max tokens: ${maxTokens} | Daily limit: ${dailyLimit} requests`);
-    console.log(`  Usage dashboard: http://localhost:${PORT}/api/v1/usage`);
+    logger.info(
+      { port: PORT, model, maxTokens, dailyLimit },
+      'AdTraffic.ai backend started',
+    );
   });
 
   const shutdown = () => {
-    console.log('Shutting down gracefully...');
+    logger.info('Shutting down gracefully...');
     server.close(() => {
       void sql.end().then(() => process.exit(0));
     });

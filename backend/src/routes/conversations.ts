@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { clearConversation } from '../claude/kiki-service.js';
 import { requireAuth } from '../auth/middleware.js';
 import { getConversations, getMessages, getConversation } from '../db/conversation-store.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.get('/conversations', requireAuth, async (req, res) => {
     const conversations = await getConversations(userId, limit, offset);
     res.json({ conversations });
   } catch (error) {
-    console.error('Error listing conversations:', error instanceof Error ? error.message : 'Unknown error');
+    logger.error({ err: { message: error instanceof Error ? error.message : 'Unknown error' }, requestId: req.requestId }, 'Error listing conversations');
     res.status(500).json({ error: 'Failed to list conversations' });
   }
 });
@@ -50,7 +51,7 @@ router.get('/conversations/:id/messages', requireAuth, async (req, res) => {
     const messages = await getMessages(id, limit, offset);
     res.json({ messages });
   } catch (error) {
-    console.error('Error loading messages:', error instanceof Error ? error.message : 'Unknown error');
+    logger.error({ err: { message: error instanceof Error ? error.message : 'Unknown error' }, requestId: req.requestId }, 'Error loading messages');
     res.status(500).json({ error: 'Failed to load messages' });
   }
 });
@@ -79,7 +80,7 @@ router.delete('/conversations/:id', requireAuth, async (req, res) => {
     await clearConversation(id);
     res.json({ success: true, conversationId: id });
   } catch (error) {
-    console.error('Error deleting conversation:', error instanceof Error ? error.message : 'Unknown error');
+    logger.error({ err: { message: error instanceof Error ? error.message : 'Unknown error' }, requestId: req.requestId }, 'Error deleting conversation');
     res.status(500).json({ error: 'Failed to delete conversation' });
   }
 });

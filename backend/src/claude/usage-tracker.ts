@@ -5,6 +5,9 @@
  * Resets daily. Not persisted — restarts clear the counters.
  */
 
+import { logger } from '../lib/logger.js';
+import { claudeApiRequestsTotal, claudeApiTokensTotal } from '../lib/metrics.js';
+
 export type LimitCheck = { allowed: true } | { allowed: false; message: string };
 
 interface UsageEntry {
@@ -48,7 +51,10 @@ function todayKey(): string {
 function resetIfNewDay(): void {
   const today = todayKey();
   if (dailyUsage.date !== today) {
-    console.log(`[usage-tracker] New day — resetting counters (previous: ${dailyUsage.requests} requests, ${dailyUsage.inputTokens + dailyUsage.outputTokens} tokens)`);
+    logger.info(
+      { previousRequests: dailyUsage.requests, previousTokens: dailyUsage.inputTokens + dailyUsage.outputTokens },
+      'New day — resetting usage counters',
+    );
     dailyUsage = {
       date: today,
       requests: 0,
@@ -91,6 +97,11 @@ export function recordUsage(model: string, inputTokens: number, outputTokens: nu
   dailyUsage.outputTokens += outputTokens;
   dailyUsage.entries.push(entry);
 
+  // Record Prometheus metrics
+  claudeApiRequestsTotal.inc({ model, status: 'success' });
+  claudeApiTokensTotal.inc({ model, type: 'input' }, inputTokens);
+  claudeApiTokensTotal.inc({ model, type: 'output' }, outputTokens);
+
   const pricing = MODEL_PRICING[model];
   const costStr = pricing
     ? `~$${((inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000).toFixed(4)}`
@@ -102,8 +113,18 @@ export function recordUsage(model: string, inputTokens: number, outputTokens: nu
 
   const limit = getDailyLimit();
 
-  console.log(
-    `[usage] ${model} | in: ${inputTokens} out: ${outputTokens} | cost: ${costStr} | daily: ${dailyUsage.requests}/${limit} reqs, ${dailyUsage.inputTokens + dailyUsage.outputTokens} tokens, ${totalCostStr} total`,
+  logger.info(
+    {
+      model,
+      inputTokens,
+      outputTokens,
+      cost: costStr,
+      dailyRequests: dailyUsage.requests,
+      dailyLimit: limit,
+      dailyTotalTokens: dailyUsage.inputTokens + dailyUsage.outputTokens,
+      dailyTotalCost: totalCostStr,
+    },
+    'API usage recorded',
   );
 }
 

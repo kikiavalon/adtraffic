@@ -90,6 +90,28 @@ export const GetAdInputSchema2 = z.object({
   adId: z.string().min(1, 'Ad ID is required'),
 });
 
+export const GetCreativeInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  creativeId: z.string().min(1, 'Creative ID is required'),
+});
+
+export const GetLandingPageInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  landingPageId: z.string().min(1, 'Landing page ID is required'),
+});
+
+export const GetSiteInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  siteId: z.string().min(1, 'Site ID is required'),
+});
+
+export const ListSizesInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  width: z.number().int().min(1).optional(),
+  height: z.number().int().min(1).optional(),
+  iabStandard: z.boolean().optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Update / Patch operations
 // ---------------------------------------------------------------------------
@@ -195,6 +217,47 @@ export const CreateAdInputSchema = z.object({
   creativeId: z.string().min(1, 'Creative ID is required'),
 });
 
+export const CreateCreativeInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  name: z.string().min(1, 'Creative name is required').max(256),
+  type: z.enum([
+    'DISPLAY', 'DISPLAY_REDIRECT', 'HTML5_BANNER', 'IMAGE',
+    'INTERNAL_REDIRECT', 'RICH_MEDIA_DISPLAY_BANNER', 'RICH_MEDIA_DISPLAY_EXPANDING',
+    'RICH_MEDIA_DISPLAY_INTERSTITIAL', 'RICH_MEDIA_DISPLAY_MULTI_FLOATING_INTERSTITIAL',
+    'RICH_MEDIA_MOBILE_IN_APP', 'RICH_MEDIA_PEEL_DOWN', 'TRACKING',
+    'VAST_REDIRECT', 'VPAID_LINEAR', 'VPAID_NON_LINEAR',
+  ]),
+  width: z.number().int().min(1, 'Width must be positive'),
+  height: z.number().int().min(1, 'Height must be positive'),
+  active: z.boolean().optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Phase B: Campaign-Creative Associations + Creative Assets
+// ---------------------------------------------------------------------------
+
+export const AssociateCreativeCampaignInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  campaignId: z.string().min(1, 'Campaign ID is required'),
+  creativeId: z.string().min(1, 'Creative ID is required'),
+});
+
+export const ListCampaignCreativeAssociationsInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  campaignId: z.string().min(1, 'Campaign ID is required'),
+  maxResults: z.number().int().min(1).max(1000).optional(),
+});
+
+export const UploadCreativeAssetInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  assetName: z.string().min(1, 'Asset filename is required').max(256),
+  assetType: z.enum(['HTML', 'HTML_IMAGE', 'IMAGE', 'VIDEO', 'AUDIO', 'PARENT_AUDIO', 'PARENT_VIDEO']),
+  /** Base64-encoded file content */
+  assetData: z.string().min(1, 'Asset data (base64) is required'),
+});
+
 export const GenerateTagsInputSchema = z.object({
   profileId: z.string().min(1, 'Profile ID is required'),
   campaignId: z.string().min(1, 'Campaign ID is required'),
@@ -233,6 +296,14 @@ export type UpdatePlacementInput = z.infer<typeof UpdatePlacementInputSchema>;
 export type UpdateAdInput = z.infer<typeof UpdateAdInputSchema>;
 export type UpdateCreativeInput = z.infer<typeof UpdateCreativeInputSchema>;
 export type UpdateLandingPageInput = z.infer<typeof UpdateLandingPageInputSchema>;
+export type GetCreativeInput = z.infer<typeof GetCreativeInputSchema>;
+export type GetLandingPageInput = z.infer<typeof GetLandingPageInputSchema>;
+export type GetSiteInput = z.infer<typeof GetSiteInputSchema>;
+export type ListSizesInput = z.infer<typeof ListSizesInputSchema>;
+export type CreateCreativeInput = z.infer<typeof CreateCreativeInputSchema>;
+export type AssociateCreativeCampaignInput = z.infer<typeof AssociateCreativeCampaignInputSchema>;
+export type ListCampaignCreativeAssociationsInput = z.infer<typeof ListCampaignCreativeAssociationsInputSchema>;
+export type UploadCreativeAssetInput = z.infer<typeof UploadCreativeAssetInputSchema>;
 
 // ---------------------------------------------------------------------------
 // Helper: format Zod errors into a readable string

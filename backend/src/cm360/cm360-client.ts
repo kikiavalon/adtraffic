@@ -19,11 +19,13 @@ import type {
   CM360Campaign,
   CM360CreateCampaignInput,
   CM360Site,
+  CM360Size,
   CM360LandingPage,
   CM360CreateLandingPageInput,
   CM360Placement,
   CM360CreatePlacementInput,
   CM360Creative,
+  CM360CreateCreativeInput,
   CM360Ad,
   CM360PlacementTag,
   CM360AdvertiserStatus,
@@ -31,6 +33,9 @@ import type {
   CM360PlacementActiveStatus,
   CM360TagFormat,
   CM360CreativeType,
+  CM360CampaignCreativeAssociation,
+  CM360CreativeAssetMetadata,
+  CM360CreativeAssetType,
   CM360UpdateCampaignInput,
   CM360UpdateLandingPageInput,
   CM360UpdatePlacementInput,
@@ -38,6 +43,7 @@ import type {
   CM360UpdateAdInput,
 } from '@adtraffic/shared';
 import { isGoogleAPIError } from './errors.js';
+import { Readable } from 'node:stream';
 
 export class CM360Client {
   constructor(private api: dfareporting_v5.Dfareporting) {}
@@ -160,6 +166,23 @@ export class CM360Client {
     }));
   }
 
+  async getSite(profileId: string, siteId: string): Promise<CM360Site | null> {
+    try {
+      const res = await this.api.sites.get({ profileId, id: siteId });
+      if (!res.data) return null;
+      return {
+        id: String(res.data.id ?? ''),
+        name: res.data.name ?? '',
+        accountId: String(res.data.accountId ?? ''),
+        approved: res.data.approved ?? false,
+        directorySiteId: res.data.directorySiteId ? String(res.data.directorySiteId) : undefined,
+      };
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
   // ---------- Landing Pages ----------
 
   async listLandingPages(
@@ -200,6 +223,23 @@ export class CM360Client {
       url: res.data.url ?? '',
       archived: res.data.archived ?? false,
     };
+  }
+
+  async getLandingPage(profileId: string, landingPageId: string): Promise<CM360LandingPage | null> {
+    try {
+      const res = await this.api.advertiserLandingPages.get({ profileId, id: landingPageId });
+      if (!res.data) return null;
+      return {
+        id: String(res.data.id ?? ''),
+        name: res.data.name ?? '',
+        advertiserId: String(res.data.advertiserId ?? ''),
+        url: res.data.url ?? '',
+        archived: res.data.archived ?? false,
+      };
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
   }
 
   async patchLandingPage(profileId: string, landingPageId: string, input: CM360UpdateLandingPageInput): Promise<CM360LandingPage> {
@@ -317,6 +357,57 @@ export class CM360Client {
     }));
   }
 
+  async getCreative(profileId: string, creativeId: string): Promise<CM360Creative | null> {
+    try {
+      const res = await this.api.creatives.get({ profileId, id: creativeId });
+      if (!res.data) return null;
+      return {
+        id: String(res.data.id ?? ''),
+        name: res.data.name ?? '',
+        advertiserId: String(res.data.advertiserId ?? ''),
+        type: (res.data.type ?? 'DISPLAY') as CM360CreativeType,
+        size: {
+          id: String(res.data.size?.id ?? ''),
+          width: res.data.size?.width ?? 0,
+          height: res.data.size?.height ?? 0,
+          iab: res.data.size?.iab ?? false,
+        },
+        active: res.data.active ?? true,
+        archived: res.data.archived ?? false,
+      };
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async createCreative(profileId: string, input: CM360CreateCreativeInput): Promise<CM360Creative> {
+    const res = await this.api.creatives.insert({
+      profileId,
+      requestBody: {
+        advertiserId: input.advertiserId,
+        name: input.name,
+        type: input.type,
+        size: { width: input.size.width, height: input.size.height },
+        active: input.active ?? true,
+      },
+    });
+    return {
+      id: String(res.data.id ?? ''),
+      name: res.data.name ?? '',
+      advertiserId: String(res.data.advertiserId ?? ''),
+      type: (res.data.type ?? 'DISPLAY') as CM360CreativeType,
+      size: {
+        id: String(res.data.size?.id ?? ''),
+        width: res.data.size?.width ?? 0,
+        height: res.data.size?.height ?? 0,
+        iab: res.data.size?.iab ?? false,
+      },
+      active: res.data.active ?? true,
+      archived: res.data.archived ?? false,
+    };
+  }
+
   async patchCreative(profileId: string, creativeId: string, input: CM360UpdateCreativeInput): Promise<CM360Creative> {
     const res = await this.api.creatives.patch({
       profileId,
@@ -423,6 +514,96 @@ export class CM360Client {
     return mapAd(res.data);
   }
 
+  // ---------- Sizes ----------
+
+  async listSizes(
+    profileId: string,
+    opts?: { width?: number; height?: number; iabStandard?: boolean },
+  ): Promise<CM360Size[]> {
+    const res = await this.api.sizes.list({
+      profileId,
+      width: opts?.width,
+      height: opts?.height,
+      iabStandard: opts?.iabStandard,
+    });
+    return (res.data.sizes ?? []).map(s => ({
+      id: String(s.id ?? ''),
+      width: s.width ?? 0,
+      height: s.height ?? 0,
+      iab: s.iab ?? false,
+    }));
+  }
+
+  // ---------- Campaign-Creative Associations (Phase B) ----------
+
+  async associateCreativeCampaign(
+    profileId: string,
+    campaignId: string,
+    creativeId: string,
+  ): Promise<CM360CampaignCreativeAssociation> {
+    const res = await this.api.campaignCreativeAssociations.insert({
+      profileId,
+      campaignId,
+      requestBody: { creativeId },
+    });
+    return {
+      creativeId: String(res.data.creativeId ?? creativeId),
+    };
+  }
+
+  async listCampaignCreativeAssociations(
+    profileId: string,
+    campaignId: string,
+    opts?: { maxResults?: number },
+  ): Promise<CM360CampaignCreativeAssociation[]> {
+    const res = await this.api.campaignCreativeAssociations.list({
+      profileId,
+      campaignId,
+      maxResults: opts?.maxResults,
+    });
+    return (res.data.campaignCreativeAssociations ?? []).map(a => ({
+      creativeId: String(a.creativeId ?? ''),
+    }));
+  }
+
+  // ---------- Creative Assets (Phase B) ----------
+
+  async uploadCreativeAsset(
+    profileId: string,
+    advertiserId: string,
+    assetName: string,
+    assetType: CM360CreativeAssetType,
+    assetData: string, // base64
+  ): Promise<CM360CreativeAssetMetadata> {
+    const buffer = Buffer.from(assetData, 'base64');
+    const res = await this.api.creativeAssets.insert({
+      profileId,
+      advertiserId,
+      requestBody: {
+        assetIdentifier: {
+          name: assetName,
+          type: assetType,
+        },
+      },
+      media: {
+        mimeType: getMimeType(assetName, assetType),
+        body: Readable.from(buffer),
+      },
+    });
+
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+    const data = res.data as any;
+    return {
+      assetIdentifier: {
+        name: String(data?.assetIdentifier?.name ?? assetName),
+        type: (String(data?.assetIdentifier?.type ?? assetType)) as CM360CreativeAssetType,
+      },
+      id: String(data?.id ?? ''),
+      fileSize: (data?.fileSize as number) ?? buffer.length,
+    };
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
+  }
+
   // ---------- Tag Generation ----------
 
   async generateTags(
@@ -523,3 +704,27 @@ function mapAd(ad: any): CM360Ad {
   };
 }
 /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-base-to-string */
+
+/** Determine MIME type for creative asset upload based on filename extension and asset type */
+function getMimeType(filename: string, assetType: CM360CreativeAssetType): string {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (assetType === 'VIDEO' || assetType === 'PARENT_VIDEO') {
+    if (ext === 'webm') return 'video/webm';
+    return 'video/mp4';
+  }
+  if (assetType === 'AUDIO' || assetType === 'PARENT_AUDIO') {
+    return 'audio/mpeg';
+  }
+  if (assetType === 'HTML' || assetType === 'HTML_IMAGE') {
+    if (ext === 'zip') return 'application/zip';
+    return 'text/html';
+  }
+  // IMAGE type
+  switch (ext) {
+    case 'png': return 'image/png';
+    case 'gif': return 'image/gif';
+    case 'webp': return 'image/webp';
+    case 'svg': return 'image/svg+xml';
+    default: return 'image/jpeg';
+  }
+}

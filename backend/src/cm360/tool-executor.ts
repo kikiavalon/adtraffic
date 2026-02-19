@@ -39,6 +39,14 @@ import {
   UpdateAdInputSchema,
   UpdateCreativeInputSchema,
   UpdateLandingPageInputSchema,
+  GetCreativeInputSchema,
+  CreateCreativeInputSchema,
+  GetLandingPageInputSchema,
+  GetSiteInputSchema,
+  ListSizesInputSchema,
+  AssociateCreativeCampaignInputSchema,
+  ListCampaignCreativeAssociationsInputSchema,
+  UploadCreativeAssetInputSchema,
   formatZodErrors,
 } from './tool-input-schemas.js';
 
@@ -156,6 +164,14 @@ const VALID_TOOL_NAMES = new Set([
   'cm360_update_ad',
   'cm360_update_creative',
   'cm360_update_landing_page',
+  'cm360_get_creative',
+  'cm360_create_creative',
+  'cm360_get_landing_page',
+  'cm360_get_site',
+  'cm360_list_sizes',
+  'cm360_associate_creative_campaign',
+  'cm360_list_campaign_creative_associations',
+  'cm360_upload_creative_asset',
 ]);
 
 function isValidToolName(name: string): boolean {
@@ -466,6 +482,117 @@ async function executeToolReal(
       const profileId = await resolveProfileId(client);
       const updated = await client.patchLandingPage(profileId, parsed.data.landingPageId, parsed.data);
       return { result: updated, isError: false };
+    }
+
+    // --- Phase A: CRUD gap tools ---
+
+    case 'cm360_get_creative': {
+      const parsed = GetCreativeInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const creative = await client.getCreative(profileId, parsed.data.creativeId);
+      if (!creative) {
+        return { result: null, isError: true, errorMessage: `Creative ${parsed.data.creativeId} not found` };
+      }
+      return { result: creative, isError: false };
+    }
+
+    case 'cm360_create_creative': {
+      const parsed = CreateCreativeInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const creative = await client.createCreative(profileId, {
+        advertiserId: parsed.data.advertiserId,
+        name: parsed.data.name,
+        type: parsed.data.type,
+        size: { width: parsed.data.width, height: parsed.data.height },
+        active: parsed.data.active,
+      });
+      return { result: creative, isError: false };
+    }
+
+    case 'cm360_get_landing_page': {
+      const parsed = GetLandingPageInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const page = await client.getLandingPage(profileId, parsed.data.landingPageId);
+      if (!page) {
+        return { result: null, isError: true, errorMessage: `Landing page ${parsed.data.landingPageId} not found` };
+      }
+      return { result: page, isError: false };
+    }
+
+    case 'cm360_get_site': {
+      const parsed = GetSiteInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const site = await client.getSite(profileId, parsed.data.siteId);
+      if (!site) {
+        return { result: null, isError: true, errorMessage: `Site ${parsed.data.siteId} not found` };
+      }
+      return { result: site, isError: false };
+    }
+
+    case 'cm360_list_sizes': {
+      const parsed = ListSizesInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const sizes = await client.listSizes(profileId, {
+        width: parsed.data.width,
+        height: parsed.data.height,
+        iabStandard: parsed.data.iabStandard,
+      });
+      return { result: { sizes }, isError: false };
+    }
+
+    // --- Phase B: Campaign-Creative Associations + Creative Assets ---
+
+    case 'cm360_associate_creative_campaign': {
+      const parsed = AssociateCreativeCampaignInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const assoc = await client.associateCreativeCampaign(profileId, parsed.data.campaignId, parsed.data.creativeId);
+      return { result: assoc, isError: false };
+    }
+
+    case 'cm360_list_campaign_creative_associations': {
+      const parsed = ListCampaignCreativeAssociationsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const associations = await client.listCampaignCreativeAssociations(profileId, parsed.data.campaignId, {
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { campaignCreativeAssociations: associations }, isError: false };
+    }
+
+    case 'cm360_upload_creative_asset': {
+      const parsed = UploadCreativeAssetInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const asset = await client.uploadCreativeAsset(
+        profileId,
+        parsed.data.advertiserId,
+        parsed.data.assetName,
+        parsed.data.assetType,
+        parsed.data.assetData,
+      );
+      return { result: asset, isError: false };
     }
 
     default:
@@ -785,6 +912,109 @@ function executeToolMock(
           return { result: null, isError: true, errorMessage: `Landing page ${parsed.data.landingPageId} not found` };
         }
         return { result: updated, isError: false };
+      }
+
+      // --- Phase A: CRUD gap tools ---
+
+      case 'cm360_get_creative': {
+        const parsed = GetCreativeInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const creative = mockStore.getCreative(parsed.data.creativeId);
+        if (!creative) {
+          return { result: null, isError: true, errorMessage: `Creative ${parsed.data.creativeId} not found` };
+        }
+        return { result: creative, isError: false };
+      }
+
+      case 'cm360_create_creative': {
+        const parsed = CreateCreativeInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const creative = mockStore.createCreative({
+          advertiserId: parsed.data.advertiserId,
+          name: parsed.data.name,
+          type: parsed.data.type,
+          width: parsed.data.width,
+          height: parsed.data.height,
+          active: parsed.data.active,
+        });
+        return { result: creative, isError: false };
+      }
+
+      case 'cm360_get_landing_page': {
+        const parsed = GetLandingPageInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const page = mockStore.getLandingPage(parsed.data.landingPageId);
+        if (!page) {
+          return { result: null, isError: true, errorMessage: `Landing page ${parsed.data.landingPageId} not found` };
+        }
+        return { result: page, isError: false };
+      }
+
+      case 'cm360_get_site': {
+        const parsed = GetSiteInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const site = mockStore.getSite(parsed.data.siteId);
+        if (!site) {
+          return { result: null, isError: true, errorMessage: `Site ${parsed.data.siteId} not found` };
+        }
+        return { result: site, isError: false };
+      }
+
+      case 'cm360_list_sizes': {
+        const parsed = ListSizesInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const sizes = mockStore.listSizes({
+          width: parsed.data.width,
+          height: parsed.data.height,
+          iabStandard: parsed.data.iabStandard,
+        });
+        return { result: { sizes }, isError: false };
+      }
+
+      // --- Phase B: Campaign-Creative Associations + Creative Assets ---
+
+      case 'cm360_associate_creative_campaign': {
+        const parsed = AssociateCreativeCampaignInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const assoc = mockStore.associateCreativeCampaign(parsed.data.campaignId, parsed.data.creativeId);
+        return { result: assoc, isError: false };
+      }
+
+      case 'cm360_list_campaign_creative_associations': {
+        const parsed = ListCampaignCreativeAssociationsInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const associations = mockStore.listCampaignCreativeAssociations(parsed.data.campaignId, {
+          maxResults: parsed.data.maxResults,
+        });
+        return { result: { campaignCreativeAssociations: associations }, isError: false };
+      }
+
+      case 'cm360_upload_creative_asset': {
+        const parsed = UploadCreativeAssetInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const asset = mockStore.uploadCreativeAsset({
+          advertiserId: parsed.data.advertiserId,
+          assetName: parsed.data.assetName,
+          assetType: parsed.data.assetType,
+          assetData: parsed.data.assetData,
+        });
+        return { result: asset, isError: false };
       }
 
       default:

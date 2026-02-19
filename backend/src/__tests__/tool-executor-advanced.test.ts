@@ -1,6 +1,6 @@
 /**
  * Advanced tool executor tests — error handling, create operations with full
- * round-trip verification, and edge cases for all 14 tools.
+ * round-trip verification, and edge cases for all 22 tools.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';

@@ -201,6 +201,18 @@ export interface CM360PlacementTag {
 }
 
 // ---------------------------------------------------------------------------
+// Create input types (non-standard entities)
+// ---------------------------------------------------------------------------
+
+export interface CM360CreateCreativeInput {
+  advertiserId: string;
+  name: string;
+  type: CM360CreativeType;
+  size: { width: number; height: number };
+  active?: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Update / Patch input types
 // ---------------------------------------------------------------------------
 
@@ -240,6 +252,36 @@ export interface CM360UpdateLandingPageInput {
   name?: string;
   url?: string;
   archived?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Campaign-Creative Associations (Phase B)
+// ---------------------------------------------------------------------------
+
+/** Represents a creative assigned to a campaign. Required before an ad can reference the creative. */
+export interface CM360CampaignCreativeAssociation {
+  creativeId: string;
+  kind?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Creative Assets (Phase B)
+// ---------------------------------------------------------------------------
+
+/** Creative asset types supported by CM360 */
+export type CM360CreativeAssetType = 'HTML' | 'HTML_IMAGE' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'PARENT_AUDIO' | 'PARENT_VIDEO';
+
+/** Result of uploading a creative asset to CM360 */
+export interface CM360CreativeAssetMetadata {
+  assetIdentifier: {
+    name: string;
+    type: CM360CreativeAssetType;
+  };
+  id: string;
+  /** File size in bytes */
+  fileSize?: number;
+  /** Detected dimensions (images/video) */
+  detectedFeatures?: string[];
 }
 
 /** Generic list response wrapper */

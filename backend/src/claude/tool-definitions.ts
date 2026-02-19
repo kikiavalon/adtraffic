@@ -3,7 +3,7 @@ import type { BooleanFlagName, ResolvedFlags } from '../feature-flags/flag-regis
 
 /**
  * CM360 tool definitions for Claude's tool use.
- * These match the 10-tool MVP from CLAUDE.md.
+ * 30 CM360 tools: 14 read + 6 create + 5 update + 1 tag gen + 3 search/detail + 1 upload.
  *
  * Note: Tools are defined but not executed yet.
  * When Claude returns a tool_use block, the chat service will
@@ -224,6 +224,83 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
   },
   // ---------- Get (single entity) ----------
   {
+    name: 'cm360_get_creative',
+    description: 'Get detailed information about a single creative by ID, including type, size, active status, and archived status.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        creativeId: { type: 'string', description: 'The creative ID to retrieve' },
+      },
+      required: ['profileId', 'creativeId'],
+    },
+  },
+  {
+    name: 'cm360_get_landing_page',
+    description: 'Get detailed information about a single landing page by ID, including name, URL, and archived status.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        landingPageId: { type: 'string', description: 'The landing page ID to retrieve' },
+      },
+      required: ['profileId', 'landingPageId'],
+    },
+  },
+  {
+    name: 'cm360_get_site',
+    description: 'Get detailed information about a single site (publisher) by ID, including name, approval status, and directory site association.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        siteId: { type: 'string', description: 'The site ID to retrieve' },
+      },
+      required: ['profileId', 'siteId'],
+    },
+  },
+  {
+    name: 'cm360_list_sizes',
+    description: 'List available ad sizes in CM360. Can filter by width, height, or IAB standard sizes only. Useful when creating placements or creatives to know valid dimensions.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        width: { type: 'number', description: 'Filter by exact width in pixels' },
+        height: { type: 'number', description: 'Filter by exact height in pixels' },
+        iabStandard: { type: 'boolean', description: 'If true, only return IAB standard sizes' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_create_creative',
+    description: 'Register a new creative (ad asset placeholder) in CM360. IMPORTANT: Always show a preview of what will be created and get user confirmation before calling this tool. Note: This creates the creative metadata — actual asset upload is a separate step.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'The advertiser ID this creative belongs to' },
+        name: { type: 'string', description: 'Creative name (max 256 characters)' },
+        type: {
+          type: 'string',
+          enum: [
+            'DISPLAY', 'DISPLAY_REDIRECT', 'HTML5_BANNER', 'IMAGE',
+            'INTERNAL_REDIRECT', 'RICH_MEDIA_DISPLAY_BANNER', 'RICH_MEDIA_DISPLAY_EXPANDING',
+            'RICH_MEDIA_DISPLAY_INTERSTITIAL', 'RICH_MEDIA_DISPLAY_MULTI_FLOATING_INTERSTITIAL',
+            'RICH_MEDIA_MOBILE_IN_APP', 'RICH_MEDIA_PEEL_DOWN', 'TRACKING',
+            'VAST_REDIRECT', 'VPAID_LINEAR', 'VPAID_NON_LINEAR',
+          ],
+          description: 'Creative type (most common: DISPLAY, IMAGE, HTML5_BANNER)',
+        },
+        width: { type: 'number', description: 'Creative width in pixels (e.g., 300, 728, 970)' },
+        height: { type: 'number', description: 'Creative height in pixels (e.g., 250, 90, 250)' },
+        active: { type: 'boolean', description: 'Whether the creative is active (default: true)' },
+      },
+      required: ['profileId', 'advertiserId', 'name', 'type', 'width', 'height'],
+    },
+  },
+  {
     name: 'cm360_get_campaign',
     description: 'Get detailed information about a single campaign by ID, including dates, default landing page, and archived status.',
     input_schema: {
@@ -343,6 +420,54 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
       required: ['profileId', 'landingPageId'],
     },
   },
+
+  // --- Phase B: Campaign-Creative Associations + Creative Assets ---
+
+  {
+    name: 'cm360_associate_creative_campaign',
+    description: 'Associate a creative with a campaign. IMPORTANT: Always preview and confirm with the user before calling this tool. This is a prerequisite for creating ads — a creative must be associated with the campaign before it can be assigned to placements via an ad.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'The campaign ID to associate the creative with' },
+        creativeId: { type: 'string', description: 'The creative ID to associate' },
+      },
+      required: ['profileId', 'campaignId', 'creativeId'],
+    },
+  },
+  {
+    name: 'cm360_list_campaign_creative_associations',
+    description: 'List all creatives associated with a campaign. Returns the creative IDs that have been linked to the specified campaign. Use this to verify which creatives are available for ad creation within a campaign.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'The campaign ID to list associations for' },
+        maxResults: { type: 'number', description: 'Maximum results to return (default 100, max 1000)' },
+      },
+      required: ['profileId', 'campaignId'],
+    },
+  },
+  {
+    name: 'cm360_upload_creative_asset',
+    description: 'Upload a creative asset (image, HTML5, video, or audio file) for an advertiser. IMPORTANT: Always preview and confirm with the user before calling this tool. The asset is uploaded and can then be referenced when creating or updating creatives. Accepts base64-encoded file data.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'The advertiser ID to upload the asset for' },
+        assetName: { type: 'string', description: 'Filename for the asset (e.g., "hero-banner.png")' },
+        assetType: {
+          type: 'string',
+          enum: ['HTML', 'HTML_IMAGE', 'IMAGE', 'VIDEO', 'AUDIO', 'PARENT_AUDIO', 'PARENT_VIDEO'],
+          description: 'Type of creative asset being uploaded',
+        },
+        assetData: { type: 'string', description: 'Base64-encoded file content' },
+      },
+      required: ['profileId', 'advertiserId', 'assetName', 'assetType', 'assetData'],
+    },
+  },
 ];
 
 /**
@@ -363,16 +488,24 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   cm360_get_campaign: 'cm360.read_operations',
   cm360_get_placement: 'cm360.read_operations',
   cm360_get_ad: 'cm360.read_operations',
+  cm360_get_creative: 'cm360.read_operations',
+  cm360_get_landing_page: 'cm360.read_operations',
+  cm360_get_site: 'cm360.read_operations',
+  cm360_list_sizes: 'cm360.read_operations',
+  cm360_list_campaign_creative_associations: 'cm360.read_operations',
   // Write tools
   cm360_create_campaign: 'cm360.write_operations',
   cm360_create_placement: 'cm360.write_operations',
   cm360_create_ad: 'cm360.write_operations',
   cm360_create_landing_page: 'cm360.write_operations',
+  cm360_create_creative: 'cm360.write_operations',
   cm360_update_campaign: 'cm360.write_operations',
   cm360_update_placement: 'cm360.write_operations',
   cm360_update_ad: 'cm360.write_operations',
   cm360_update_creative: 'cm360.write_operations',
   cm360_update_landing_page: 'cm360.write_operations',
+  cm360_associate_creative_campaign: 'cm360.write_operations',
+  cm360_upload_creative_asset: 'cm360.write_operations',
   // Tag generation
   cm360_generate_tags: 'cm360.tag_generation',
 };

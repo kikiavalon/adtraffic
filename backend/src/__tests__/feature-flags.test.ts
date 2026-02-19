@@ -354,7 +354,9 @@ describe('tool gating', () => {
 
     const writeToolNames = [
       'cm360_create_campaign', 'cm360_create_placement', 'cm360_create_ad', 'cm360_create_landing_page',
+      'cm360_create_creative',
       'cm360_update_campaign', 'cm360_update_placement', 'cm360_update_ad', 'cm360_update_creative', 'cm360_update_landing_page',
+      'cm360_associate_creative_campaign', 'cm360_upload_creative_asset',
     ];
     for (const tool of tools) {
       expect(writeToolNames).not.toContain(tool.name);

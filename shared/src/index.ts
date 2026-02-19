@@ -21,11 +21,15 @@ export type {
   CM360TagFormat,
   CM360BuildResource,
   CM360ListResponse,
+  CM360CreateCreativeInput,
   CM360UpdateCampaignInput,
   CM360UpdatePlacementInput,
   CM360UpdateAdInput,
   CM360UpdateCreativeInput,
   CM360UpdateLandingPageInput,
+  CM360CampaignCreativeAssociation,
+  CM360CreativeAssetType,
+  CM360CreativeAssetMetadata,
 } from './types/cm360.js';
 
 export type {

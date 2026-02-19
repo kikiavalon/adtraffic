@@ -95,12 +95,23 @@ This wastes hours of skilled labor per week, introduces human error into high-st
 - Present tags in a copy-friendly format
 - VAST-compliant output for video placements
 
-#### 9. List / Search Operations
+#### 9. List / Search / Get Operations
 - List and search campaigns, placements, ads, creatives, sites, advertisers
 - Filter by name, date, status, advertiser, campaign
 - Quick lookups ("show me all active placements for Toyota")
+- Get detailed information about a specific campaign, placement, ad, creative, or landing page by ID
 
-#### 10. Build Preview & Confirmation
+#### 10. Update / Manage Entities
+- Update existing campaigns (name, dates, archived status, default landing page)
+- Update existing placements (name, active status, pricing schedule dates). Note: size, site, and compatibility are immutable after creation.
+- Update existing ads (name, active/archived status, start/end times, placement assignments, creative assignment)
+- Update existing creatives (name, active/archived status). Note: creative type and size are immutable after creation.
+- Update existing landing pages (name, URL, archived status)
+- Archive or reactivate any entity
+- Always shows current state vs. proposed changes before executing an update
+- Warns when archiving may affect live campaigns
+
+#### 11. Build Preview & Confirmation
 - Every write operation shows a detailed preview before execution
 - Preview includes: what will be created/modified, field values, count of items
 - Single approval to execute the full build
@@ -327,14 +338,14 @@ This is the core workflow — the reason someone buys AdTraffic.ai.
 | `userProfiles` | list | Auth validation |
 | `advertisers` | list, get | Advertiser selection |
 | `campaigns` | list, get, insert, patch | Campaign CRUD |
-| `advertiserLandingPages` | list, get, insert | Landing page management |
+| `advertiserLandingPages` | list, get, insert, patch | Landing page management |
 | `sites` | list, get | Site lookup |
 | `directorySites` | list | Publisher directory search |
 | `sizes` | list | Size validation |
 | `placements` | list, get, insert, patch, generatetags | Core trafficking |
 | `placementGroups` | list, get, insert, patch | Package management |
 | `ads` | list, get, insert, patch | Ad creation and creative linking |
-| `creatives` | list, get | Creative lookup for assignment |
+| `creatives` | list, get, patch | Creative lookup and update |
 | `campaignCreativeAssociations` | list, insert | Creative-campaign linking |
 
 ### Not Required for v1

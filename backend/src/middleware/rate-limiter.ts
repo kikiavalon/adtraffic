@@ -1,10 +1,13 @@
 import type { Request, Response, NextFunction } from 'express';
+import { getRedis, isRedisHealthy } from '../db/redis.js';
 
 interface RateLimitEntry {
   timestamps: number[];
 }
 
 interface RateLimiterOptions {
+  /** Unique name for this limiter — used as Redis key namespace */
+  name: string;
   /** Time window in milliseconds */
   windowMs: number;
   /** Maximum number of requests allowed within the window */
@@ -20,24 +23,26 @@ interface RateLimiterOptions {
 }
 
 /**
- * Creates an in-memory sliding window rate limiter middleware.
- * Tracks request timestamps per IP and rejects requests that exceed the limit.
+ * Creates a sliding window rate limiter middleware.
+ * Uses Redis sorted sets when available, falls back to in-memory Map.
  *
- * Uses a Map with IP keys and an array of timestamps for a sliding window approach.
- * Stale entries are cleaned up periodically to prevent memory leaks.
+ * Redis key pattern: ratelimit:{name}:{ip}
+ * Each request is stored as a sorted set member with score = timestamp.
+ * Expired members are pruned on each check.
  */
 export function createRateLimiter(options: RateLimiterOptions) {
-  const { windowMs, maxRequests, skipInTest = true } = options;
+  const { name, windowMs, maxRequests, skipInTest = true } = options;
   const isTest = process.env.NODE_ENV === 'test';
+  const windowSeconds = Math.ceil(windowMs / 1000);
+
+  // In-memory fallback store
   const store = new Map<string, RateLimitEntry>();
 
   // Clean up stale entries every 60 seconds to prevent memory leaks
   const cleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [key, entry] of store) {
-      // Remove timestamps outside the window
       entry.timestamps = entry.timestamps.filter((ts) => now - ts < windowMs);
-      // Remove the entry entirely if no timestamps remain
       if (entry.timestamps.length === 0) {
         store.delete(key);
       }
@@ -49,7 +54,7 @@ export function createRateLimiter(options: RateLimiterOptions) {
     cleanupInterval.unref();
   }
 
-  function middleware(req: Request, res: Response, next: NextFunction): void {
+  async function middleware(req: Request, res: Response, next: NextFunction): Promise<void> {
     // In test environments, skip rate limiting to avoid interference with
     // integration tests. Rate limiter behavior is tested in dedicated unit tests.
     if (skipInTest && isTest) {
@@ -60,6 +65,45 @@ export function createRateLimiter(options: RateLimiterOptions) {
     const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
     const now = Date.now();
 
+    // Try Redis first
+    if (isRedisHealthy()) {
+      try {
+        const redis = getRedis()!;
+        const key = `ratelimit:${name}:${ip}`;
+        const windowStart = now - windowMs;
+
+        // Pipeline: prune expired + count + add + set TTL
+        const pipeline = redis.pipeline();
+        pipeline.zremrangebyscore(key, 0, windowStart);
+        pipeline.zcard(key);
+        const results = await pipeline.exec();
+
+        if (!results) {
+          throw new Error('Redis pipeline returned null');
+        }
+
+        const count = results[1]?.[1] as number;
+
+        if (count >= maxRequests) {
+          res.status(429).json({ error: 'Too many requests. Please try again later.' });
+          return;
+        }
+
+        // Add this request with a unique member to avoid collisions
+        const member = `${now}-${Math.random().toString(36).slice(2, 8)}`;
+        await redis.pipeline()
+          .zadd(key, now, member)
+          .expire(key, windowSeconds)
+          .exec();
+
+        next();
+        return;
+      } catch {
+        // Redis error — fall through to in-memory
+      }
+    }
+
+    // In-memory fallback
     let entry = store.get(ip);
     if (!entry) {
       entry = { timestamps: [] };

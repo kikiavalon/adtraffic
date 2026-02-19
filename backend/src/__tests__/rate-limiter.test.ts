@@ -39,7 +39,7 @@ describe('createRateLimiter', () => {
 
   describe('basic behavior', () => {
     beforeEach(() => {
-      limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 3, skipInTest: false });
+      limiter = createRateLimiter({ name: 'test-basic', windowMs: 60_000, maxRequests: 3, skipInTest: false });
     });
 
     it('allows requests under the limit', () => {
@@ -87,7 +87,7 @@ describe('createRateLimiter', () => {
 
   describe('per-IP isolation', () => {
     beforeEach(() => {
-      limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 2, skipInTest: false });
+      limiter = createRateLimiter({ name: 'test-per-ip', windowMs: 60_000, maxRequests: 2, skipInTest: false });
     });
 
     it('tracks requests per IP independently', () => {
@@ -119,7 +119,7 @@ describe('createRateLimiter', () => {
     it('allows requests again after the window expires', () => {
       vi.useFakeTimers();
 
-      limiter = createRateLimiter({ windowMs: 1000, maxRequests: 2, skipInTest: false });
+      limiter = createRateLimiter({ name: 'test-sliding-1', windowMs: 1000, maxRequests: 2, skipInTest: false });
 
       const next = vi.fn();
       limiter(mockReq() as Request, mockRes().res as Response, next);
@@ -142,7 +142,7 @@ describe('createRateLimiter', () => {
     it('slides the window — old requests expire while new ones count', () => {
       vi.useFakeTimers();
 
-      limiter = createRateLimiter({ windowMs: 1000, maxRequests: 2, skipInTest: false });
+      limiter = createRateLimiter({ name: 'test-sliding-2', windowMs: 1000, maxRequests: 2, skipInTest: false });
 
       const next = vi.fn();
       // t=0: first request
@@ -169,7 +169,7 @@ describe('createRateLimiter', () => {
 
   describe('store internals', () => {
     beforeEach(() => {
-      limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 5, skipInTest: false });
+      limiter = createRateLimiter({ name: 'test-store', windowMs: 60_000, maxRequests: 5, skipInTest: false });
     });
 
     it('exposes _store Map for testing', () => {
@@ -198,7 +198,7 @@ describe('createRateLimiter', () => {
 
   describe('skipInTest behavior', () => {
     it('skips rate limiting when skipInTest is true (default)', () => {
-      const defaultLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 1 });
+      const defaultLimiter = createRateLimiter({ name: 'test-default', windowMs: 60_000, maxRequests: 1 });
       const next = vi.fn();
 
       for (let i = 0; i < 10; i++) {
@@ -210,7 +210,7 @@ describe('createRateLimiter', () => {
     });
 
     it('enforces rate limiting when skipInTest is false', () => {
-      const strictLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 1, skipInTest: false });
+      const strictLimiter = createRateLimiter({ name: 'test-strict', windowMs: 60_000, maxRequests: 1, skipInTest: false });
       const next = vi.fn();
 
       strictLimiter(mockReq() as Request, mockRes().res as Response, next);
@@ -226,7 +226,7 @@ describe('createRateLimiter', () => {
 
   describe('IP resolution fallback', () => {
     it('falls back to socket.remoteAddress when req.ip is undefined', () => {
-      limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 1, skipInTest: false });
+      limiter = createRateLimiter({ name: 'test-fallback-1', windowMs: 60_000, maxRequests: 1, skipInTest: false });
       const next = vi.fn();
 
       const req = { ip: undefined, socket: { remoteAddress: '10.0.0.99' } } as unknown as Request;
@@ -236,7 +236,7 @@ describe('createRateLimiter', () => {
     });
 
     it('uses "unknown" when both req.ip and remoteAddress are undefined', () => {
-      limiter = createRateLimiter({ windowMs: 60_000, maxRequests: 1, skipInTest: false });
+      limiter = createRateLimiter({ name: 'test-fallback-2', windowMs: 60_000, maxRequests: 1, skipInTest: false });
       const next = vi.fn();
 
       const req = { ip: undefined, socket: { remoteAddress: undefined } } as unknown as Request;

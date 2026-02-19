@@ -38,8 +38,8 @@ vi.mock('../claude/usage-tracker.js', () => ({
 import { chat, clearConversation, getConversationLength } from '../claude/kiki-service.js';
 import { executeTool } from '../cm360/tool-executor.js';
 
-beforeEach(() => {
-  clearConversation('error-test');
+beforeEach(async () => {
+  await clearConversation('error-test');
   mockCreate.mockReset();
   mockCheckLimit.mockReturnValue({ allowed: true });
   mockRecordUsage.mockReset();
@@ -70,7 +70,7 @@ describe('Claude API timeout', () => {
     }
 
     // The user message should still be in history (try/finally guarantees saveHistory)
-    expect(getConversationLength('error-test')).toBeGreaterThanOrEqual(1);
+    expect(await getConversationLength('error-test')).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -190,7 +190,7 @@ describe('Tool executor errors during agentic loop', () => {
 
     expect(result.content).toBe('That tool is not available.');
     // History should include: user + assistant(tool_use) + user(tool_result) + assistant(text) = 4
-    expect(getConversationLength('error-test')).toBe(4);
+    expect(await getConversationLength('error-test')).toBe(4);
   });
 
   it('propagates when tool executor throws unexpectedly', async () => {
@@ -207,6 +207,6 @@ describe('Tool executor errors during agentic loop', () => {
     await expect(chat('error-test', 'Test')).rejects.toThrow('Executor crash');
 
     // History should still be persisted (try/finally)
-    expect(getConversationLength('error-test')).toBeGreaterThanOrEqual(1);
+    expect(await getConversationLength('error-test')).toBeGreaterThanOrEqual(1);
   });
 });

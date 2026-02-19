@@ -84,8 +84,8 @@ describe('Multi-turn conversation flows', () => {
       });
 
       // Reset at the start of each flow
-      it('setup', () => {
-        clearConversation(convId);
+      it('setup', async () => {
+        await clearConversation(convId);
         mockCreate.mockReset();
         toolCallLog.length = 0;
         mockStore.reset();
@@ -128,8 +128,8 @@ describe('Multi-turn conversation flows', () => {
       }
 
       // Cleanup after flow
-      it('teardown', () => {
-        clearConversation(convId);
+      it('teardown', async () => {
+        await clearConversation(convId);
       });
     });
   }

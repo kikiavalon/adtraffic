@@ -1,17 +1,34 @@
 import { db, schema } from './index.js';
 import { eq, desc, asc } from 'drizzle-orm';
 import type Anthropic from '@anthropic-ai/sdk';
+import { getRedis, isRedisHealthy } from './redis.js';
 
-// Cache Claude's full conversation history (with tool_use/tool_result blocks) in memory.
+// ---------------------------------------------------------------------------
+// Conversation History Cache (Redis with in-memory fallback)
+// ---------------------------------------------------------------------------
+// Stores Claude's full conversation history (with tool_use/tool_result blocks).
 // The database stores display messages; this cache stores the raw API history.
-// On server restart, conversations start fresh (acceptable for MVP).
+//
+// Redis key: history:{conversationId}
+// Value: JSON-serialized Anthropic.MessageParam[]
+// TTL: configurable via HISTORY_CACHE_TTL_SECONDS (default 24h)
+//
+// Falls back to in-memory Map when Redis is unavailable.
+// ---------------------------------------------------------------------------
+
+/** In-memory fallback cache. */
 const historyCache = new Map<string, Anthropic.MessageParam[]>();
 
-/** Maximum number of conversations to keep in the in-memory history cache. */
+/** Maximum conversations in the in-memory fallback cache. */
 const MAX_CACHE_SIZE = 100;
 
+/** TTL for Redis history cache entries (seconds). */
+function getHistoryTTL(): number {
+  return parseInt(process.env.HISTORY_CACHE_TTL_SECONDS ?? '86400', 10);
+}
+
 /**
- * Evict the oldest cache entry if the cache exceeds MAX_CACHE_SIZE.
+ * Evict the oldest in-memory cache entry if the cache exceeds MAX_CACHE_SIZE.
  * Maps maintain insertion order, so the first key is the oldest.
  */
 function evictIfNeeded(): void {
@@ -25,10 +42,23 @@ function evictIfNeeded(): void {
 
 /**
  * Get conversation history for Claude API calls.
- * If the conversation is not in cache, initializes an empty array in the cache
- * so that callers' mutations (push) are automatically reflected.
+ * Returns the cached message array, or an empty array if not found.
  */
-export function getHistory(conversationId: string): Anthropic.MessageParam[] {
+export async function getHistory(conversationId: string): Promise<Anthropic.MessageParam[]> {
+  if (isRedisHealthy()) {
+    try {
+      const redis = getRedis()!;
+      const raw = await redis.get(`history:${conversationId}`);
+      if (raw) {
+        return JSON.parse(raw) as Anthropic.MessageParam[];
+      }
+      return [];
+    } catch {
+      // Fall through to in-memory
+    }
+  }
+
+  // In-memory fallback
   let history = historyCache.get(conversationId);
   if (!history) {
     history = [];
@@ -41,10 +71,69 @@ export function getHistory(conversationId: string): Anthropic.MessageParam[] {
 /**
  * Save conversation history after a Claude API call.
  */
-export function saveHistory(conversationId: string, history: Anthropic.MessageParam[]): void {
+export async function saveHistory(conversationId: string, history: Anthropic.MessageParam[]): Promise<void> {
+  if (isRedisHealthy()) {
+    try {
+      const redis = getRedis()!;
+      const ttl = getHistoryTTL();
+      await redis.set(`history:${conversationId}`, JSON.stringify(history), 'EX', ttl);
+      return;
+    } catch {
+      // Fall through to in-memory
+    }
+  }
+
+  // In-memory fallback
   historyCache.set(conversationId, history);
   evictIfNeeded();
 }
+
+/**
+ * Clear a conversation's history (both cache and database).
+ */
+export async function clearHistory(conversationId: string): Promise<void> {
+  // Always clear in-memory cache
+  historyCache.delete(conversationId);
+
+  // Clear Redis if available
+  if (isRedisHealthy()) {
+    try {
+      const redis = getRedis()!;
+      await redis.del(`history:${conversationId}`);
+    } catch {
+      // Non-critical — continue with DB cleanup
+    }
+  }
+
+  // Messages cascade-delete when conversation is deleted
+  await db.delete(schema.conversations)
+    .where(eq(schema.conversations.id, conversationId));
+}
+
+/**
+ * Get the number of history entries for a conversation.
+ */
+export async function getHistoryLength(conversationId: string): Promise<number> {
+  if (isRedisHealthy()) {
+    try {
+      const redis = getRedis()!;
+      const raw = await redis.get(`history:${conversationId}`);
+      if (raw) {
+        return (JSON.parse(raw) as Anthropic.MessageParam[]).length;
+      }
+      return 0;
+    } catch {
+      // Fall through to in-memory
+    }
+  }
+
+  // In-memory fallback
+  return historyCache.get(conversationId)?.length ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// Database Operations (PostgreSQL via Drizzle ORM)
+// ---------------------------------------------------------------------------
 
 /**
  * Save a display message to the database.
@@ -75,23 +164,6 @@ export async function saveMessage(
   await db.update(schema.conversations)
     .set({ updatedAt: new Date() })
     .where(eq(schema.conversations.id, conversationId));
-}
-
-/**
- * Clear a conversation's history (both cache and database).
- */
-export async function clearHistory(conversationId: string): Promise<void> {
-  historyCache.delete(conversationId);
-  // Messages cascade-delete when conversation is deleted
-  await db.delete(schema.conversations)
-    .where(eq(schema.conversations.id, conversationId));
-}
-
-/**
- * Get the number of history entries for a conversation.
- */
-export function getHistoryLength(conversationId: string): number {
-  return historyCache.get(conversationId)?.length ?? 0;
 }
 
 /**

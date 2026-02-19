@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { sql } from '../db/index.js';
 import { logger } from '../lib/logger.js';
+import { isRedisHealthy } from '../db/redis.js';
 
 const router = Router();
 
 /**
  * GET /health — Health check endpoint.
  *
- * Returns service status, uptime, version, and database connectivity.
+ * Returns service status, uptime, version, database and Redis connectivity.
  * Returns 200 if healthy, 503 if database is unreachable.
  */
 router.get('/health', async (_req, res) => {
@@ -20,7 +21,8 @@ router.get('/health', async (_req, res) => {
     logger.error({ err: { message: err instanceof Error ? err.message : 'Unknown error' } }, 'Health check: database unreachable');
   }
 
-  const status = dbStatus === 'ok' ? 'ok' : 'degraded';
+  const redisStatus = isRedisHealthy() ? 'connected' : 'disconnected';
+  const status = dbStatus === 'ok' ? (redisStatus === 'connected' ? 'ok' : 'degraded') : 'degraded';
   const statusCode = dbStatus === 'ok' ? 200 : 503;
 
   res.status(statusCode).json({
@@ -31,6 +33,7 @@ router.get('/health', async (_req, res) => {
     version: process.env.npm_package_version ?? 'unknown',
     checks: {
       database: dbStatus,
+      redis: redisStatus,
     },
   });
 });

@@ -13,7 +13,7 @@ import { featureFlagsMiddleware } from '../feature-flags/flag-middleware.js';
 const router = Router();
 
 // Rate limit chat: 20 requests per minute per IP
-const chatLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 20 });
+const chatLimiter = createRateLimiter({ name: 'chat', windowMs: 60_000, maxRequests: 20 });
 
 /**
  * POST /api/chat

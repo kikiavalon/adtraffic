@@ -5,8 +5,8 @@ import { createRateLimiter } from '../middleware/rate-limiter.js';
 
 const router = Router();
 
-const loginLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 10 });
-const registerLimiter = createRateLimiter({ windowMs: 60_000, maxRequests: 5 });
+const loginLimiter = createRateLimiter({ name: 'login', windowMs: 60_000, maxRequests: 10 });
+const registerLimiter = createRateLimiter({ name: 'register', windowMs: 60_000, maxRequests: 5 });
 
 const RegisterSchema = z.object({
   email: z.string().email().max(254),

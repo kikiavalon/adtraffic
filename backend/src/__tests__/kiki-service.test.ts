@@ -29,8 +29,8 @@ import { chat, clearConversation, getConversationLength } from '../claude/kiki-s
 import Anthropic from '@anthropic-ai/sdk';
 
 describe('kiki-service', () => {
-  beforeEach(() => {
-    clearConversation('test-conv');
+  beforeEach(async () => {
+    await clearConversation('test-conv');
     vi.clearAllMocks();
   });
 
@@ -44,29 +44,29 @@ describe('kiki-service', () => {
 
   it('maintains conversation history', async () => {
     await chat('test-conv', 'First message');
-    expect(getConversationLength('test-conv')).toBe(2); // user + assistant
+    expect(await getConversationLength('test-conv')).toBe(2); // user + assistant
 
     await chat('test-conv', 'Second message');
-    expect(getConversationLength('test-conv')).toBe(4); // 2 user + 2 assistant
+    expect(await getConversationLength('test-conv')).toBe(4); // 2 user + 2 assistant
   });
 
   it('keeps separate history per conversationId', async () => {
     await chat('conv-a', 'Hello from A');
     await chat('conv-b', 'Hello from B');
 
-    expect(getConversationLength('conv-a')).toBe(2);
-    expect(getConversationLength('conv-b')).toBe(2);
+    expect(await getConversationLength('conv-a')).toBe(2);
+    expect(await getConversationLength('conv-b')).toBe(2);
 
-    clearConversation('conv-a');
-    clearConversation('conv-b');
+    await clearConversation('conv-a');
+    await clearConversation('conv-b');
   });
 
   it('clears conversation history', async () => {
     await chat('test-conv', 'Hello');
-    expect(getConversationLength('test-conv')).toBe(2);
+    expect(await getConversationLength('test-conv')).toBe(2);
 
-    clearConversation('test-conv');
-    expect(getConversationLength('test-conv')).toBe(0);
+    await clearConversation('test-conv');
+    expect(await getConversationLength('test-conv')).toBe(0);
   });
 
   it('calls Claude with system prompt and tools', async () => {

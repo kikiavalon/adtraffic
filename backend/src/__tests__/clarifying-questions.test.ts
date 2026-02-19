@@ -92,7 +92,7 @@ describe('Clarifying questions prompt tests', () => {
   for (const testPrompt of CLARIFYING_QUESTION_PROMPTS) {
     it(`[${testPrompt.id}] ${testPrompt.prompt.slice(0, 70)}`, async () => {
       const convId = `test-${testPrompt.id}`;
-      clearConversation(convId);
+      await clearConversation(convId);
       setupMockSequence(testPrompt.mockToolSequence);
 
       const response = await chat(convId, testPrompt.prompt);
@@ -106,7 +106,7 @@ describe('Clarifying questions prompt tests', () => {
         expect(ar.passed, `[${testPrompt.id}] ${ar.assertion.description}: ${ar.detail}`).toBe(true);
       }
 
-      clearConversation(convId);
+      await clearConversation(convId);
     });
   }
 });
@@ -120,8 +120,8 @@ describe('Clarifying questions conversation flows', () => {
     describe(`[${flow.id}] ${flow.name}`, () => {
       const convId = `flow-${flow.id}`;
 
-      it('setup', () => {
-        clearConversation(convId);
+      it('setup', async () => {
+        await clearConversation(convId);
         mockCreate.mockReset();
         toolCallLog.length = 0;
         mockStore.reset();
@@ -160,8 +160,8 @@ describe('Clarifying questions conversation flows', () => {
         });
       }
 
-      it('teardown', () => {
-        clearConversation(convId);
+      it('teardown', async () => {
+        await clearConversation(convId);
       });
     });
   }

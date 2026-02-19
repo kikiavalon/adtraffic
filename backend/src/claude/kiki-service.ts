@@ -44,7 +44,7 @@ export async function chat(
   const tools = flags ? getEnabledTools(flags) : CM360_TOOLS;
 
   // Check daily usage limit before making any API call
-  const limitCheck = checkLimit(dailyLimit);
+  const limitCheck = await checkLimit(dailyLimit);
   if (!limitCheck.allowed) {
     return {
       id: uuidv4(),
@@ -54,7 +54,7 @@ export async function chat(
     };
   }
 
-  const history = getHistory(conversationId);
+  const history = await getHistory(conversationId);
 
   history.push({ role: 'user', content: userMessage });
 
@@ -63,7 +63,7 @@ export async function chat(
   try {
     while (toolRounds < maxToolRounds) {
       // Re-check limit before each API call (tool loops make multiple calls)
-      const roundLimitCheck = checkLimit(dailyLimit);
+      const roundLimitCheck = await checkLimit(dailyLimit);
       if (!roundLimitCheck.allowed) {
         return {
           id: uuidv4(),
@@ -94,7 +94,7 @@ export async function chat(
       }
 
       // Record token usage
-      recordUsage(
+      await recordUsage(
         CLAUDE_MODEL,
         response.usage?.input_tokens ?? 0,
         response.usage?.output_tokens ?? 0,
@@ -155,7 +155,7 @@ export async function chat(
     };
   } finally {
     // Always persist history — even on errors, timeouts, or early returns
-    saveHistory(conversationId, history);
+    await saveHistory(conversationId, history);
   }
 }
 
@@ -333,6 +333,6 @@ export async function clearConversation(conversationId: string): Promise<void> {
 /**
  * Get the number of messages in a conversation.
  */
-export function getConversationLength(conversationId: string): number {
-  return getHistoryLength(conversationId);
+export async function getConversationLength(conversationId: string): Promise<number> {
+  return await getHistoryLength(conversationId);
 }

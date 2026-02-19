@@ -34,8 +34,8 @@ vi.mock('../claude/usage-tracker.js', () => ({
 
 import { chat, clearConversation, getConversationLength } from '../claude/kiki-service.js';
 
-beforeEach(() => {
-  clearConversation('adv-test');
+beforeEach(async () => {
+  await clearConversation('adv-test');
   mockCreate.mockReset();
   toolExecutorCalls.length = 0;
 });
@@ -180,7 +180,7 @@ describe('Conversation history management', () => {
     await chat('adv-test', 'Message 3');
 
     // 3 user + 3 assistant = 6
-    expect(getConversationLength('adv-test')).toBe(6);
+    expect(await getConversationLength('adv-test')).toBe(6);
   });
 
   it('includes tool results in history for multi-round conversations', async () => {
@@ -202,7 +202,7 @@ describe('Conversation history management', () => {
     await chat('adv-test', 'Show profiles');
 
     // History: user msg + assistant tool_use + user tool_result + assistant text = 4
-    expect(getConversationLength('adv-test')).toBe(4);
+    expect(await getConversationLength('adv-test')).toBe(4);
   });
 
   it('clearConversation resets history to zero', async () => {
@@ -213,10 +213,10 @@ describe('Conversation history management', () => {
     });
 
     await chat('adv-test', 'Hello');
-    expect(getConversationLength('adv-test')).toBe(2);
+    expect(await getConversationLength('adv-test')).toBe(2);
 
-    clearConversation('adv-test');
-    expect(getConversationLength('adv-test')).toBe(0);
+    await clearConversation('adv-test');
+    expect(await getConversationLength('adv-test')).toBe(0);
   });
 });
 

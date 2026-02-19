@@ -20,6 +20,7 @@ import { requestLoggerMiddleware } from './middleware/request-logger.js';
 import { metricsCollectorMiddleware } from './middleware/metrics-collector.js';
 import { logger } from './lib/logger.js';
 import { sql } from './db/index.js';
+import { initRedis, closeRedis } from './db/redis.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -67,6 +68,9 @@ Sentry.setupExpressErrorHandler(app);
 // Global error handler (must be after Sentry and all routes)
 app.use(errorHandler);
 
+// Initialize Redis (no-op in test mode)
+initRedis();
+
 // Only start server when run directly (not when imported for testing)
 if (process.env.NODE_ENV !== 'test') {
   const server = app.listen(PORT, () => {
@@ -82,7 +86,11 @@ if (process.env.NODE_ENV !== 'test') {
   const shutdown = () => {
     logger.info('Shutting down gracefully...');
     server.close(() => {
-      void sql.end().then(() => process.exit(0));
+      void (async () => {
+        await closeRedis();
+        await sql.end();
+        process.exit(0);
+      })();
     });
   };
 

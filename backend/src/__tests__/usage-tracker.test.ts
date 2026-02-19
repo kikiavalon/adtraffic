@@ -43,26 +43,26 @@ afterEach(() => {
 });
 
 describe('checkLimit', () => {
-  it('returns { allowed: true } when no requests have been made', () => {
-    const result = checkLimit();
+  it('returns { allowed: true } when no requests have been made', async () => {
+    const result = await checkLimit();
     expect(result).toEqual({ allowed: true });
   });
 
-  it('returns { allowed: true } when under the limit', () => {
+  it('returns { allowed: true } when under the limit', async () => {
     process.env.DAILY_API_LIMIT = '5';
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    const result = checkLimit();
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    const result = await checkLimit();
     expect(result).toEqual({ allowed: true });
   });
 
-  it('returns { allowed: false } when at the limit', () => {
+  it('returns { allowed: false } when at the limit', async () => {
     process.env.DAILY_API_LIMIT = '3';
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
 
-    const result = checkLimit();
+    const result = await checkLimit();
     expect(result.allowed).toBe(false);
     if (!result.allowed) {
       expect(result.message).toContain('Daily API limit reached');
@@ -70,61 +70,61 @@ describe('checkLimit', () => {
     }
   });
 
-  it('returns { allowed: false } when over the limit', () => {
+  it('returns { allowed: false } when over the limit', async () => {
     process.env.DAILY_API_LIMIT = '2';
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
 
-    const result = checkLimit();
+    const result = await checkLimit();
     expect(result.allowed).toBe(false);
   });
 
-  it('uses default limit of 100 when DAILY_API_LIMIT is not set', () => {
+  it('uses default limit of 100 when DAILY_API_LIMIT is not set', async () => {
     // Make 99 requests — should still be allowed
     for (let i = 0; i < 99; i++) {
-      recordUsage('claude-haiku-4-5-20251001', 10, 5);
+      await recordUsage('claude-haiku-4-5-20251001', 10, 5);
     }
-    expect(checkLimit().allowed).toBe(true);
+    expect((await checkLimit()).allowed).toBe(true);
 
     // 100th request
-    recordUsage('claude-haiku-4-5-20251001', 10, 5);
-    expect(checkLimit().allowed).toBe(false);
+    await recordUsage('claude-haiku-4-5-20251001', 10, 5);
+    expect((await checkLimit()).allowed).toBe(false);
   });
 });
 
 describe('recordUsage', () => {
-  it('increments the request count', () => {
-    const before = getUsageSummary();
+  it('increments the request count', async () => {
+    const before = await getUsageSummary();
     expect(before.requests).toBe(0);
 
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
 
-    const after = getUsageSummary();
+    const after = await getUsageSummary();
     expect(after.requests).toBe(1);
   });
 
-  it('accumulates token counts', () => {
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    recordUsage('claude-haiku-4-5-20251001', 200, 75);
+  it('accumulates token counts', async () => {
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 200, 75);
 
-    const summary = getUsageSummary();
+    const summary = await getUsageSummary();
     expect(summary.inputTokens).toBe(300);
     expect(summary.outputTokens).toBe(125);
     expect(summary.totalTokens).toBe(425);
   });
 
-  it('tracks multiple API calls', () => {
+  it('tracks multiple API calls', async () => {
     for (let i = 0; i < 5; i++) {
-      recordUsage('claude-haiku-4-5-20251001', 100, 50);
+      await recordUsage('claude-haiku-4-5-20251001', 100, 50);
     }
-    expect(getUsageSummary().requests).toBe(5);
+    expect((await getUsageSummary()).requests).toBe(5);
   });
 
   it('logs usage via structured logger', async () => {
     const { logger } = await import('../lib/logger.js');
     vi.mocked(logger.info).mockClear();
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'claude-haiku-4-5-20251001', inputTokens: 100, outputTokens: 50 }),
       'API usage recorded',
@@ -133,8 +133,8 @@ describe('recordUsage', () => {
 });
 
 describe('getUsageSummary', () => {
-  it('returns zero values when no usage recorded', () => {
-    const summary = getUsageSummary();
+  it('returns zero values when no usage recorded', async () => {
+    const summary = await getUsageSummary();
     expect(summary.requests).toBe(0);
     expect(summary.inputTokens).toBe(0);
     expect(summary.outputTokens).toBe(0);
@@ -142,48 +142,48 @@ describe('getUsageSummary', () => {
     expect(summary.estimatedCost).toBe('$0.0000');
   });
 
-  it('returns today\'s date', () => {
-    const summary = getUsageSummary();
+  it('returns today\'s date', async () => {
+    const summary = await getUsageSummary();
     const today = new Date().toISOString().slice(0, 10);
     expect(summary.date).toBe(today);
   });
 
-  it('returns configured limit', () => {
+  it('returns configured limit', async () => {
     process.env.DAILY_API_LIMIT = '42';
-    const summary = getUsageSummary();
+    const summary = await getUsageSummary();
     expect(summary.limit).toBe(42);
   });
 
-  it('returns default limit of 100 when not configured', () => {
-    const summary = getUsageSummary();
+  it('returns default limit of 100 when not configured', async () => {
+    const summary = await getUsageSummary();
     expect(summary.limit).toBe(100);
   });
 
-  it('calculates estimated cost for known models', () => {
+  it('calculates estimated cost for known models', async () => {
     // claude-haiku-4-5: input $0.80/1M, output $4.00/1M
-    recordUsage('claude-haiku-4-5-20251001', 1_000_000, 1_000_000);
+    await recordUsage('claude-haiku-4-5-20251001', 1_000_000, 1_000_000);
 
-    const summary = getUsageSummary();
+    const summary = await getUsageSummary();
     // Cost = (1M * 0.80 + 1M * 4.00) / 1M = $4.80
     expect(summary.estimatedCost).toBe('$4.8000');
   });
 
-  it('handles unknown models gracefully (no cost contribution)', () => {
-    recordUsage('unknown-model', 1_000_000, 1_000_000);
+  it('handles unknown models gracefully (no cost contribution)', async () => {
+    await recordUsage('unknown-model', 1_000_000, 1_000_000);
 
-    const summary = getUsageSummary();
+    const summary = await getUsageSummary();
     expect(summary.estimatedCost).toBe('$0.0000');
     expect(summary.requests).toBe(1);
     expect(summary.totalTokens).toBe(2_000_000);
   });
 
-  it('accumulates cost across multiple calls with different models', () => {
+  it('accumulates cost across multiple calls with different models', async () => {
     // Haiku: input $0.80/1M, output $4.00/1M
-    recordUsage('claude-haiku-4-5-20251001', 100_000, 50_000);
+    await recordUsage('claude-haiku-4-5-20251001', 100_000, 50_000);
     // Sonnet: input $3.00/1M, output $15.00/1M
-    recordUsage('claude-sonnet-4-5-20250929', 100_000, 50_000);
+    await recordUsage('claude-sonnet-4-5-20250929', 100_000, 50_000);
 
-    const summary = getUsageSummary();
+    const summary = await getUsageSummary();
     // Haiku cost: (100k * 0.80 + 50k * 4.00) / 1M = 0.08 + 0.20 = 0.28
     // Sonnet cost: (100k * 3.00 + 50k * 15.00) / 1M = 0.30 + 0.75 = 1.05
     // Total: 1.33
@@ -196,9 +196,9 @@ describe('daily reset', () => {
     process.env.DAILY_API_LIMIT = '5';
 
     // Record some usage "today"
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    expect(getUsageSummary().requests).toBe(2);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    expect((await getUsageSummary()).requests).toBe(2);
 
     // Mock the date to be tomorrow
     const tomorrow = new Date();
@@ -206,11 +206,11 @@ describe('daily reset', () => {
     vi.setSystemTime(tomorrow);
 
     // checkLimit should trigger resetIfNewDay
-    const result = checkLimit();
+    const result = await checkLimit();
     expect(result.allowed).toBe(true);
 
     // Summary should be reset
-    const summary = getUsageSummary();
+    const summary = await getUsageSummary();
     expect(summary.requests).toBe(0);
     expect(summary.inputTokens).toBe(0);
     expect(summary.outputTokens).toBe(0);
@@ -222,9 +222,9 @@ describe('daily reset', () => {
     process.env.DAILY_API_LIMIT = '2';
 
     // Hit the limit
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    recordUsage('claude-haiku-4-5-20251001', 100, 50);
-    expect(checkLimit().allowed).toBe(false);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50);
+    expect((await checkLimit()).allowed).toBe(false);
 
     // Advance to tomorrow
     const tomorrow = new Date();
@@ -232,7 +232,7 @@ describe('daily reset', () => {
     vi.setSystemTime(tomorrow);
 
     // Should be allowed again
-    expect(checkLimit().allowed).toBe(true);
+    expect((await checkLimit()).allowed).toBe(true);
 
     vi.useRealTimers();
   });

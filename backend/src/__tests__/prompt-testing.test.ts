@@ -95,7 +95,7 @@ describe('Standard prompt tests', () => {
   for (const testPrompt of STANDARD_TEST_PROMPTS) {
     it(`[${testPrompt.id}] ${testPrompt.prompt.slice(0, 70)}`, async () => {
       const convId = `test-${testPrompt.id}`;
-      clearConversation(convId);
+      await clearConversation(convId);
       setupMockSequence(testPrompt.mockToolSequence);
 
       const response = await chat(convId, testPrompt.prompt);
@@ -110,7 +110,7 @@ describe('Standard prompt tests', () => {
         expect(ar.passed, `[${testPrompt.id}] ${ar.assertion.description}: ${ar.detail}`).toBe(true);
       }
 
-      clearConversation(convId);
+      await clearConversation(convId);
     });
   }
 });
@@ -128,7 +128,7 @@ describe('Adversarial prompt tests', () => {
   for (const testPrompt of ADVERSARIAL_TEST_PROMPTS) {
     it(`[${testPrompt.id}] ${testPrompt.prompt.slice(0, 70)}`, async () => {
       const convId = `test-${testPrompt.id}`;
-      clearConversation(convId);
+      await clearConversation(convId);
       setupMockSequence(testPrompt.mockToolSequence);
 
       const response = await chat(convId, testPrompt.prompt);
@@ -142,7 +142,7 @@ describe('Adversarial prompt tests', () => {
         expect(ar.passed, `[${testPrompt.id}] ${ar.assertion.description}: ${ar.detail}`).toBe(true);
       }
 
-      clearConversation(convId);
+      await clearConversation(convId);
     });
   }
 });

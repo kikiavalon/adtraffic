@@ -273,8 +273,12 @@ describe('GET /health — validation', () => {
   it('returns expected shape', async () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);
-    expect(res.body.status).toBe('ok');
+    // Without Redis running, status is 'degraded'; with Redis it's 'ok'
+    expect(['ok', 'degraded']).toContain(res.body.status);
     expect(res.body.service).toBe('adtraffic-backend');
+    expect(res.body.checks).toBeDefined();
+    expect(res.body.checks.redis).toBeDefined();
+    expect(['connected', 'disconnected']).toContain(res.body.checks.redis);
     expect(typeof res.body.timestamp).toBe('string');
   });
 

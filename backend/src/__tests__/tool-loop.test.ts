@@ -20,8 +20,8 @@ vi.mock('../claude/usage-tracker.js', () => ({
 import { chat, clearConversation } from '../claude/kiki-service.js';
 
 describe('tool execution loop', () => {
-  beforeEach(() => {
-    clearConversation('test-loop');
+  beforeEach(async () => {
+    await clearConversation('test-loop');
     vi.clearAllMocks();
   });
 

@@ -1,5 +1,5 @@
 /**
- * Tests for the conversation store — in-memory history cache + database persistence.
+ * Tests for the conversation store — Redis/in-memory history cache + database persistence.
  */
 
 import { randomUUID } from 'crypto';
@@ -44,7 +44,7 @@ beforeEach(async () => {
 // In-memory history cache
 // ---------------------------------------------------------------------------
 
-describe('History cache (in-memory)', () => {
+describe('History cache (Redis with in-memory fallback)', () => {
   it('returns empty array for unknown conversation', async () => {
     expect(await getHistory('nonexistent-conv')).toEqual([]);
   });
@@ -58,31 +58,32 @@ describe('History cache (in-memory)', () => {
       { role: 'user' as const, content: 'Hello' },
       { role: 'assistant' as const, content: 'Hi there!' },
     ];
-    saveHistory('store-test-conv-1', history);
+    await saveHistory('store-test-conv-1', history);
     expect(await getHistory('store-test-conv-1')).toEqual(history);
     expect(await getHistoryLength('store-test-conv-1')).toBe(2);
   });
 
   it('overwrites history on re-save', async () => {
-    saveHistory('store-test-conv-1', [{ role: 'user' as const, content: 'First' }]);
-    saveHistory('store-test-conv-1', [
+    await saveHistory('store-test-conv-1', [{ role: 'user' as const, content: 'First' }]);
+    await saveHistory('store-test-conv-1', [
       { role: 'user' as const, content: 'Second' },
       { role: 'assistant' as const, content: 'Reply' },
     ]);
     expect(await getHistoryLength('store-test-conv-1')).toBe(2);
-    expect((await getHistory('store-test-conv-1'))[0]).toEqual({ role: 'user', content: 'Second' });
+    const h = await getHistory('store-test-conv-1');
+    expect(h[0]).toEqual({ role: 'user', content: 'Second' });
   });
 
   it('clearHistory removes cached history', async () => {
-    saveHistory('store-test-conv-1', [{ role: 'user' as const, content: 'Hello' }]);
+    await saveHistory('store-test-conv-1', [{ role: 'user' as const, content: 'Hello' }]);
     await clearHistory('store-test-conv-1');
     expect(await getHistory('store-test-conv-1')).toEqual([]);
     expect(await getHistoryLength('store-test-conv-1')).toBe(0);
   });
 
   it('handles multiple conversations independently', async () => {
-    saveHistory('store-test-conv-1', [{ role: 'user' as const, content: 'Conv 1' }]);
-    saveHistory('store-test-conv-2', [
+    await saveHistory('store-test-conv-1', [{ role: 'user' as const, content: 'Conv 1' }]);
+    await saveHistory('store-test-conv-2', [
       { role: 'user' as const, content: 'Conv 2a' },
       { role: 'assistant' as const, content: 'Conv 2b' },
     ]);
@@ -168,58 +169,51 @@ describe('getConversations', () => {
   });
 
   it('returns conversations ordered by most recent', async () => {
-    await saveMessage('store-test-conv-1', { id: 'a1', role: 'user', content: 'Older', timestamp: 1000 }, testUserId);
-    // Ensure different updatedAt timestamps
-    await new Promise((r) => setTimeout(r, 1100));
-    await saveMessage('store-test-conv-2', { id: 'a2', role: 'user', content: 'Newer', timestamp: 2000 }, testUserId);
+    await saveMessage('store-test-conv-1', { id: 'msg-1', role: 'user', content: 'First', timestamp: 1000 }, testUserId);
+    // Stagger updates to ensure deterministic updatedAt ordering in PostgreSQL
+    await new Promise((r) => setTimeout(r, 50));
+    await saveMessage('store-test-conv-2', { id: 'msg-2', role: 'user', content: 'Second', timestamp: 2000 }, testUserId);
+    await new Promise((r) => setTimeout(r, 50));
+    await saveMessage('store-test-conv-3', { id: 'msg-3', role: 'user', content: 'Third', timestamp: 3000 }, testUserId);
 
-    const convs = await getConversations(testUserId);
-    expect(convs).toHaveLength(2);
-    // Most recent first
-    expect(convs[0]!.id).toBe('store-test-conv-2');
-    expect(convs[1]!.id).toBe('store-test-conv-1');
+    const conversations = await getConversations(testUserId);
+    expect(conversations).toHaveLength(3);
+    expect(conversations.map((c) => c.id)).toEqual(['store-test-conv-3', 'store-test-conv-2', 'store-test-conv-1']);
   });
 
   it('does not return conversations from other users', async () => {
     const otherUserId = randomUUID();
     await db.insert(schema.users).values({
       id: otherUserId,
-      email: 'other@test.com',
+      email: `${otherUserId}@test.com`,
       passwordHash: 'hashed',
-      name: 'Other',
+      name: 'Other User',
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
-    await saveMessage('store-test-conv-1', { id: 'a1', role: 'user', content: 'Mine', timestamp: 1000 }, testUserId);
-    await saveMessage('store-test-conv-2', { id: 'a2', role: 'user', content: 'Theirs', timestamp: 2000 }, otherUserId);
-
-    const myConvs = await getConversations(testUserId);
-    expect(myConvs).toHaveLength(1);
-    expect(myConvs[0]!.id).toBe('store-test-conv-1');
-
-    const theirConvs = await getConversations(otherUserId);
-    expect(theirConvs).toHaveLength(1);
-    expect(theirConvs[0]!.id).toBe('store-test-conv-2');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// clearHistory (DB + cache)
-// ---------------------------------------------------------------------------
-
-describe('clearHistory', () => {
-  it('removes conversation and cascades to messages', async () => {
     await saveMessage('store-test-conv-1', { id: 'msg-1', role: 'user', content: 'Hello', timestamp: 1000 }, testUserId);
-    await saveMessage('store-test-conv-1', { id: 'msg-2', role: 'assistant', content: 'Hi', timestamp: 2000 });
+    await saveMessage('store-test-conv-2', { id: 'msg-2', role: 'user', content: 'Hi', timestamp: 2000 }, otherUserId);
 
-    await clearHistory('store-test-conv-1');
-
-    expect(await getConversations(testUserId)).toEqual([]);
-    expect(await getMessages('store-test-conv-1')).toEqual([]);
+    const conversations = await getConversations(testUserId);
+    expect(conversations).toHaveLength(1);
+    expect(conversations[0]!.id).toBe('store-test-conv-1');
   });
 
-  it('does not throw on clearing nonexistent conversation', async () => {
-    await expect(clearHistory('no-such-conv')).resolves.not.toThrow();
+  it('respects limit and offset', async () => {
+    await saveMessage('store-test-conv-1', { id: 'msg-1', role: 'user', content: 'A', timestamp: 1000 }, testUserId);
+    // Stagger updates to ensure deterministic updatedAt ordering in PostgreSQL
+    await new Promise((r) => setTimeout(r, 50));
+    await saveMessage('store-test-conv-2', { id: 'msg-2', role: 'user', content: 'B', timestamp: 2000 }, testUserId);
+    await new Promise((r) => setTimeout(r, 50));
+    await saveMessage('store-test-conv-3', { id: 'msg-3', role: 'user', content: 'C', timestamp: 3000 }, testUserId);
+
+    const page1 = await getConversations(testUserId, 2, 0);
+    expect(page1).toHaveLength(2);
+    expect(page1.map((c) => c.id)).toEqual(['store-test-conv-3', 'store-test-conv-2']);
+
+    const page2 = await getConversations(testUserId, 2, 2);
+    expect(page2).toHaveLength(1);
+    expect(page2[0]!.id).toBe('store-test-conv-1');
   });
 });

@@ -2,8 +2,8 @@ import { Router } from 'express';
 import express from 'express';
 import { randomUUID } from 'crypto';
 import { ChatRequestSchema } from '@adtraffic/shared';
-import type { ChatResponse } from '@adtraffic/shared';
-import { chat } from '../claude/kiki-service.js';
+import type { ChatResponse, StreamEvent } from '@adtraffic/shared';
+import { chat, chatStream } from '../claude/kiki-service.js';
 import { requireAuth } from '../auth/middleware.js';
 import { saveMessage, getConversation } from '../db/conversation-store.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
@@ -72,6 +72,94 @@ router.post('/chat', chatLimiter, requireAuth, featureFlagsMiddleware, express.j
     res.status(500).json({
       error: 'Failed to get response from Kiki',
     });
+  }
+});
+
+/**
+ * POST /api/chat/stream
+ *
+ * SSE streaming variant of /api/chat. Returns Server-Sent Events
+ * with real-time text deltas and tool execution status.
+ *
+ * Same middleware chain and validation as /api/chat.
+ * The non-streaming /api/chat endpoint is preserved as a fallback.
+ */
+router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, express.json({ limit: '10mb' }), async (req, res) => {
+  const parsed = ChatRequestSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    res.status(400).json({
+      error: 'Invalid request',
+    });
+    return;
+  }
+
+  const { conversationId, message } = parsed.data;
+
+  try {
+    const userId = req.user!.userId;
+
+    // Verify conversation ownership — prevent cross-user access (IDOR)
+    const existing = await getConversation(conversationId);
+    if (existing && existing.userId !== userId) {
+      res.status(403).json({ error: 'Access denied' });
+      return;
+    }
+
+    // Save user message to DB
+    await saveMessage(conversationId, {
+      id: randomUUID(),
+      role: 'user',
+      content: message,
+      timestamp: Date.now(),
+    }, userId);
+
+    // SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    // Helper to send typed SSE events
+    const sendEvent = (event: StreamEvent) => {
+      res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+    };
+
+    // Handle client disconnect — abort the Claude API call
+    const controller = new AbortController();
+    req.on('close', () => controller.abort());
+
+    try {
+      await chatStream(conversationId, message, sendEvent, controller.signal, req.featureFlags);
+    } catch (error) {
+      // Don't send error events for intentional client disconnects
+      if (!(error instanceof Error && error.name === 'AbortError')) {
+        sendEvent({ type: 'error', error: 'Failed to get response from Kiki' });
+      }
+    }
+
+    // Save assistant message — chatStream() handles this internally via message_end
+    // The final message is saved inside chatStream() when it emits message_end
+
+    sendEvent({ type: 'done' });
+    res.end();
+  } catch (error) {
+    // If headers haven't been sent yet, return a JSON error
+    if (!res.headersSent) {
+      console.error('Stream setup error:', error instanceof Error ? error.message : 'Unknown error');
+      res.status(500).json({
+        error: 'Failed to start streaming response',
+      });
+    } else {
+      // Headers already sent — try to send an SSE error event
+      try {
+        res.write(`event: error\ndata: ${JSON.stringify({ type: 'error', error: 'Stream interrupted' })}\n\n`);
+        res.write(`event: done\ndata: ${JSON.stringify({ type: 'done' })}\n\n`);
+      } catch { /* client may have disconnected */ }
+      res.end();
+    }
   }
 });
 

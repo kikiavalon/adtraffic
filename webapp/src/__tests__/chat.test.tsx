@@ -20,6 +20,77 @@ vi.mock('../components/ConversationSidebar.js', () => ({
   default: () => <div data-testid="sidebar">Sidebar</div>,
 }));
 
+/**
+ * Helper to create a mock SSE response for the streaming chat endpoint.
+ * The Chat component reads from response.body as a ReadableStream.
+ */
+function createSSEResponse(content: string, messageId = 'r1') {
+  const events = [
+    `event: message_start\ndata: ${JSON.stringify({ type: 'message_start', messageId, conversationId: 'c1' })}\n\n`,
+    `event: content_delta\ndata: ${JSON.stringify({ type: 'content_delta', delta: content })}\n\n`,
+    `event: message_end\ndata: ${JSON.stringify({ type: 'message_end', message: { id: messageId, role: 'assistant', content, timestamp: Date.now() } })}\n\n`,
+    `event: done\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
+  ];
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const event of events) {
+        controller.enqueue(encoder.encode(event));
+      }
+      controller.close();
+    },
+  });
+
+  return {
+    ok: true,
+    status: 200,
+    body: stream,
+    headers: new Headers({ 'Content-Type': 'text/event-stream' }),
+  };
+}
+
+/**
+ * Helper to create a pending SSE response that can be resolved later.
+ * Returns [promise, resolve] so the test can control when events arrive.
+ */
+function createPendingSSEResponse() {
+  let resolveStream: () => void;
+  const content = 'Done';
+  const messageId = 'r1';
+
+  const events = [
+    `event: message_start\ndata: ${JSON.stringify({ type: 'message_start', messageId, conversationId: 'c1' })}\n\n`,
+    `event: content_delta\ndata: ${JSON.stringify({ type: 'content_delta', delta: content })}\n\n`,
+    `event: message_end\ndata: ${JSON.stringify({ type: 'message_end', message: { id: messageId, role: 'assistant', content, timestamp: Date.now() } })}\n\n`,
+    `event: done\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
+  ];
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      // Wait until resolved to emit events
+      new Promise<void>((resolve) => {
+        resolveStream = resolve;
+      }).then(() => {
+        for (const event of events) {
+          controller.enqueue(encoder.encode(event));
+        }
+        controller.close();
+      });
+    },
+  });
+
+  const response = {
+    ok: true,
+    status: 200,
+    body: stream,
+    headers: new Headers({ 'Content-Type': 'text/event-stream' }),
+  };
+
+  return [response, () => resolveStream()] as const;
+}
+
 function renderChat() {
   return render(
     <MemoryRouter>
@@ -46,12 +117,7 @@ describe('Chat', () => {
   });
 
   it('sends message on Send button click', async () => {
-    mockAuthFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({
-        message: { id: 'r1', role: 'assistant', content: 'Response here', timestamp: Date.now() },
-      }),
-    });
+    mockAuthFetch.mockResolvedValue(createSSEResponse('Response here'));
 
     const user = userEvent.setup();
     renderChat();
@@ -70,12 +136,7 @@ describe('Chat', () => {
   });
 
   it('sends message on Enter key (not shift+Enter)', async () => {
-    mockAuthFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({
-        message: { id: 'r1', role: 'assistant', content: 'Got it', timestamp: Date.now() },
-      }),
-    });
+    mockAuthFetch.mockResolvedValue(createSSEResponse('Got it'));
 
     const user = userEvent.setup();
     renderChat();
@@ -88,13 +149,8 @@ describe('Chat', () => {
   });
 
   it('shows typing indicator while loading', async () => {
-    // Create a promise we can control
-    let resolveResponse: (value: unknown) => void;
-    const responsePromise = new Promise((resolve) => {
-      resolveResponse = resolve;
-    });
-
-    mockAuthFetch.mockReturnValue(responsePromise);
+    const [response, resolve] = createPendingSSEResponse();
+    mockAuthFetch.mockResolvedValue(response);
 
     const user = userEvent.setup();
     renderChat();
@@ -103,17 +159,14 @@ describe('Chat', () => {
     await user.type(input, 'Test');
     await user.click(screen.getByRole('button', { name: /send/i }));
 
-    // Typing indicator should be visible
+    // Typing indicator should be visible while streaming hasn't completed
     expect(screen.getByRole('status', { name: /kiki is typing/i })).toBeInTheDocument();
 
-    // Resolve the response
+    // Resolve the stream
     await act(async () => {
-      resolveResponse!({
-        ok: true,
-        json: () => Promise.resolve({
-          message: { id: 'r1', role: 'assistant', content: 'Done', timestamp: Date.now() },
-        }),
-      });
+      resolve();
+      // Give the stream time to process
+      await new Promise((r) => setTimeout(r, 50));
     });
 
     // Typing indicator should be gone
@@ -123,8 +176,8 @@ describe('Chat', () => {
   });
 
   it('disables input while loading', async () => {
-    let resolveResponse: (value: unknown) => void;
-    mockAuthFetch.mockReturnValue(new Promise((resolve) => { resolveResponse = resolve; }));
+    const [response, resolve] = createPendingSSEResponse();
+    mockAuthFetch.mockResolvedValue(response);
 
     const user = userEvent.setup();
     renderChat();
@@ -136,12 +189,8 @@ describe('Chat', () => {
     expect(input).toBeDisabled();
 
     await act(async () => {
-      resolveResponse!({
-        ok: true,
-        json: () => Promise.resolve({
-          message: { id: 'r1', role: 'assistant', content: 'Done', timestamp: Date.now() },
-        }),
-      });
+      resolve();
+      await new Promise((r) => setTimeout(r, 50));
     });
 
     await waitFor(() => {
@@ -150,12 +199,7 @@ describe('Chat', () => {
   });
 
   it('clears input after sending', async () => {
-    mockAuthFetch.mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({
-        message: { id: 'r1', role: 'assistant', content: 'OK', timestamp: Date.now() },
-      }),
-    });
+    mockAuthFetch.mockResolvedValue(createSSEResponse('OK'));
 
     const user = userEvent.setup();
     renderChat();
@@ -168,7 +212,7 @@ describe('Chat', () => {
   });
 
   it('shows New Chat button that resets messages', async () => {
-    mockAuthFetch.mockResolvedValue({ ok: true });
+    mockAuthFetch.mockResolvedValue(createSSEResponse('OK'));
 
     const user = userEvent.setup();
     renderChat();

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { ChatMessage } from '@adtraffic/shared';
+import type { ChatMessage, StreamEvent } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { PluggableList } from 'unified';
@@ -124,6 +124,42 @@ const markdownComponents = {
   pre: CodeBlock,
 };
 
+/** Parse SSE events from a raw text buffer. Returns parsed events and any remaining incomplete data. */
+function parseSSEBuffer(buffer: string): { parsed: StreamEvent[]; remaining: string } {
+  const events: StreamEvent[] = [];
+  const parts = buffer.split('\n\n');
+  const remaining = parts.pop() ?? ''; // Last part may be incomplete
+
+  for (const part of parts) {
+    const dataLine = part.split('\n').find((line) => line.startsWith('data: '));
+    if (dataLine) {
+      try {
+        events.push(JSON.parse(dataLine.slice(6)) as StreamEvent);
+      } catch { /* skip malformed events */ }
+    }
+  }
+
+  return { parsed: events, remaining };
+}
+
+/** Maps internal tool names to human-readable status labels */
+const TOOL_LABELS: Record<string, string> = {
+  cm360_list_profiles: 'Checking your CM360 access',
+  cm360_list_advertisers: 'Looking up advertisers',
+  cm360_get_advertiser: 'Getting advertiser details',
+  cm360_list_campaigns: 'Searching campaigns',
+  cm360_create_campaign: 'Creating campaign',
+  cm360_list_sites: 'Looking up sites',
+  cm360_list_landing_pages: 'Loading landing pages',
+  cm360_list_placements: 'Searching placements',
+  cm360_create_placement: 'Creating placement',
+  cm360_generate_tags: 'Generating ad tags',
+};
+
+function formatToolName(toolName: string): string {
+  return TOOL_LABELS[toolName] ?? toolName.replace(/^cm360_/, '').replace(/_/g, ' ');
+}
+
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
 const WELCOME_MESSAGE = `Hey! I'm **Kiki**, your CM360 trafficking assistant. I'm connected to the Demo Agency account and ready to help.
@@ -157,11 +193,16 @@ function Chat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
+  const [toolStatus, setToolStatus] = useState<{ toolName: string; status: 'running' } | null>(null);
   const { user, logout, authFetch } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Delta batching refs for ~60fps streaming renders
+  const pendingDelta = useRef('');
+  const rafRef = useRef<number | null>(null);
 
   // Persist conversation state
   useEffect(() => {
@@ -190,6 +231,28 @@ function Chat() {
     };
   }, []);
 
+  /** Batch delta text into the streaming message at ~60fps */
+  const flushDelta = useCallback(() => {
+    const batch = pendingDelta.current;
+    if (!batch) return;
+    pendingDelta.current = '';
+    rafRef.current = null;
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      if (last?.id === 'streaming') {
+        return [...prev.slice(0, -1), { ...last, content: last.content + batch }];
+      }
+      return prev;
+    });
+  }, []);
+
+  const appendDelta = useCallback((delta: string) => {
+    pendingDelta.current += delta;
+    if (rafRef.current === null) {
+      rafRef.current = requestAnimationFrame(flushDelta);
+    }
+  }, [flushDelta]);
+
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
 
@@ -208,9 +271,19 @@ function Chat() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+    setToolStatus(null);
+
+    // Add placeholder assistant message that will be updated incrementally
+    const placeholderMsg: ChatMessage = {
+      id: 'streaming',
+      role: 'assistant',
+      content: '',
+      timestamp: Date.now(),
+    };
+    setMessages((prev) => [...prev, placeholderMsg]);
 
     try {
-      const response = await authFetch(`${API_URL}/api/v1/chat`, {
+      const response = await authFetch(`${API_URL}/api/v1/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversationId, message: text }),
@@ -221,22 +294,101 @@ function Chat() {
         throw new Error(`Backend error: ${response.status}`);
       }
 
-      const data = await response.json();
-      setMessages((prev) => [...prev, data.message]);
-      setSidebarRefresh((n) => n + 1);
+      if (!response.body) {
+        throw new Error('No response body for streaming');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const result = parseSSEBuffer(buffer);
+        buffer = result.remaining;
+
+        for (const event of result.parsed) {
+          switch (event.type) {
+            case 'content_delta':
+              appendDelta(event.delta);
+              break;
+
+            case 'tool_start':
+              // Flush any pending delta before showing tool status
+              if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+                flushDelta();
+              }
+              setToolStatus({ toolName: event.toolName, status: 'running' });
+              break;
+
+            case 'tool_end':
+              setToolStatus(null);
+              break;
+
+            case 'message_end':
+              // Flush any remaining delta
+              if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+              }
+              pendingDelta.current = '';
+              // Replace placeholder with final message (source of truth)
+              setMessages((prev) => [...prev.slice(0, -1), event.message]);
+              setSidebarRefresh((n) => n + 1);
+              break;
+
+            case 'error':
+              setMessages((prev) => {
+                const errMsg: ChatMessage = {
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  content: `Sorry, something went wrong: ${event.error}`,
+                  timestamp: Date.now(),
+                };
+                return [...prev.slice(0, -1), errMsg];
+              });
+              break;
+
+            case 'done':
+              // Stream complete — no action needed
+              break;
+          }
+        }
+      }
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
+      // Clean up any pending animation frame
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      pendingDelta.current = '';
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
         content: `Sorry, I had trouble connecting. Make sure the backend is running. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         timestamp: Date.now(),
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => {
+        // Replace the streaming placeholder if it exists
+        const last = prev[prev.length - 1];
+        if (last?.id === 'streaming') {
+          return [...prev.slice(0, -1), errorMessage];
+        }
+        return [...prev, errorMessage];
+      });
     } finally {
       setIsLoading(false);
+      setToolStatus(null);
     }
-  }, [isLoading, conversationId, authFetch]);
+  }, [isLoading, conversationId, authFetch, appendDelta, flushDelta]);
 
   // Accept context from companion Chrome extension (?advertiserId=X&campaignId=Y)
   const extensionContextHandled = useRef(false);
@@ -395,19 +547,26 @@ function Chat() {
             </div>
           );
         })}
-        {isLoading && (
+        {isLoading && toolStatus && (
           <div className="chat-message chat-message-assistant">
             <div className="chat-message-row">
               <div className="kiki-avatar">K</div>
               <div className="chat-message-bubble">
-                <div className="chat-message-sender">Kiki</div>
-                <div className="chat-message-content typing-indicator" role="status" aria-label="Kiki is typing">
-                  <span className="typing-dot" />
-                  <span className="typing-dot" />
-                  <span className="typing-dot" />
+                <div className="tool-status" role="status" aria-label={formatToolName(toolStatus.toolName)}>
+                  <span className="tool-status-spinner" />
+                  <span className="tool-status-text">
+                    {formatToolName(toolStatus.toolName)}...
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
+        )}
+        {isLoading && !toolStatus && (
+          <div className="typing-indicator" role="status" aria-label="Kiki is typing">
+            <span className="typing-dot" />
+            <span className="typing-dot" />
+            <span className="typing-dot" />
           </div>
         )}
         <div ref={messagesEndRef} />

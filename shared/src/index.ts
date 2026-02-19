@@ -34,6 +34,17 @@ export type {
   BuildOperation,
 } from './types/chat.js';
 
+export type {
+  StreamEvent,
+  StreamMessageStart,
+  StreamContentDelta,
+  StreamToolStart,
+  StreamToolEnd,
+  StreamMessageEnd,
+  StreamError,
+  StreamDone,
+} from './types/streaming.js';
+
 // Schemas
 export {
   CreateCampaignSchema,

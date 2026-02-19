@@ -11,6 +11,7 @@ export type {
   CM360CreateLandingPageInput,
   CM360Placement,
   CM360PlacementStatus,
+  CM360PlacementActiveStatus,
   CM360CreatePlacementInput,
   CM360PlacementGroup,
   CM360Ad,
@@ -20,6 +21,11 @@ export type {
   CM360TagFormat,
   CM360BuildResource,
   CM360ListResponse,
+  CM360UpdateCampaignInput,
+  CM360UpdatePlacementInput,
+  CM360UpdateAdInput,
+  CM360UpdateCreativeInput,
+  CM360UpdateLandingPageInput,
 } from './types/cm360.js';
 
 export type {

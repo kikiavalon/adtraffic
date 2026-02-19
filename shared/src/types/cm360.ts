@@ -4,7 +4,7 @@
  * Reference: https://developers.google.com/doubleclick-advertisers/rest/v5
  */
 
-/** CM360 placement status values per API v5 */
+/** CM360 placement status values per API v5 (publisher-facing status) */
 export type CM360PlacementStatus =
   | 'PENDING_REVIEW'
   | 'PAYMENT_ACCEPTED'
@@ -12,6 +12,13 @@ export type CM360PlacementStatus =
   | 'ACKNOWLEDGE_REJECTION'
   | 'ACKNOWLEDGE_ACCEPTANCE'
   | 'DRAFT';
+
+/** CM360 placement active status (operational status, separate from publisher-facing status) */
+export type CM360PlacementActiveStatus =
+  | 'ACTIVE'
+  | 'INACTIVE'
+  | 'ARCHIVED'
+  | 'PERMANENTLY_ARCHIVED';
 
 /** CM360 creative type values per API v5 */
 export type CM360CreativeType =
@@ -125,6 +132,7 @@ export interface CM360Placement {
   siteId: string;
   size: CM360Size;
   status: CM360PlacementStatus;
+  activeStatus: CM360PlacementActiveStatus;
   pricingSchedule: {
     startDate: string;
     endDate: string;
@@ -164,6 +172,9 @@ export interface CM360Ad {
   campaignId: string;
   advertiserId: string;
   active: boolean;
+  archived: boolean;
+  startTime?: string;
+  endTime?: string;
   placementAssignments: Array<{ placementId: string }>;
   creativeRotation: {
     creativeAssignments: Array<{ creativeId: string }>;
@@ -177,6 +188,7 @@ export interface CM360Creative {
   type: CM360CreativeType;
   size: CM360Size;
   active: boolean;
+  archived: boolean;
 }
 
 export interface CM360PlacementTag {
@@ -186,6 +198,48 @@ export interface CM360PlacementTag {
     impressionTag: string;
     clickTag: string;
   }>;
+}
+
+// ---------------------------------------------------------------------------
+// Update / Patch input types
+// ---------------------------------------------------------------------------
+
+export interface CM360UpdateCampaignInput {
+  name?: string;
+  startDate?: string;
+  endDate?: string;
+  archived?: boolean;
+  defaultLandingPageId?: string;
+}
+
+export interface CM360UpdatePlacementInput {
+  name?: string;
+  activeStatus?: CM360PlacementActiveStatus;
+  archived?: boolean;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface CM360UpdateAdInput {
+  name?: string;
+  active?: boolean;
+  archived?: boolean;
+  startTime?: string;
+  endTime?: string;
+  placementIds?: string[];
+  creativeId?: string;
+}
+
+export interface CM360UpdateCreativeInput {
+  name?: string;
+  active?: boolean;
+  archived?: boolean;
+}
+
+export interface CM360UpdateLandingPageInput {
+  name?: string;
+  url?: string;
+  archived?: boolean;
 }
 
 /** Generic list response wrapper */

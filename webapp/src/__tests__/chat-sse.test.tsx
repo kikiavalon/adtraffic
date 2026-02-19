@@ -275,13 +275,13 @@ describe('Chat SSE streaming', () => {
     // Simulate abort by having the first fetch resolve with a pending stream,
     // then the user sends another message (which aborts the first)
     let aborted = false;
-    const encoder = new TextEncoder();
+
 
     const pendingStream = new ReadableStream({
-      async pull(controller) {
+      async pull(_controller) {
         // Wait forever until aborted
         await new Promise<void>((_, reject) => {
-          const signal = controller.desiredSize === null ? null : null;
+
           const checkAbort = setInterval(() => {
             if (aborted) {
               clearInterval(checkAbort);

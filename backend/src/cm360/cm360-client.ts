@@ -28,8 +28,14 @@ import type {
   CM360PlacementTag,
   CM360AdvertiserStatus,
   CM360PlacementStatus,
+  CM360PlacementActiveStatus,
   CM360TagFormat,
   CM360CreativeType,
+  CM360UpdateCampaignInput,
+  CM360UpdateLandingPageInput,
+  CM360UpdatePlacementInput,
+  CM360UpdateCreativeInput,
+  CM360UpdateAdInput,
 } from '@adtraffic/shared';
 import { isGoogleAPIError } from './errors.js';
 
@@ -108,6 +114,32 @@ export class CM360Client {
     return mapCampaign(res.data);
   }
 
+  async getCampaign(profileId: string, campaignId: string): Promise<CM360Campaign | null> {
+    try {
+      const res = await this.api.campaigns.get({ profileId, id: campaignId });
+      if (!res.data) return null;
+      return mapCampaign(res.data);
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async patchCampaign(profileId: string, campaignId: string, input: CM360UpdateCampaignInput): Promise<CM360Campaign> {
+    const res = await this.api.campaigns.patch({
+      profileId,
+      id: campaignId,
+      requestBody: {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.startDate !== undefined && { startDate: input.startDate }),
+        ...(input.endDate !== undefined && { endDate: input.endDate }),
+        ...(input.archived !== undefined && { archived: input.archived }),
+        ...(input.defaultLandingPageId !== undefined && { defaultLandingPageId: input.defaultLandingPageId }),
+      },
+    });
+    return mapCampaign(res.data);
+  }
+
   // ---------- Sites ----------
 
   async listSites(
@@ -170,6 +202,25 @@ export class CM360Client {
     };
   }
 
+  async patchLandingPage(profileId: string, landingPageId: string, input: CM360UpdateLandingPageInput): Promise<CM360LandingPage> {
+    const res = await this.api.advertiserLandingPages.patch({
+      profileId,
+      id: landingPageId,
+      requestBody: {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.url !== undefined && { url: input.url }),
+        ...(input.archived !== undefined && { archived: input.archived }),
+      },
+    });
+    return {
+      id: String(res.data.id ?? ''),
+      name: res.data.name ?? '',
+      advertiserId: String(res.data.advertiserId ?? ''),
+      url: res.data.url ?? '',
+      archived: res.data.archived ?? false,
+    };
+  }
+
   // ---------- Placements ----------
 
   async listPlacements(
@@ -208,6 +259,36 @@ export class CM360Client {
     return mapPlacement(res.data);
   }
 
+  async getPlacement(profileId: string, placementId: string): Promise<CM360Placement | null> {
+    try {
+      const res = await this.api.placements.get({ profileId, id: placementId });
+      if (!res.data) return null;
+      return mapPlacement(res.data);
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async patchPlacement(profileId: string, placementId: string, input: CM360UpdatePlacementInput): Promise<CM360Placement> {
+    const requestBody: Record<string, unknown> = {};
+    if (input.name !== undefined) requestBody.name = input.name;
+    if (input.activeStatus !== undefined) requestBody.activeStatus = input.activeStatus;
+    if (input.archived !== undefined) requestBody.archived = input.archived;
+    if (input.startDate !== undefined || input.endDate !== undefined) {
+      requestBody.pricingSchedule = {
+        ...(input.startDate !== undefined && { startDate: input.startDate }),
+        ...(input.endDate !== undefined && { endDate: input.endDate }),
+      };
+    }
+    const res = await this.api.placements.patch({
+      profileId,
+      id: placementId,
+      requestBody,
+    });
+    return mapPlacement(res.data);
+  }
+
   // ---------- Creatives ----------
 
   async listCreatives(
@@ -232,7 +313,34 @@ export class CM360Client {
         iab: c.size?.iab ?? false,
       },
       active: c.active ?? true,
+      archived: c.archived ?? false,
     }));
+  }
+
+  async patchCreative(profileId: string, creativeId: string, input: CM360UpdateCreativeInput): Promise<CM360Creative> {
+    const res = await this.api.creatives.patch({
+      profileId,
+      id: creativeId,
+      requestBody: {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.active !== undefined && { active: input.active }),
+        ...(input.archived !== undefined && { archived: input.archived }),
+      },
+    });
+    return {
+      id: String(res.data.id ?? ''),
+      name: res.data.name ?? '',
+      advertiserId: String(res.data.advertiserId ?? ''),
+      type: (res.data.type ?? 'DISPLAY') as CM360CreativeType,
+      size: {
+        id: String(res.data.size?.id ?? ''),
+        width: res.data.size?.width ?? 0,
+        height: res.data.size?.height ?? 0,
+        iab: res.data.size?.iab ?? false,
+      },
+      active: res.data.active ?? true,
+      archived: res.data.archived ?? false,
+    };
   }
 
   // ---------- Ads ----------
@@ -273,6 +381,44 @@ export class CM360Client {
           type: 'CREATIVE_ROTATION_TYPE_RANDOM',
         },
       },
+    });
+    return mapAd(res.data);
+  }
+
+  async getAd(profileId: string, adId: string): Promise<CM360Ad | null> {
+    try {
+      const res = await this.api.ads.get({ profileId, id: adId });
+      if (!res.data) return null;
+      return mapAd(res.data);
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async patchAd(profileId: string, adId: string, input: CM360UpdateAdInput): Promise<CM360Ad> {
+    const requestBody: Record<string, unknown> = {};
+    if (input.name !== undefined) requestBody.name = input.name;
+    if (input.active !== undefined) requestBody.active = input.active;
+    if (input.archived !== undefined) requestBody.archived = input.archived;
+    if (input.startTime !== undefined) requestBody.startTime = input.startTime;
+    if (input.endTime !== undefined) requestBody.endTime = input.endTime;
+    if (input.placementIds !== undefined) {
+      requestBody.placementAssignments = input.placementIds.map(id => ({
+        placementId: id,
+        active: true,
+      }));
+    }
+    if (input.creativeId !== undefined) {
+      requestBody.creativeRotation = {
+        creativeAssignments: [{ creativeId: input.creativeId, active: true }],
+        type: 'CREATIVE_ROTATION_TYPE_RANDOM',
+      };
+    }
+    const res = await this.api.ads.patch({
+      profileId,
+      id: adId,
+      requestBody,
     });
     return mapAd(res.data);
   }
@@ -344,6 +490,7 @@ function mapPlacement(p: any): CM360Placement {
       iab: (size?.iab as boolean) ?? false,
     },
     status: ((p.status as string) ?? 'DRAFT') as CM360PlacementStatus,
+    activeStatus: ((p.activeStatus as string) ?? 'ACTIVE') as CM360PlacementActiveStatus,
     pricingSchedule: {
       startDate: (pricing?.startDate as string) ?? '',
       endDate: (pricing?.endDate as string) ?? '',
@@ -362,6 +509,9 @@ function mapAd(ad: any): CM360Ad {
     campaignId: String(ad.campaignId ?? ''),
     advertiserId: String(ad.advertiserId ?? ''),
     active: (ad.active as boolean) ?? true,
+    archived: (ad.archived as boolean) ?? false,
+    startTime: (ad.startTime as string) ?? undefined,
+    endTime: (ad.endTime as string) ?? undefined,
     placementAssignments: (placements ?? []).map(pa => ({
       placementId: String(pa.placementId ?? ''),
     })),

@@ -20,6 +20,11 @@ import type {
   CM360Ad,
   CM360Creative,
   CM360PlacementTag,
+  CM360UpdateCampaignInput,
+  CM360UpdatePlacementInput,
+  CM360UpdateAdInput,
+  CM360UpdateCreativeInput,
+  CM360UpdateLandingPageInput,
 } from '@adtraffic/shared';
 
 const ACCOUNT_ID = '67890';
@@ -204,6 +209,7 @@ class MockDataStore {
             iab: true,
           },
           active: true,
+          archived: false,
         });
       }
       creativesByAdvertiser.set(advId, crIds);
@@ -247,6 +253,7 @@ class MockDataStore {
               startDate: camp.startDate,
               endDate: camp.endDate,
             },
+            activeStatus: 'ACTIVE',
             tagFormats: ['PLACEMENT_TAG_STANDARD'],
           });
         }
@@ -278,6 +285,7 @@ class MockDataStore {
             campaignId: campId,
             advertiserId: advId,
             active: true,
+            archived: false,
             placementAssignments: [{ placementId: placement.id }],
             creativeRotation: {
               creativeAssignments: [{ creativeId }],
@@ -427,6 +435,7 @@ class MockDataStore {
         iab: IAB_SIZES.some((s) => s.width === input.width && s.height === input.height),
       },
       status: 'DRAFT',
+      activeStatus: 'ACTIVE',
       pricingSchedule: {
         startDate: input.startDate,
         endDate: input.endDate,
@@ -467,6 +476,7 @@ class MockDataStore {
       campaignId: input.campaignId,
       advertiserId: campaign?.advertiserId ?? '',
       active: true,
+      archived: false,
       placementAssignments: input.placementIds.map((pid) => ({ placementId: pid })),
       creativeRotation: {
         creativeAssignments: [{ creativeId: input.creativeId }],
@@ -501,6 +511,113 @@ class MockDataStore {
         }],
       };
     });
+  }
+
+  // --- Get single entity methods ---
+
+  getCampaign(id: string): CM360Campaign | undefined {
+    return this.campaigns.get(id);
+  }
+
+  getPlacement(id: string): CM360Placement | undefined {
+    return this.placements.get(id);
+  }
+
+  getAd(id: string): CM360Ad | undefined {
+    return this.ads.get(id);
+  }
+
+  getLandingPage(id: string): CM360LandingPage | undefined {
+    return this.landingPages.get(id);
+  }
+
+  getCreative(id: string): CM360Creative | undefined {
+    return this.creatives.get(id);
+  }
+
+  // --- Update methods ---
+
+  updateCampaign(id: string, input: CM360UpdateCampaignInput): CM360Campaign | undefined {
+    const campaign = this.campaigns.get(id);
+    if (!campaign) return undefined;
+    const updated: CM360Campaign = {
+      ...campaign,
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.startDate !== undefined && { startDate: input.startDate }),
+      ...(input.endDate !== undefined && { endDate: input.endDate }),
+      ...(input.archived !== undefined && { archived: input.archived }),
+      ...(input.defaultLandingPageId !== undefined && { defaultLandingPageId: input.defaultLandingPageId }),
+    };
+    this.campaigns.set(id, updated);
+    return updated;
+  }
+
+  updatePlacement(id: string, input: CM360UpdatePlacementInput): CM360Placement | undefined {
+    const placement = this.placements.get(id);
+    if (!placement) return undefined;
+    const updated: CM360Placement = {
+      ...placement,
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.activeStatus !== undefined && { activeStatus: input.activeStatus }),
+      ...(input.archived !== undefined && { archived: input.archived }),
+      ...((input.startDate !== undefined || input.endDate !== undefined) && {
+        pricingSchedule: {
+          startDate: input.startDate ?? placement.pricingSchedule.startDate,
+          endDate: input.endDate ?? placement.pricingSchedule.endDate,
+        },
+      }),
+    };
+    this.placements.set(id, updated);
+    return updated;
+  }
+
+  updateAd(id: string, input: CM360UpdateAdInput): CM360Ad | undefined {
+    const ad = this.ads.get(id);
+    if (!ad) return undefined;
+    const updated: CM360Ad = {
+      ...ad,
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.active !== undefined && { active: input.active }),
+      ...(input.archived !== undefined && { archived: input.archived }),
+      ...(input.startTime !== undefined && { startTime: input.startTime }),
+      ...(input.endTime !== undefined && { endTime: input.endTime }),
+      ...(input.placementIds !== undefined && {
+        placementAssignments: input.placementIds.map((pid) => ({ placementId: pid })),
+      }),
+      ...(input.creativeId !== undefined && {
+        creativeRotation: {
+          creativeAssignments: [{ creativeId: input.creativeId }],
+        },
+      }),
+    };
+    this.ads.set(id, updated);
+    return updated;
+  }
+
+  updateCreative(id: string, input: CM360UpdateCreativeInput): CM360Creative | undefined {
+    const creative = this.creatives.get(id);
+    if (!creative) return undefined;
+    const updated: CM360Creative = {
+      ...creative,
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.active !== undefined && { active: input.active }),
+      ...(input.archived !== undefined && { archived: input.archived }),
+    };
+    this.creatives.set(id, updated);
+    return updated;
+  }
+
+  updateLandingPage(id: string, input: CM360UpdateLandingPageInput): CM360LandingPage | undefined {
+    const page = this.landingPages.get(id);
+    if (!page) return undefined;
+    const updated: CM360LandingPage = {
+      ...page,
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.url !== undefined && { url: input.url }),
+      ...(input.archived !== undefined && { archived: input.archived }),
+    };
+    this.landingPages.set(id, updated);
+    return updated;
   }
 
   reset(): void {

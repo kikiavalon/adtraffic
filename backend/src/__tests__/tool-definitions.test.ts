@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { CM360_TOOLS } from '../claude/tool-definitions.js';
 
-// All 14 expected tools
+// All 22 expected tools
 const EXPECTED_TOOLS = [
   'cm360_list_profiles',
   'cm360_list_advertisers',
@@ -22,6 +22,14 @@ const EXPECTED_TOOLS = [
   'cm360_list_ads',
   'cm360_create_ad',
   'cm360_generate_tags',
+  'cm360_get_campaign',
+  'cm360_get_placement',
+  'cm360_get_ad',
+  'cm360_update_campaign',
+  'cm360_update_placement',
+  'cm360_update_ad',
+  'cm360_update_creative',
+  'cm360_update_landing_page',
 ];
 
 const WRITE_TOOLS = [
@@ -29,11 +37,16 @@ const WRITE_TOOLS = [
   'cm360_create_placement',
   'cm360_create_ad',
   'cm360_create_landing_page',
+  'cm360_update_campaign',
+  'cm360_update_placement',
+  'cm360_update_ad',
+  'cm360_update_creative',
+  'cm360_update_landing_page',
 ];
 
 describe('Tool inventory', () => {
-  it('defines exactly 14 tools', () => {
-    expect(CM360_TOOLS).toHaveLength(14);
+  it('defines exactly 22 tools', () => {
+    expect(CM360_TOOLS).toHaveLength(22);
   });
 
   it('includes all expected tool names', () => {

@@ -31,6 +31,14 @@ import {
   ListAdsInputSchema,
   CreateAdInputSchema,
   GenerateTagsInputSchema,
+  GetCampaignInputSchema,
+  GetPlacementInputSchema,
+  GetAdInputSchema2,
+  UpdateCampaignInputSchema,
+  UpdatePlacementInputSchema,
+  UpdateAdInputSchema,
+  UpdateCreativeInputSchema,
+  UpdateLandingPageInputSchema,
   formatZodErrors,
 } from './tool-input-schemas.js';
 
@@ -140,6 +148,14 @@ const VALID_TOOL_NAMES = new Set([
   'cm360_list_ads',
   'cm360_create_ad',
   'cm360_generate_tags',
+  'cm360_get_campaign',
+  'cm360_get_placement',
+  'cm360_get_ad',
+  'cm360_update_campaign',
+  'cm360_update_placement',
+  'cm360_update_ad',
+  'cm360_update_creative',
+  'cm360_update_landing_page',
 ]);
 
 function isValidToolName(name: string): boolean {
@@ -359,6 +375,99 @@ async function executeToolReal(
       return { result: { placementTags: tags }, isError: false };
     }
 
+    // --- Get single entity tools ---
+
+    case 'cm360_get_campaign': {
+      const parsed = GetCampaignInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const campaign = await client.getCampaign(profileId, parsed.data.campaignId);
+      if (!campaign) {
+        return { result: null, isError: true, errorMessage: `Campaign ${parsed.data.campaignId} not found` };
+      }
+      return { result: campaign, isError: false };
+    }
+
+    case 'cm360_get_placement': {
+      const parsed = GetPlacementInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const placement = await client.getPlacement(profileId, parsed.data.placementId);
+      if (!placement) {
+        return { result: null, isError: true, errorMessage: `Placement ${parsed.data.placementId} not found` };
+      }
+      return { result: placement, isError: false };
+    }
+
+    case 'cm360_get_ad': {
+      const parsed = GetAdInputSchema2.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const ad = await client.getAd(profileId, parsed.data.adId);
+      if (!ad) {
+        return { result: null, isError: true, errorMessage: `Ad ${parsed.data.adId} not found` };
+      }
+      return { result: ad, isError: false };
+    }
+
+    // --- Update tools ---
+
+    case 'cm360_update_campaign': {
+      const parsed = UpdateCampaignInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const updated = await client.patchCampaign(profileId, parsed.data.campaignId, parsed.data);
+      return { result: updated, isError: false };
+    }
+
+    case 'cm360_update_placement': {
+      const parsed = UpdatePlacementInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const updated = await client.patchPlacement(profileId, parsed.data.placementId, parsed.data);
+      return { result: updated, isError: false };
+    }
+
+    case 'cm360_update_ad': {
+      const parsed = UpdateAdInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const updated = await client.patchAd(profileId, parsed.data.adId, parsed.data);
+      return { result: updated, isError: false };
+    }
+
+    case 'cm360_update_creative': {
+      const parsed = UpdateCreativeInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const updated = await client.patchCreative(profileId, parsed.data.creativeId, parsed.data);
+      return { result: updated, isError: false };
+    }
+
+    case 'cm360_update_landing_page': {
+      const parsed = UpdateLandingPageInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const updated = await client.patchLandingPage(profileId, parsed.data.landingPageId, parsed.data);
+      return { result: updated, isError: false };
+    }
+
     default:
       return { result: null, isError: true, errorMessage: `Unknown tool: ${toolName}` };
   }
@@ -576,6 +685,106 @@ function executeToolMock(
           parsed.data.placementIds,
         );
         return { result: { placementTags: tags }, isError: false };
+      }
+
+      // --- Get single entity tools ---
+
+      case 'cm360_get_campaign': {
+        const parsed = GetCampaignInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const campaign = mockStore.getCampaign(parsed.data.campaignId);
+        if (!campaign) {
+          return { result: null, isError: true, errorMessage: `Campaign ${parsed.data.campaignId} not found` };
+        }
+        return { result: campaign, isError: false };
+      }
+
+      case 'cm360_get_placement': {
+        const parsed = GetPlacementInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const placement = mockStore.getPlacement(parsed.data.placementId);
+        if (!placement) {
+          return { result: null, isError: true, errorMessage: `Placement ${parsed.data.placementId} not found` };
+        }
+        return { result: placement, isError: false };
+      }
+
+      case 'cm360_get_ad': {
+        const parsed = GetAdInputSchema2.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const ad = mockStore.getAd(parsed.data.adId);
+        if (!ad) {
+          return { result: null, isError: true, errorMessage: `Ad ${parsed.data.adId} not found` };
+        }
+        return { result: ad, isError: false };
+      }
+
+      // --- Update tools ---
+
+      case 'cm360_update_campaign': {
+        const parsed = UpdateCampaignInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const updated = mockStore.updateCampaign(parsed.data.campaignId, parsed.data);
+        if (!updated) {
+          return { result: null, isError: true, errorMessage: `Campaign ${parsed.data.campaignId} not found` };
+        }
+        return { result: updated, isError: false };
+      }
+
+      case 'cm360_update_placement': {
+        const parsed = UpdatePlacementInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const updated = mockStore.updatePlacement(parsed.data.placementId, parsed.data);
+        if (!updated) {
+          return { result: null, isError: true, errorMessage: `Placement ${parsed.data.placementId} not found` };
+        }
+        return { result: updated, isError: false };
+      }
+
+      case 'cm360_update_ad': {
+        const parsed = UpdateAdInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const updated = mockStore.updateAd(parsed.data.adId, parsed.data);
+        if (!updated) {
+          return { result: null, isError: true, errorMessage: `Ad ${parsed.data.adId} not found` };
+        }
+        return { result: updated, isError: false };
+      }
+
+      case 'cm360_update_creative': {
+        const parsed = UpdateCreativeInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const updated = mockStore.updateCreative(parsed.data.creativeId, parsed.data);
+        if (!updated) {
+          return { result: null, isError: true, errorMessage: `Creative ${parsed.data.creativeId} not found` };
+        }
+        return { result: updated, isError: false };
+      }
+
+      case 'cm360_update_landing_page': {
+        const parsed = UpdateLandingPageInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const updated = mockStore.updateLandingPage(parsed.data.landingPageId, parsed.data);
+        if (!updated) {
+          return { result: null, isError: true, errorMessage: `Landing page ${parsed.data.landingPageId} not found` };
+        }
+        return { result: updated, isError: false };
       }
 
       default:

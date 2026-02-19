@@ -334,7 +334,7 @@ describe('flag-middleware', () => {
 // ──────────────────────────────────────────────────────────────────────────────
 
 describe('tool gating', () => {
-  it('TOOL_FLAG_MAP covers all 14 tool names', () => {
+  it('TOOL_FLAG_MAP covers all tool names', () => {
     for (const tool of CM360_TOOLS) {
       expect(TOOL_FLAG_MAP).toHaveProperty(tool.name);
     }
@@ -352,7 +352,10 @@ describe('tool gating', () => {
     flags['cm360.write_operations'] = false;
     const tools = getEnabledTools(flags);
 
-    const writeToolNames = ['cm360_create_campaign', 'cm360_create_placement', 'cm360_create_ad', 'cm360_create_landing_page'];
+    const writeToolNames = [
+      'cm360_create_campaign', 'cm360_create_placement', 'cm360_create_ad', 'cm360_create_landing_page',
+      'cm360_update_campaign', 'cm360_update_placement', 'cm360_update_ad', 'cm360_update_creative', 'cm360_update_landing_page',
+    ];
     for (const tool of tools) {
       expect(writeToolNames).not.toContain(tool.name);
     }

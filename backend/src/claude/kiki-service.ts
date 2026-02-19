@@ -188,7 +188,7 @@ export async function chatStream(
   flags?: Record<string, unknown>,
 ): Promise<void> {
   const maxToolRounds = (flags?.['limits.max_tool_rounds'] as number | undefined) ?? DEFAULT_MAX_TOOL_ROUNDS;
-  const dailyLimit = (flags?.['limits.daily_api_limit'] as number | undefined) ?? undefined;
+  const dailyLimit = (flags?.['limits.daily_api_requests'] as number | undefined) ?? undefined;
 
   // Check daily usage limit before making any API call
   const limitCheck = await checkLimit(dailyLimit);

@@ -72,6 +72,83 @@ export const ListAdsInputSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Get (single entity) operations
+// ---------------------------------------------------------------------------
+
+export const GetCampaignInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  campaignId: z.string().min(1, 'Campaign ID is required'),
+});
+
+export const GetPlacementInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  placementId: z.string().min(1, 'Placement ID is required'),
+});
+
+export const GetAdInputSchema2 = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  adId: z.string().min(1, 'Ad ID is required'),
+});
+
+// ---------------------------------------------------------------------------
+// Update / Patch operations
+// ---------------------------------------------------------------------------
+
+export const UpdateCampaignInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  campaignId: z.string().min(1, 'Campaign ID is required'),
+  name: z.string().min(1).max(256).optional(),
+  startDate: dateString.optional(),
+  endDate: dateString.optional(),
+  archived: z.boolean().optional(),
+  defaultLandingPageId: z.string().min(1).optional(),
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) return data.endDate >= data.startDate;
+    return true;
+  },
+  { message: 'End date must be on or after start date', path: ['endDate'] },
+);
+
+export const UpdatePlacementInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  placementId: z.string().min(1, 'Placement ID is required'),
+  name: z.string().min(1).max(256).optional(),
+  activeStatus: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED', 'PERMANENTLY_ARCHIVED']).optional(),
+  archived: z.boolean().optional(),
+  startDate: dateString.optional(),
+  endDate: dateString.optional(),
+});
+
+export const UpdateAdInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  adId: z.string().min(1, 'Ad ID is required'),
+  name: z.string().min(1).max(256).optional(),
+  active: z.boolean().optional(),
+  archived: z.boolean().optional(),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
+  placementIds: z.array(z.string().min(1)).min(1).optional(),
+  creativeId: z.string().min(1).optional(),
+});
+
+export const UpdateCreativeInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  creativeId: z.string().min(1, 'Creative ID is required'),
+  name: z.string().min(1).max(256).optional(),
+  active: z.boolean().optional(),
+  archived: z.boolean().optional(),
+});
+
+export const UpdateLandingPageInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  landingPageId: z.string().min(1, 'Landing page ID is required'),
+  name: z.string().min(1).max(256).optional(),
+  url: z.string().url('Must be a valid URL').optional(),
+  archived: z.boolean().optional(),
+});
+
+// ---------------------------------------------------------------------------
 // Create / Write operations
 // ---------------------------------------------------------------------------
 
@@ -148,6 +225,14 @@ export type CreatePlacementInput = z.infer<typeof CreatePlacementInputSchema>;
 export type CreateLandingPageInput = z.infer<typeof CreateLandingPageInputSchema>;
 export type CreateAdInput = z.infer<typeof CreateAdInputSchema>;
 export type GenerateTagsInput = z.infer<typeof GenerateTagsInputSchema>;
+export type GetCampaignInput = z.infer<typeof GetCampaignInputSchema>;
+export type GetPlacementInput = z.infer<typeof GetPlacementInputSchema>;
+export type GetAdInput2 = z.infer<typeof GetAdInputSchema2>;
+export type UpdateCampaignInput = z.infer<typeof UpdateCampaignInputSchema>;
+export type UpdatePlacementInput = z.infer<typeof UpdatePlacementInputSchema>;
+export type UpdateAdInput = z.infer<typeof UpdateAdInputSchema>;
+export type UpdateCreativeInput = z.infer<typeof UpdateCreativeInputSchema>;
+export type UpdateLandingPageInput = z.infer<typeof UpdateLandingPageInputSchema>;
 
 // ---------------------------------------------------------------------------
 // Helper: format Zod errors into a readable string

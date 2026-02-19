@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useSearchParams } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import Chat from '../pages/Chat.js';
 
 const mockAuthFetch = vi.fn();
@@ -319,7 +319,7 @@ describe('Chat extension context params', () => {
     });
 
     // Should contain both in the same message
-    const body = JSON.parse(mockAuthFetch.mock.calls[0][1].body);
+    const body = JSON.parse(mockAuthFetch.mock.calls[0]![1]!.body as string);
     expect(body.message).toContain('campaign 67890');
   });
 

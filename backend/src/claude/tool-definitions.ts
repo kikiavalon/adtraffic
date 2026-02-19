@@ -222,6 +222,127 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
       required: ['profileId', 'campaignId', 'placementIds'],
     },
   },
+  // ---------- Get (single entity) ----------
+  {
+    name: 'cm360_get_campaign',
+    description: 'Get detailed information about a single campaign by ID, including dates, default landing page, and archived status.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'The campaign ID to retrieve' },
+      },
+      required: ['profileId', 'campaignId'],
+    },
+  },
+  {
+    name: 'cm360_get_placement',
+    description: 'Get detailed information about a single placement by ID, including size, status, active status, and pricing schedule.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        placementId: { type: 'string', description: 'The placement ID to retrieve' },
+      },
+      required: ['profileId', 'placementId'],
+    },
+  },
+  {
+    name: 'cm360_get_ad',
+    description: 'Get detailed information about a single ad by ID, including placement assignments, creative rotation, and active/archived status.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        adId: { type: 'string', description: 'The ad ID to retrieve' },
+      },
+      required: ['profileId', 'adId'],
+    },
+  },
+  // ---------- Update / Patch ----------
+  {
+    name: 'cm360_update_campaign',
+    description: '[WRITE] Update a campaign. Can change name, dates, default landing page, or archive status. Only include fields you want to change. Always preview changes and confirm with the user before executing.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'The campaign ID to update' },
+        name: { type: 'string', description: 'New campaign name (1-256 characters)' },
+        startDate: { type: 'string', description: 'New start date (YYYY-MM-DD)' },
+        endDate: { type: 'string', description: 'New end date (YYYY-MM-DD)' },
+        archived: { type: 'boolean', description: 'Set to true to archive, false to unarchive' },
+        defaultLandingPageId: { type: 'string', description: 'New default landing page ID' },
+      },
+      required: ['profileId', 'campaignId'],
+    },
+  },
+  {
+    name: 'cm360_update_placement',
+    description: '[WRITE] Update a placement. Can change name, active status, archive status, or pricing schedule dates. Size, site, and compatibility cannot be changed after creation. Always preview changes and confirm with the user before executing.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        placementId: { type: 'string', description: 'The placement ID to update' },
+        name: { type: 'string', description: 'New placement name (1-256 characters)' },
+        activeStatus: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'ARCHIVED', 'PERMANENTLY_ARCHIVED'], description: 'Operational status' },
+        archived: { type: 'boolean', description: 'Set to true to archive, false to unarchive' },
+        startDate: { type: 'string', description: 'New pricing schedule start date (YYYY-MM-DD)' },
+        endDate: { type: 'string', description: 'New pricing schedule end date (YYYY-MM-DD)' },
+      },
+      required: ['profileId', 'placementId'],
+    },
+  },
+  {
+    name: 'cm360_update_ad',
+    description: '[WRITE] Update an ad. Can change name, active/archived status, start/end time, placement assignments, or creative rotation. Always preview changes and confirm with the user before executing.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        adId: { type: 'string', description: 'The ad ID to update' },
+        name: { type: 'string', description: 'New ad name (1-256 characters)' },
+        active: { type: 'boolean', description: 'Set to true to activate, false to deactivate' },
+        archived: { type: 'boolean', description: 'Set to true to archive, false to unarchive' },
+        startTime: { type: 'string', description: 'Ad start time (ISO 8601)' },
+        endTime: { type: 'string', description: 'Ad end time (ISO 8601)' },
+        placementIds: { type: 'array', items: { type: 'string' }, description: 'New placement assignments (replaces existing)' },
+        creativeId: { type: 'string', description: 'New creative ID (replaces existing rotation)' },
+      },
+      required: ['profileId', 'adId'],
+    },
+  },
+  {
+    name: 'cm360_update_creative',
+    description: '[WRITE] Update a creative. Can change name, active status, or archive status. Type and size cannot be changed after creation. Always preview changes and confirm with the user before executing.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        creativeId: { type: 'string', description: 'The creative ID to update' },
+        name: { type: 'string', description: 'New creative name (1-256 characters)' },
+        active: { type: 'boolean', description: 'Set to true to activate, false to deactivate' },
+        archived: { type: 'boolean', description: 'Set to true to archive, false to unarchive' },
+      },
+      required: ['profileId', 'creativeId'],
+    },
+  },
+  {
+    name: 'cm360_update_landing_page',
+    description: '[WRITE] Update a landing page. Can change name, URL, or archive status. Always preview changes and confirm with the user before executing.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        landingPageId: { type: 'string', description: 'The landing page ID to update' },
+        name: { type: 'string', description: 'New landing page name (1-256 characters)' },
+        url: { type: 'string', description: 'New URL (must be a valid URL)' },
+        archived: { type: 'boolean', description: 'Set to true to archive, false to unarchive' },
+      },
+      required: ['profileId', 'landingPageId'],
+    },
+  },
 ];
 
 /**
@@ -239,11 +360,19 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   cm360_list_placements: 'cm360.read_operations',
   cm360_list_creatives: 'cm360.read_operations',
   cm360_list_ads: 'cm360.read_operations',
+  cm360_get_campaign: 'cm360.read_operations',
+  cm360_get_placement: 'cm360.read_operations',
+  cm360_get_ad: 'cm360.read_operations',
   // Write tools
   cm360_create_campaign: 'cm360.write_operations',
   cm360_create_placement: 'cm360.write_operations',
   cm360_create_ad: 'cm360.write_operations',
   cm360_create_landing_page: 'cm360.write_operations',
+  cm360_update_campaign: 'cm360.write_operations',
+  cm360_update_placement: 'cm360.write_operations',
+  cm360_update_ad: 'cm360.write_operations',
+  cm360_update_creative: 'cm360.write_operations',
+  cm360_update_landing_page: 'cm360.write_operations',
   // Tag generation
   cm360_generate_tags: 'cm360.tag_generation',
 };

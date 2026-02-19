@@ -93,7 +93,7 @@ describe('AuthContext edge cases', () => {
     });
 
     // Should not have Authorization header
-    const callHeaders = fetchMock.mock.calls[0][1].headers;
+    const callHeaders = fetchMock.mock.calls[0]![1]!.headers;
     expect(callHeaders).not.toHaveProperty('Authorization');
   });
 

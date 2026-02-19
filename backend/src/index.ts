@@ -7,6 +7,8 @@ initSentry();
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import { hostname } from 'os';
+import { createHash } from 'crypto';
 import healthRouter from './routes/health.js';
 import metricsRouter from './routes/metrics.js';
 import chatRouter from './routes/chat.js';
@@ -21,10 +23,12 @@ import { requestLoggerMiddleware } from './middleware/request-logger.js';
 import { metricsCollectorMiddleware } from './middleware/metrics-collector.js';
 import { logger } from './lib/logger.js';
 import { sql } from './db/index.js';
-import { initRedis, closeRedis } from './db/redis.js';
+import { initRedis, closeRedis, getRedis } from './db/redis.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
+const INSTANCE_ID = process.env.INSTANCE_ID || hostname();
+const SHUTDOWN_TIMEOUT_MS = 30_000; // 30 seconds max for drain
 
 // Trust first proxy (nginx/Docker) for correct client IP in rate limiting and logging
 app.set('trust proxy', 1);
@@ -44,11 +48,15 @@ app.use(metricsCollectorMiddleware);
 // CORS: In production, replace chrome-extension regex with specific extension ID
 // and localhost with the actual production origin (e.g., https://app.adtraffic.ai).
 // Current config is permissive for development. See SEC-003 in enterprise-backlog.md.
+const corsOrigins: (string | RegExp)[] = [
+  /^chrome-extension:\/\//,
+  /^http:\/\/localhost(:\d+)?$/,
+];
+if (process.env.WEBAPP_URL) {
+  corsOrigins.push(process.env.WEBAPP_URL);
+}
 app.use(cors({
-  origin: [
-    /^chrome-extension:\/\//,
-    /^http:\/\/localhost(:\d+)?$/,
-  ],
+  origin: corsOrigins,
   methods: ['GET', 'POST', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
@@ -73,31 +81,99 @@ app.use(errorHandler);
 // Initialize Redis (no-op in test mode)
 initRedis();
 
+/**
+ * Validate that external dependencies are reachable before accepting traffic.
+ * Checks PostgreSQL connectivity and Redis health.
+ */
+async function validateExternalDependencies(): Promise<void> {
+  const errors: string[] = [];
+
+  // Check PostgreSQL connectivity
+  try {
+    await sql`SELECT 1`;
+  } catch (err) {
+    errors.push(`Database: ${err instanceof Error ? err.message : 'unreachable'}`);
+  }
+
+  // Check Redis connectivity
+  try {
+    const redis = getRedis();
+    if (redis) {
+      await redis.ping();
+    }
+  } catch (err) {
+    errors.push(`Redis: ${err instanceof Error ? err.message : 'unreachable'}`);
+  }
+
+  // Log environment hash for cross-instance consistency verification
+  const envHash = createHash('sha256')
+    .update(`${process.env.JWT_SECRET ?? ''}:${process.env.ENCRYPTION_KEY ?? ''}`)
+    .digest('hex')
+    .slice(0, 8);
+  logger.info({ instance: INSTANCE_ID, envHash }, 'Environment hash computed');
+
+  if (errors.length > 0) {
+    logger.error({ instance: INSTANCE_ID, errors }, 'Dependency check failed');
+    throw new Error(`External dependencies unavailable: ${errors.join(', ')}`);
+  }
+
+  logger.info({ instance: INSTANCE_ID }, 'All external dependencies healthy');
+}
+
 // Only start server when run directly (not when imported for testing)
 if (process.env.NODE_ENV !== 'test') {
-  const server = app.listen(PORT, () => {
-    const model = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001';
-    const maxTokens = process.env.CLAUDE_MAX_TOKENS ?? '1024';
-    const dailyLimit = process.env.DAILY_API_LIMIT ?? '100';
-    logger.info(
-      { port: PORT, model, maxTokens, dailyLimit },
-      'AdTraffic.ai backend started',
-    );
-  });
-
-  const shutdown = () => {
-    logger.info('Shutting down gracefully...');
-    server.close(() => {
-      void (async () => {
-        await closeRedis();
-        await sql.end();
-        process.exit(0);
-      })();
+  void validateExternalDependencies().then(() => {
+    const server = app.listen(PORT, () => {
+      const model = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001';
+      const maxTokens = process.env.CLAUDE_MAX_TOKENS ?? '1024';
+      const dailyLimit = process.env.DAILY_API_LIMIT ?? '100';
+      logger.info(
+        { port: PORT, model, maxTokens, dailyLimit, instance: INSTANCE_ID },
+        'AdTraffic.ai backend started',
+      );
     });
-  };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+    const shutdown = () => {
+      logger.info({ instance: INSTANCE_ID }, 'Received shutdown signal. Draining connections...');
+
+      // 1. Stop accepting new connections
+      server.close(() => {
+        logger.info({ instance: INSTANCE_ID }, 'All connections drained');
+
+        void (async () => {
+          // 2. Close Redis connection
+          try {
+            await closeRedis();
+            logger.info({ instance: INSTANCE_ID }, 'Redis disconnected');
+          } catch (err) {
+            logger.error({ instance: INSTANCE_ID, err: { message: err instanceof Error ? err.message : 'Unknown' } }, 'Redis disconnect error');
+          }
+
+          // 3. Close PostgreSQL connection pool
+          try {
+            await sql.end();
+            logger.info({ instance: INSTANCE_ID }, 'Database disconnected');
+          } catch (err) {
+            logger.error({ instance: INSTANCE_ID, err: { message: err instanceof Error ? err.message : 'Unknown' } }, 'Database disconnect error');
+          }
+
+          process.exit(0);
+        })();
+      });
+
+      // 4. Force kill after timeout — some connections may hang (e.g., SSE streams)
+      setTimeout(() => {
+        logger.error({ instance: INSTANCE_ID, timeoutMs: SHUTDOWN_TIMEOUT_MS }, 'Forced shutdown after timeout');
+        process.exit(1);
+      }, SHUTDOWN_TIMEOUT_MS).unref();
+    };
+
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
+  }).catch((err) => {
+    logger.error({ instance: INSTANCE_ID, err: { message: err instanceof Error ? err.message : 'Unknown' } }, 'Startup failed');
+    process.exit(1);
+  });
 }
 
 export default app;

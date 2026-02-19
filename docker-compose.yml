@@ -42,6 +42,18 @@ services:
       - /data
     command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --save ""
 
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["node", "backend/dist/db/migrate.js"]
+    environment:
+      - DATABASE_URL=postgres://adtraffic:${POSTGRES_PASSWORD}@postgres:5432/adtraffic
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   backend:
     build:
       context: .
@@ -59,23 +71,31 @@ services:
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_ENVIRONMENT=production
       - REDIS_URL=redis://redis:6379
+      - WEBAPP_URL=${WEBAPP_URL:-}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
+    stop_grace_period: 35s
     deploy:
+      replicas: 2
       resources:
         limits:
           memory: 512M
           cpus: "1.0"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
-      interval: 30s
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/health/live').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
     read_only: true
     tmpfs:
       - /tmp

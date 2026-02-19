@@ -1,9 +1,59 @@
 import { Router } from 'express';
+import { hostname } from 'os';
 import { sql } from '../db/index.js';
 import { logger } from '../lib/logger.js';
 import { isRedisHealthy } from '../db/redis.js';
 
 const router = Router();
+
+const INSTANCE_ID = process.env.INSTANCE_ID || hostname();
+
+/**
+ * GET /health/live
+ * Liveness probe — is the process alive?
+ * Used by Docker HEALTHCHECK for restart decisions.
+ */
+router.get('/health/live', (_req, res) => {
+  res.json({
+    status: 'ok',
+    instance: INSTANCE_ID,
+  });
+});
+
+/**
+ * GET /health/ready
+ * Readiness probe — can this instance serve traffic?
+ * Used by load balancer routing decisions.
+ * Returns 503 if external dependencies (PostgreSQL, Redis) are unavailable.
+ */
+router.get('/health/ready', async (_req, res) => {
+  const checks: Record<string, boolean> = {
+    database: false,
+    redis: false,
+  };
+
+  // Check PostgreSQL connectivity
+  try {
+    await sql`SELECT 1`;
+    checks.database = true;
+  } catch {
+    /* not ready */
+  }
+
+  // Check Redis connectivity
+  checks.redis = isRedisHealthy();
+
+  // Database is required; Redis is optional (degraded but functional)
+  const allHealthy = checks.database;
+  const status = allHealthy ? (checks.redis ? 'ready' : 'degraded') : 'not_ready';
+
+  res.status(allHealthy ? 200 : 503).json({
+    status,
+    instance: INSTANCE_ID,
+    checks,
+    timestamp: new Date().toISOString(),
+  });
+});
 
 /**
  * GET /health — Health check endpoint.
@@ -28,6 +78,7 @@ router.get('/health', async (_req, res) => {
   res.status(statusCode).json({
     status,
     service: 'adtraffic-backend',
+    instance: INSTANCE_ID,
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: process.env.npm_package_version ?? 'unknown',

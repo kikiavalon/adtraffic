@@ -1,6 +1,12 @@
 /**
  * MockDataStore — generates and manages realistic CM360 mock data using seeded faker.
  * Data persists in memory within a session. Resets on server restart.
+ *
+ * NOTE: Mock data writes (create* methods) are per-process.
+ * In a multi-instance deployment, entities created on one instance
+ * are not visible on others. This is an accepted limitation of demo mode.
+ * Once users connect real CM360 accounts, all data flows through the
+ * CM360 API (external, shared by nature).
  */
 
 import { faker } from '@faker-js/faker';

@@ -19,6 +19,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { encrypt, decrypt } from '../auth/crypto.js';
 import { db, schema } from '../db/index.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
+import { logger } from '../lib/logger.js';
 
 const router = Router();
 
@@ -201,7 +202,7 @@ router.get('/api/auth/google/callback', async (req, res) => {
     const webappUrl = process.env.WEBAPP_URL ?? 'http://localhost:5173';
     res.redirect(`${webappUrl}/settings?cm360=connected`);
   } catch (err) {
-    console.error('[oauth] Token exchange failed:', err instanceof Error ? err.message : 'Unknown error');
+    logger.error({ err: { message: err instanceof Error ? err.message : 'Unknown error' } }, '[oauth] Token exchange failed');
     const webappUrl = process.env.WEBAPP_URL ?? 'http://localhost:5173';
     res.redirect(`${webappUrl}/settings?cm360=error`);
   }

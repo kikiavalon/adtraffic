@@ -1,4 +1,5 @@
 import { Redis } from 'ioredis';
+import { logger } from '../lib/logger.js';
 
 let redis: Redis | null = null;
 let healthy = false;
@@ -19,18 +20,18 @@ export function initRedis(): void {
     maxRetriesPerRequest: 3,
     retryStrategy(times: number) {
       if (times > 10) {
-        console.error('[redis] Max reconnection attempts reached, giving up');
+        logger.error('[redis] Max reconnection attempts reached, giving up');
         return null; // Stop retrying
       }
       const delay = Math.min(times * 200, 5000);
-      console.log(`[redis] Reconnecting in ${delay}ms (attempt ${times})`);
+      logger.info({ delay, attempt: times }, '[redis] Reconnecting');
       return delay;
     },
   });
 
   redis.on('connect', () => {
     healthy = true;
-    console.log('[redis] Connected');
+    logger.info('[redis] Connected');
   });
 
   redis.on('ready', () => {
@@ -39,12 +40,12 @@ export function initRedis(): void {
 
   redis.on('error', (err: Error) => {
     healthy = false;
-    console.error('[redis] Connection error:', err.message);
+    logger.error({ err: { message: err.message } }, '[redis] Connection error');
   });
 
   redis.on('close', () => {
     healthy = false;
-    console.log('[redis] Connection closed');
+    logger.info('[redis] Connection closed');
   });
 }
 

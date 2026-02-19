@@ -19,6 +19,7 @@ import { eq } from 'drizzle-orm';
 import { db, schema } from '../db/index.js';
 import { encrypt, decrypt } from '../auth/crypto.js';
 import { CM360NotConnectedError } from './errors.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * Get a ready-to-use CM360 API client for a specific user.
@@ -81,7 +82,7 @@ export async function getCM360Client(userId: string): Promise<dfareporting_v5.Df
         .where(eq(schema.oauthTokens.userId, userId));
     } catch (err) {
       // Log but don't throw — the API call should still proceed with the current tokens
-      console.error('[cm360] Failed to persist refreshed tokens:', err instanceof Error ? err.message : 'Unknown error');
+      logger.error({ err: { message: err instanceof Error ? err.message : 'Unknown error' } }, '[cm360] Failed to persist refreshed tokens');
     }
   });
 

@@ -58,4 +58,4 @@ async function runMigrations(): Promise<void> {
   process.exit(0);
 }
 
-runMigrations();
+void runMigrations();

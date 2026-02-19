@@ -148,7 +148,7 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
   } catch (error) {
     // If headers haven't been sent yet, return a JSON error
     if (!res.headersSent) {
-      console.error('Stream setup error:', error instanceof Error ? error.message : 'Unknown error');
+      logger.error({ err: { message: error instanceof Error ? error.message : 'Unknown error' }, requestId: req.requestId }, 'Stream setup error');
       res.status(500).json({
         error: 'Failed to start streaming response',
       });

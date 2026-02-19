@@ -1,0 +1,268 @@
+/**
+ * Google OAuth2 routes for CM360 account connection.
+ *
+ * Flow:
+ *   1. GET /connect    — Generate Google auth URL (requires JWT auth)
+ *   2. GET /callback   — Handle Google's redirect with auth code
+ *   3. GET /status     — Check CM360 connection status (requires JWT auth)
+ *   4. POST /disconnect — Revoke tokens and delete from DB (requires JWT auth)
+ *
+ * CSRF protection: The `state` parameter carries an HMAC-signed payload
+ * containing a random nonce + userId. This is stateless and requires no DB cleanup.
+ */
+
+import { Router } from 'express';
+import crypto, { randomBytes, createHmac } from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
+import { eq } from 'drizzle-orm';
+import { requireAuth } from '../auth/middleware.js';
+import { encrypt, decrypt } from '../auth/crypto.js';
+import { db, schema } from '../db/index.js';
+import { createRateLimiter } from '../middleware/rate-limiter.js';
+
+const router = Router();
+
+const CM360_SCOPES = [
+  'https://www.googleapis.com/auth/dfatrafficking',
+  'https://www.googleapis.com/auth/dfareporting',
+];
+
+// Rate limit OAuth routes: 5 requests per minute per IP
+const oauthLimiter = createRateLimiter({ name: 'oauth', windowMs: 60_000, maxRequests: 5 });
+
+/** Get the HMAC secret for state signing. */
+function getHmacSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET is required for OAuth state signing');
+  return secret;
+}
+
+/** Create a new OAuth2Client instance. */
+function createOAuth2Client(): OAuth2Client {
+  return new OAuth2Client(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI,
+  );
+}
+
+/**
+ * Sign a state payload with HMAC-SHA256.
+ * Payload format: base64url({nonce, userId}) + "." + hmac_signature
+ */
+function signState(userId: string): string {
+  const nonce = randomBytes(32).toString('hex');
+  const payload = Buffer.from(JSON.stringify({ nonce, userId })).toString('base64url');
+  const hmac = createHmac('sha256', getHmacSecret()).update(payload).digest('base64url');
+  return `${payload}.${hmac}`;
+}
+
+/**
+ * Verify and extract a signed state parameter.
+ * Returns the userId if valid, null if tampered.
+ */
+function verifyState(state: string): { userId: string } | null {
+  const [payload, signature] = state.split('.');
+  if (!payload || !signature) return null;
+
+  const expected = createHmac('sha256', getHmacSecret()).update(payload).digest('base64url');
+  if (expected !== signature) return null;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    if (typeof data.userId !== 'string' || typeof data.nonce !== 'string') return null;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    return { userId: data.userId };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * GET /api/auth/google/connect
+ *
+ * Generate a Google OAuth authorization URL and return it.
+ * The frontend redirects the user's browser to this URL.
+ */
+router.get('/api/auth/google/connect', oauthLimiter, requireAuth, (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    res.status(503).json({
+      error: 'Google OAuth is not configured. Contact support.',
+    });
+    return;
+  }
+
+  const oauth2Client = createOAuth2Client();
+  const state = signState(req.user!.userId);
+
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: 'offline',   // Get refresh token
+    prompt: 'consent',         // Force consent to guarantee refresh token
+    scope: CM360_SCOPES,
+    state,
+  });
+
+  res.json({ url: authUrl });
+});
+
+/**
+ * GET /api/auth/google/callback
+ *
+ * Handles Google's redirect with the authorization code.
+ * Exchanges the code for tokens, encrypts and stores them,
+ * then redirects to the webapp Settings page.
+ */
+router.get('/api/auth/google/callback', async (req, res) => {
+  const { code, state, error: oauthError } = req.query;
+
+  // Handle user denying consent
+  if (oauthError) {
+    const webappUrl = process.env.WEBAPP_URL ?? 'http://localhost:5173';
+    res.redirect(`${webappUrl}/settings?cm360=denied`);
+    return;
+  }
+
+  if (!code || typeof code !== 'string' || !state || typeof state !== 'string') {
+    res.status(400).json({ error: 'Missing authorization code or state parameter' });
+    return;
+  }
+
+  // Verify CSRF state
+  const stateData = verifyState(state);
+  if (!stateData) {
+    res.status(403).json({ error: 'Invalid or tampered OAuth state. Please try again.' });
+    return;
+  }
+
+  const { userId } = stateData;
+
+  try {
+    const oauth2Client = createOAuth2Client();
+    const { tokens } = await oauth2Client.getToken(code);
+
+    if (!tokens.access_token || !tokens.refresh_token) {
+      const webappUrl = process.env.WEBAPP_URL ?? 'http://localhost:5173';
+      res.redirect(`${webappUrl}/settings?cm360=error&reason=missing_tokens`);
+      return;
+    }
+
+    // Verify granted scopes include both required scopes
+    const grantedScopes = (tokens.scope ?? '').split(' ');
+    const missingScopes = CM360_SCOPES.filter(s => !grantedScopes.includes(s));
+    if (missingScopes.length > 0) {
+      const webappUrl = process.env.WEBAPP_URL ?? 'http://localhost:5173';
+      res.redirect(`${webappUrl}/settings?cm360=error&reason=missing_scopes`);
+      return;
+    }
+
+    // Encrypt tokens
+    const encryptedAccess = encrypt(tokens.access_token);
+    const encryptedRefresh = encrypt(tokens.refresh_token);
+
+    const now = new Date();
+    const expiresAt = tokens.expiry_date ? new Date(tokens.expiry_date) : new Date(now.getTime() + 3600_000);
+
+    // Upsert — one row per user (userId is unique)
+    const existing = await db
+      .select({ id: schema.oauthTokens.id })
+      .from(schema.oauthTokens)
+      .where(eq(schema.oauthTokens.userId, userId));
+
+    if (existing.length > 0) {
+      await db.update(schema.oauthTokens)
+        .set({
+          accessToken: encryptedAccess,
+          refreshToken: encryptedRefresh,
+          expiresAt,
+          scopes: tokens.scope ?? CM360_SCOPES.join(' '),
+          updatedAt: now,
+        })
+        .where(eq(schema.oauthTokens.userId, userId));
+    } else {
+      await db.insert(schema.oauthTokens)
+        .values({
+          id: crypto.randomUUID(),
+          userId,
+          accessToken: encryptedAccess,
+          refreshToken: encryptedRefresh,
+          expiresAt,
+          scopes: tokens.scope ?? CM360_SCOPES.join(' '),
+          createdAt: now,
+          updatedAt: now,
+        });
+    }
+
+    const webappUrl = process.env.WEBAPP_URL ?? 'http://localhost:5173';
+    res.redirect(`${webappUrl}/settings?cm360=connected`);
+  } catch (err) {
+    console.error('[oauth] Token exchange failed:', err instanceof Error ? err.message : 'Unknown error');
+    const webappUrl = process.env.WEBAPP_URL ?? 'http://localhost:5173';
+    res.redirect(`${webappUrl}/settings?cm360=error`);
+  }
+});
+
+/**
+ * GET /api/auth/google/status
+ *
+ * Returns the current CM360 connection status for the authenticated user.
+ */
+router.get('/api/auth/google/status', requireAuth, async (req, res) => {
+  const rows = await db
+    .select()
+    .from(schema.oauthTokens)
+    .where(eq(schema.oauthTokens.userId, req.user!.userId));
+
+  if (rows.length === 0) {
+    res.json({ connected: false });
+    return;
+  }
+
+  const token = rows[0]!;
+  res.json({
+    connected: true,
+    scopes: token.scopes.split(/[, ]+/),
+    expiresAt: token.expiresAt.toISOString(),
+  });
+});
+
+/**
+ * POST /api/auth/google/disconnect
+ *
+ * Revoke CM360 tokens at Google and delete them from our database.
+ */
+router.post('/api/auth/google/disconnect', oauthLimiter, requireAuth, async (req, res) => {
+  const rows = await db
+    .select()
+    .from(schema.oauthTokens)
+    .where(eq(schema.oauthTokens.userId, req.user!.userId));
+
+  if (rows.length === 0) {
+    res.json({ disconnected: true });
+    return;
+  }
+
+  const token = rows[0]!;
+
+  // Best-effort revocation at Google
+  try {
+    const accessToken = decrypt(token.accessToken);
+    const oauth2Client = createOAuth2Client();
+    await oauth2Client.revokeToken(accessToken);
+  } catch {
+    // Revocation failure is not critical — the tokens still get deleted locally
+  }
+
+  // Delete from our DB
+  await db.delete(schema.oauthTokens)
+    .where(eq(schema.oauthTokens.userId, req.user!.userId));
+
+  res.json({ disconnected: true });
+});
+
+export default router;

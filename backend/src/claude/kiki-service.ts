@@ -21,12 +21,15 @@ const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS ?? '1024', 10);
  * Handles the full agentic loop: Claude may call tools multiple times
  * before producing a final text response.
  *
+ * @param userId - When provided, tool calls attempt to use the real CM360 API.
+ *                 When omitted, tool calls always use the mock data store.
  * @param flags - Optional resolved feature flags for the current user.
  *                Controls tool availability, daily limits, and max tool rounds.
  */
 export async function chat(
   conversationId: string,
   userMessage: string,
+  userId?: string,
   flags?: ResolvedFlags,
 ): Promise<ChatMessage> {
   // Check if chat is enabled via feature flags
@@ -52,6 +55,17 @@ export async function chat(
       content: limitCheck.message,
       timestamp: Date.now(),
     };
+  }
+
+  // Determine if user has live CM360 connection (lightweight DB check, no decryption)
+  let isLiveData = false;
+  if (userId) {
+    try {
+      const { hasOAuthTokens } = await import('../cm360/token-manager.js');
+      isLiveData = await hasOAuthTokens(userId);
+    } catch {
+      // If import fails (e.g., in tests without DB), default to demo mode
+    }
   }
 
   const history = await getHistory(conversationId);
@@ -83,7 +97,7 @@ export async function chat(
           {
             model: CLAUDE_MODEL,
             max_tokens: CLAUDE_MAX_TOKENS,
-            system: getSystemPrompt(),
+            system: getSystemPrompt('Demo Agency', '67890', isLiveData),
             tools,
             messages: history,
           },
@@ -129,6 +143,7 @@ export async function chat(
           const result = await executeTool(
             toolUse.name,
             toolUse.input as Record<string, unknown>,
+            userId,
           );
 
           return {
@@ -169,13 +184,14 @@ export async function chatStream(
   userMessage: string,
   emit: (event: StreamEvent) => void,
   signal: AbortSignal,
+  userId?: string,
   flags?: Record<string, unknown>,
 ): Promise<void> {
   const maxToolRounds = (flags?.['limits.max_tool_rounds'] as number | undefined) ?? DEFAULT_MAX_TOOL_ROUNDS;
   const dailyLimit = (flags?.['limits.daily_api_limit'] as number | undefined) ?? undefined;
 
   // Check daily usage limit before making any API call
-  const limitCheck = checkLimit(dailyLimit);
+  const limitCheck = await checkLimit(dailyLimit);
   if (!limitCheck.allowed) {
     const messageId = uuidv4();
     emit({ type: 'message_start', messageId, conversationId });
@@ -191,7 +207,18 @@ export async function chatStream(
     return;
   }
 
-  const history = getHistory(conversationId);
+  // Determine if user has live CM360 connection
+  let isLiveData = false;
+  if (userId) {
+    try {
+      const { hasOAuthTokens } = await import('../cm360/token-manager.js');
+      isLiveData = await hasOAuthTokens(userId);
+    } catch {
+      // If import fails (e.g., in tests without DB), default to demo mode
+    }
+  }
+
+  const history = await getHistory(conversationId);
   history.push({ role: 'user', content: userMessage });
 
   const messageId = uuidv4();
@@ -203,7 +230,7 @@ export async function chatStream(
   try {
     while (toolRounds < maxToolRounds) {
       // Re-check limit before each API call (tool loops make multiple calls)
-      const roundLimitCheck = checkLimit(dailyLimit);
+      const roundLimitCheck = await checkLimit(dailyLimit);
       if (!roundLimitCheck.allowed) {
         const limitMsg: ChatMessage = {
           id: messageId,
@@ -220,7 +247,7 @@ export async function chatStream(
         {
           model: CLAUDE_MODEL,
           max_tokens: CLAUDE_MAX_TOKENS,
-          system: getSystemPrompt(),
+          system: getSystemPrompt('Demo Agency', '67890', isLiveData),
           tools: CM360_TOOLS,
           messages: history,
         },
@@ -242,7 +269,7 @@ export async function chatStream(
       const finalMessage = await stream.finalMessage();
 
       // Record token usage
-      recordUsage(
+      await recordUsage(
         CLAUDE_MODEL,
         finalMessage.usage?.input_tokens ?? 0,
         finalMessage.usage?.output_tokens ?? 0,
@@ -283,6 +310,7 @@ export async function chatStream(
         const result = await executeTool(
           toolUse.name,
           toolUse.input as Record<string, unknown>,
+          userId,
         );
         emit({
           type: 'tool_end',
@@ -319,7 +347,7 @@ export async function chatStream(
     emit({ type: 'message_end', message: maxRoundsMessage });
   } finally {
     // Always persist history — even on errors, timeouts, or early returns
-    saveHistory(conversationId, history);
+    await saveHistory(conversationId, history);
   }
 }
 

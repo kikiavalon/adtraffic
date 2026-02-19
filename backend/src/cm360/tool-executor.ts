@@ -1,10 +1,21 @@
 /**
- * Tool executor — dispatches Claude tool_use calls to the mock CM360 data store.
- * All inputs are validated with Zod schemas before reaching the data store.
- * Will be replaced with real @googleapis/dfareporting calls when a CM360 account is connected.
+ * Tool executor — dispatches Claude tool_use calls to either:
+ *   1. Real CM360 API via @googleapis/dfareporting (when user has connected their account)
+ *   2. Mock data store (when no userId provided, or user hasn't connected CM360)
+ *
+ * All inputs are validated with Zod schemas before reaching either backend.
+ *
+ * The userId parameter is optional to preserve backward compatibility with all
+ * existing tests (875+) that call executeTool(name, input) without a userId.
  */
 
 import { mockStore } from './mock-data-store.js';
+// Real CM360 modules (token-manager, cm360-client) are dynamically imported
+// to avoid DB initialization when only the mock path is used.
+// errors.ts and api-rate-limiter.ts have no DB deps and can be static.
+import type { CM360Client } from './cm360-client.js';
+import { CM360NotConnectedError, CM360TokenRevokedError, CM360APIError } from './errors.js';
+import { checkCM360RateLimit, recordCM360Request } from './api-rate-limiter.js';
 import {
   ListProfilesInputSchema,
   ListAdvertisersInputSchema,
@@ -31,13 +42,356 @@ export interface ToolResult {
 
 /**
  * Execute a CM360 tool call and return the result.
- * Currently synchronous (mock data) — will have real await when CM360 API is connected.
+ *
+ * When userId is provided, attempts to use the real CM360 API.
+ * Falls back to mock data if the user hasn't connected their CM360 account.
+ * Returns an error if tokens have been revoked (user must reconnect).
+ *
+ * When userId is omitted, always uses mock data (test path).
  */
-// eslint-disable-next-line @typescript-eslint/require-await
 export async function executeTool(
   toolName: string,
   toolInput: Record<string, unknown>,
+  userId?: string,
 ): Promise<ToolResult> {
+  // No userId → always mock (backward compat for tests)
+  if (!userId) {
+    return executeToolMock(toolName, toolInput);
+  }
+
+  // Validate the tool name first (before attempting real API)
+  if (!isValidToolName(toolName)) {
+    return { result: null, isError: true, errorMessage: `Unknown tool: ${toolName}` };
+  }
+
+  // Dynamically import modules with DB dependencies (avoids DB init on mock path)
+  const [
+    { getCM360Client },
+    { CM360Client: CM360ClientClass },
+  ] = await Promise.all([
+    import('./token-manager.js'),
+    import('./cm360-client.js'),
+  ]);
+
+  // Try real API path
+  try {
+    const api = await getCM360Client(userId);
+
+    // Check rate limit before making the API call
+    const rateCheck = checkCM360RateLimit(userId);
+    if (!rateCheck.allowed) {
+      const retrySeconds = Math.ceil((rateCheck.retryAfterMs ?? 5000) / 1000);
+      return {
+        result: null,
+        isError: true,
+        errorMessage: `CM360 API rate limit reached. Please wait ${retrySeconds} seconds before trying again.`,
+      };
+    }
+
+    const client = new CM360ClientClass(api);
+    const result = await executeToolReal(toolName, toolInput, client, userId);
+    recordCM360Request(userId);
+    return result;
+  } catch (err) {
+    // Not connected → fall back to mock
+    if (err instanceof CM360NotConnectedError) {
+      return executeToolMock(toolName, toolInput);
+    }
+
+    // Token revoked → user must reconnect
+    if (err instanceof CM360TokenRevokedError) {
+      return {
+        result: null,
+        isError: true,
+        errorMessage: err.message,
+      };
+    }
+
+    // Google API error → surface to user
+    if (err instanceof CM360APIError) {
+      return {
+        result: null,
+        isError: true,
+        errorMessage: err.message,
+      };
+    }
+
+    // Unexpected error
+    return {
+      result: null,
+      isError: true,
+      errorMessage: err instanceof Error ? err.message : 'Unknown error',
+    };
+  }
+}
+
+const VALID_TOOL_NAMES = new Set([
+  'cm360_list_profiles',
+  'cm360_list_advertisers',
+  'cm360_get_advertiser',
+  'cm360_list_campaigns',
+  'cm360_create_campaign',
+  'cm360_list_sites',
+  'cm360_list_landing_pages',
+  'cm360_create_landing_page',
+  'cm360_list_placements',
+  'cm360_create_placement',
+  'cm360_list_creatives',
+  'cm360_list_ads',
+  'cm360_create_ad',
+  'cm360_generate_tags',
+]);
+
+function isValidToolName(name: string): boolean {
+  return VALID_TOOL_NAMES.has(name);
+}
+
+/**
+ * Execute a tool call against the real CM360 API.
+ *
+ * The CM360Client needs a profileId for most operations. For simplicity,
+ * we auto-resolve it by calling listProfiles() and using the first profile.
+ * This adds one extra API call but simplifies the tool interface — users
+ * don't need to know or provide their profileId.
+ */
+async function executeToolReal(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  client: CM360Client,
+  _userId: string,
+): Promise<ToolResult> {
+  switch (toolName) {
+    case 'cm360_list_profiles': {
+      const parsed = ListProfilesInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profiles = await client.listProfiles();
+      return { result: { profiles }, isError: false };
+    }
+
+    case 'cm360_list_advertisers': {
+      const parsed = ListAdvertisersInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const advertisers = await client.listAdvertisers(profileId, {
+        searchString: parsed.data.searchString,
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { advertisers }, isError: false };
+    }
+
+    case 'cm360_get_advertiser': {
+      const parsed = GetAdvertiserInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const adv = await client.getAdvertiser(profileId, parsed.data.advertiserId);
+      if (!adv) {
+        return { result: null, isError: true, errorMessage: `Advertiser ${parsed.data.advertiserId} not found` };
+      }
+      return { result: adv, isError: false };
+    }
+
+    case 'cm360_list_campaigns': {
+      const parsed = ListCampaignsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const campaigns = await client.listCampaigns(profileId, {
+        advertiserId: parsed.data.advertiserId,
+        searchString: parsed.data.searchString,
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { campaigns }, isError: false };
+    }
+
+    case 'cm360_create_campaign': {
+      const parsed = CreateCampaignInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const campaign = await client.createCampaign(profileId, {
+        advertiserId: parsed.data.advertiserId,
+        name: parsed.data.name,
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        defaultLandingPageId: parsed.data.defaultLandingPageId,
+      });
+      return { result: campaign, isError: false };
+    }
+
+    case 'cm360_list_sites': {
+      const parsed = ListSitesInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const sites = await client.listSites(profileId, {
+        searchString: parsed.data.searchString,
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { sites }, isError: false };
+    }
+
+    case 'cm360_list_landing_pages': {
+      const parsed = ListLandingPagesInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const landingPages = await client.listLandingPages(profileId, {
+        advertiserId: parsed.data.advertiserId,
+        searchString: parsed.data.searchString,
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { landingPages }, isError: false };
+    }
+
+    case 'cm360_create_landing_page': {
+      const parsed = CreateLandingPageInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const page = await client.createLandingPage(profileId, {
+        advertiserId: parsed.data.advertiserId,
+        name: parsed.data.name,
+        url: parsed.data.url,
+      });
+      return { result: page, isError: false };
+    }
+
+    case 'cm360_list_placements': {
+      const parsed = ListPlacementsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const placements = await client.listPlacements(profileId, {
+        campaignId: parsed.data.campaignId,
+        advertiserId: parsed.data.advertiserId,
+        searchString: parsed.data.searchString,
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { placements }, isError: false };
+    }
+
+    case 'cm360_create_placement': {
+      const parsed = CreatePlacementInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const placement = await client.createPlacement(profileId, {
+        campaignId: parsed.data.campaignId,
+        siteId: parsed.data.siteId,
+        name: parsed.data.name,
+        size: { width: parsed.data.width, height: parsed.data.height },
+        startDate: parsed.data.startDate,
+        endDate: parsed.data.endDate,
+        paymentSource: parsed.data.paymentSource,
+        compatibility: parsed.data.compatibility,
+      });
+      return { result: placement, isError: false };
+    }
+
+    case 'cm360_list_creatives': {
+      const parsed = ListCreativesInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const creatives = await client.listCreatives(profileId, {
+        advertiserId: parsed.data.advertiserId,
+        searchString: parsed.data.searchString,
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { creatives }, isError: false };
+    }
+
+    case 'cm360_list_ads': {
+      const parsed = ListAdsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const ads = await client.listAds(profileId, {
+        campaignId: parsed.data.campaignId,
+        advertiserId: parsed.data.advertiserId,
+        searchString: parsed.data.searchString,
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { ads }, isError: false };
+    }
+
+    case 'cm360_create_ad': {
+      const parsed = CreateAdInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const ad = await client.createAd(profileId, {
+        campaignId: parsed.data.campaignId,
+        name: parsed.data.name,
+        placementIds: parsed.data.placementIds,
+        creativeId: parsed.data.creativeId,
+      });
+      return { result: ad, isError: false };
+    }
+
+    case 'cm360_generate_tags': {
+      const parsed = GenerateTagsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const tags = await client.generateTags(
+        profileId,
+        parsed.data.campaignId,
+        parsed.data.placementIds,
+      );
+      return { result: { placementTags: tags }, isError: false };
+    }
+
+    default:
+      return { result: null, isError: true, errorMessage: `Unknown tool: ${toolName}` };
+  }
+}
+
+/**
+ * Resolve the user's CM360 profile ID by listing profiles and using the first one.
+ * Cached per CM360Client instance via a module-level WeakMap to avoid repeated calls.
+ */
+const profileCache = new WeakMap<CM360Client, string>();
+
+async function resolveProfileId(client: CM360Client): Promise<string> {
+  const cached = profileCache.get(client);
+  if (cached) return cached;
+
+  const profiles = await client.listProfiles();
+  if (profiles.length === 0) {
+    throw new CM360APIError('No CM360 user profiles found. Ensure your account has CM360 access.', 403);
+  }
+
+  const profileId = profiles[0]!.profileId;
+  profileCache.set(client, profileId);
+  return profileId;
+}
+
+/**
+ * Execute a tool call against the mock data store.
+ * This is the original implementation preserved for backward compatibility.
+ */
+function executeToolMock(
+  toolName: string,
+  toolInput: Record<string, unknown>,
+): ToolResult {
   try {
     switch (toolName) {
       case 'cm360_list_profiles': {

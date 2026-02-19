@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../auth/AuthContext.js';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import './Settings.css';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
@@ -13,6 +13,12 @@ interface UsageSummary {
   outputTokens: number;
   totalTokens: number;
   estimatedCost: string;
+}
+
+interface CM360Status {
+  connected: boolean;
+  scopes?: string[];
+  expiresAt?: string;
 }
 
 const FLAG_LABELS: Record<string, string> = {
@@ -32,6 +38,12 @@ function Settings() {
   const { user, logout, authFetch, featureFlags } = useAuth();
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [usageError, setUsageError] = useState('');
+  const [cm360Status, setCM360Status] = useState<CM360Status | null>(null);
+  const [cm360Loading, setCM360Loading] = useState(true);
+  const [cm360Error, setCM360Error] = useState('');
+  const [cm360ActionLoading, setCM360ActionLoading] = useState(false);
+  const [toast, setToast] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const fetchUsage = useCallback(async () => {
     try {
@@ -47,9 +59,81 @@ function Settings() {
     }
   }, [authFetch]);
 
+  const fetchCM360Status = useCallback(async () => {
+    setCM360Loading(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/auth/google/status`);
+      if (res.ok) {
+        setCM360Status(await res.json());
+        setCM360Error('');
+      } else {
+        setCM360Error('Failed to load CM360 status');
+      }
+    } catch {
+      setCM360Error('Could not connect to backend');
+    } finally {
+      setCM360Loading(false);
+    }
+  }, [authFetch]);
+
+  const handleConnect = useCallback(async () => {
+    setCM360ActionLoading(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/auth/google/connect`);
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = data.url;
+      } else {
+        setCM360Error('Failed to start connection. Check that Google OAuth is configured.');
+      }
+    } catch {
+      setCM360Error('Could not connect to backend');
+    } finally {
+      setCM360ActionLoading(false);
+    }
+  }, [authFetch]);
+
+  const handleDisconnect = useCallback(async () => {
+    setCM360ActionLoading(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/auth/google/disconnect`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        setCM360Status({ connected: false });
+        setToast('CM360 account disconnected');
+      } else {
+        setCM360Error('Failed to disconnect');
+      }
+    } catch {
+      setCM360Error('Could not connect to backend');
+    } finally {
+      setCM360ActionLoading(false);
+    }
+  }, [authFetch]);
+
   useEffect(() => {
     fetchUsage();
-  }, [fetchUsage]);
+    fetchCM360Status();
+  }, [fetchUsage, fetchCM360Status]);
+
+  // Check for ?cm360=connected query param (set by OAuth callback redirect)
+  useEffect(() => {
+    if (searchParams.get('cm360') === 'connected') {
+      setToast('CM360 account connected successfully!');
+      fetchCM360Status();
+      // Remove query param from URL without reload
+      searchParams.delete('cm360');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, fetchCM360Status]);
+
+  // Auto-dismiss toast after 5 seconds
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(''), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const usagePercent = usage ? Math.round((usage.requests / usage.limit) * 100) : 0;
 
@@ -109,16 +193,65 @@ function Settings() {
           )}
         </section>
 
+        {toast && (
+          <div className="settings-toast" role="status">
+            {toast}
+          </div>
+        )}
+
         <section className="settings-section">
           <h2>CM360 Connection</h2>
-          <div className="settings-field">
-            <label>Status</label>
-            <span className="settings-connected">Connected</span>
-          </div>
-          <div className="settings-field">
-            <label>Account</label>
-            <span>Demo Agency (account 67890)</span>
-          </div>
+          {cm360Error && <p className="settings-error">{cm360Error}</p>}
+          {cm360Loading ? (
+            <p className="settings-placeholder">Loading connection status...</p>
+          ) : cm360Status?.connected ? (
+            <>
+              <div className="settings-field">
+                <label>Status</label>
+                <span className="settings-connected">Connected</span>
+              </div>
+              {cm360Status.scopes && cm360Status.scopes.length > 0 && (
+                <div className="settings-field">
+                  <label>Scopes</label>
+                  <span className="cm360-scopes">
+                    {cm360Status.scopes.map((scope) => {
+                      const shortScope = scope.split('/').pop() ?? scope;
+                      return shortScope;
+                    }).join(', ')}
+                  </span>
+                </div>
+              )}
+              {cm360Status.expiresAt && (
+                <div className="settings-field">
+                  <label>Token expires</label>
+                  <span>{new Date(cm360Status.expiresAt).toLocaleString()}</span>
+                </div>
+              )}
+              <button
+                className="cm360-disconnect-btn"
+                onClick={handleDisconnect}
+                disabled={cm360ActionLoading}
+              >
+                {cm360ActionLoading ? 'Disconnecting...' : 'Disconnect CM360'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="cm360-not-connected">
+                <p>
+                  Connect your Google CM360 account to work with live campaign data.
+                  Without a connection, Kiki uses demo data.
+                </p>
+              </div>
+              <button
+                className="cm360-connect-btn"
+                onClick={handleConnect}
+                disabled={cm360ActionLoading}
+              >
+                {cm360ActionLoading ? 'Connecting...' : 'Connect CM360 Account'}
+              </button>
+            </>
+          )}
         </section>
 
         {featureFlags && (

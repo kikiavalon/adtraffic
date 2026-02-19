@@ -155,3 +155,94 @@
 .settings-logout-btn:hover {
   background: #fef2f2;
 }
+
+/* Toast notification */
+.settings-toast {
+  background: #16a34a;
+  color: white;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  animation: toast-fade-in 0.3s ease;
+}
+
+@keyframes toast-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* CM360 Connection section */
+.cm360-not-connected {
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.cm360-not-connected p {
+  font-size: 13px;
+  color: #92400e;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.cm360-connect-btn {
+  padding: 10px 20px;
+  background: #0066ff;
+  border: none;
+  color: white;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  width: 100%;
+}
+
+.cm360-connect-btn:hover:not(:disabled) {
+  background: #0052cc;
+}
+
+.cm360-connect-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cm360-disconnect-btn {
+  padding: 10px 20px;
+  background: white;
+  border: 1px solid #d4d4d4;
+  color: #666;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.cm360-disconnect-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #b3b3b3;
+  color: #333;
+}
+
+.cm360-disconnect-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.cm360-scopes {
+  font-size: 12px !important;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: #666 !important;
+}

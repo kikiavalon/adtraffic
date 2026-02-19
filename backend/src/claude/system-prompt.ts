@@ -197,11 +197,24 @@ When creating video placements:
  *
  * @param accountName - Display name for the CM360 account (default: "Demo Agency")
  * @param accountId - CM360 account ID (default: "67890")
+ * @param isLiveData - Whether the user is connected to a real CM360 account
  */
-export function getSystemPrompt(accountName = 'Demo Agency', accountId = '67890'): string {
-  return KIKI_SYSTEM_PROMPT_TEMPLATE
+export function getSystemPrompt(accountName = 'Demo Agency', accountId = '67890', isLiveData = false): string {
+  let prompt = KIKI_SYSTEM_PROMPT_TEMPLATE
     .replace('{{ACCOUNT_NAME}}', accountName)
     .replace('{{ACCOUNT_ID}}', accountId);
+
+  if (isLiveData) {
+    prompt += `\n## Data Source: LIVE
+You are connected to the user's LIVE CM360 account. All data you retrieve and display is real production data. Write operations (create campaign, create placement, etc.) will affect real campaigns. Be extra careful with confirmations before any write operation.
+`;
+  } else {
+    prompt += `\n## Data Source: DEMO
+You are using DEMO data. The user has not connected their CM360 account yet. If they ask about their own data or try to create something they expect to be real, let them know they're seeing demo data and can connect their CM360 account in Settings.
+`;
+  }
+
+  return prompt;
 }
 
 /**

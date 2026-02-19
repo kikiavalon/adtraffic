@@ -56,7 +56,7 @@ router.post('/chat', chatLimiter, requireAuth, featureFlagsMiddleware, express.j
       timestamp: Date.now(),
     }, userId);
 
-    const assistantMessage = await chat(conversationId, message, req.featureFlags);
+    const assistantMessage = await chat(conversationId, message, userId, req.featureFlags);
 
     // Save assistant message to DB
     await saveMessage(conversationId, assistantMessage);
@@ -132,7 +132,7 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
     req.on('close', () => controller.abort());
 
     try {
-      await chatStream(conversationId, message, sendEvent, controller.signal, req.featureFlags);
+      await chatStream(conversationId, message, sendEvent, controller.signal, userId, req.featureFlags);
     } catch (error) {
       // Don't send error events for intentional client disconnects
       if (!(error instanceof Error && error.name === 'AbortError')) {

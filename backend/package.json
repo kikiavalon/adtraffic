@@ -16,6 +16,7 @@
   "dependencies": {
     "@adtraffic/shared": "*",
     "@anthropic-ai/sdk": "0.39.0",
+    "@googleapis/dfareporting": "17.2.1",
     "@sentry/node": "9.5.0",
     "@sentry/profiling-node": "9.5.0",
     "bcrypt": "6.0.0",
@@ -23,6 +24,7 @@
     "dotenv": "17.3.1",
     "drizzle-orm": "0.45.1",
     "express": "4.22.1",
+    "google-auth-library": "10.5.0",
     "helmet": "8.1.0",
     "ioredis": "5.6.1",
     "jsonwebtoken": "9.0.3",

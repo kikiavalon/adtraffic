@@ -122,13 +122,13 @@ async function validateExternalDependencies(): Promise<void> {
 
 // Only start server when run directly (not when imported for testing)
 if (process.env.NODE_ENV !== 'test') {
-  void validateExternalDependencies().then(() => {
+  const startServer = () => {
     const server = app.listen(PORT, () => {
       const model = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001';
       const maxTokens = process.env.CLAUDE_MAX_TOKENS ?? '1024';
       const dailyLimit = process.env.DAILY_API_LIMIT ?? '100';
       logger.info(
-        { port: PORT, model, maxTokens, dailyLimit, instance: INSTANCE_ID },
+        { port: PORT, model, maxTokens, dailyLimit, instance: INSTANCE_ID, demoMode: process.env.DEMO_MODE === 'true' },
         'AdTraffic.ai backend started',
       );
     });
@@ -170,10 +170,19 @@ if (process.env.NODE_ENV !== 'test') {
 
     process.on('SIGTERM', shutdown);
     process.on('SIGINT', shutdown);
-  }).catch((err) => {
-    logger.error({ instance: INSTANCE_ID, err: { message: err instanceof Error ? err.message : 'Unknown' } }, 'Startup failed');
-    process.exit(1);
-  });
+  };
+
+  if (process.env.DEMO_MODE === 'true') {
+    // Demo mode: skip dependency validation, start server directly
+    startServer();
+  } else {
+    void validateExternalDependencies().then(() => {
+      startServer();
+    }).catch((err) => {
+      logger.error({ instance: INSTANCE_ID, err: { message: err instanceof Error ? err.message : 'Unknown' } }, 'Startup failed');
+      process.exit(1);
+    });
+  }
 }
 
 export default app;

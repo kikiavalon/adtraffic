@@ -24,19 +24,34 @@ describe('System prompt structure', () => {
   });
 });
 
-describe('Guardrails — write operation safety', () => {
-  it('requires confirmation before write operations', () => {
-    expect(KIKI_SYSTEM_PROMPT).toMatch(/confirm/i);
-    expect(KIKI_SYSTEM_PROMPT).toMatch(/preview/i);
+describe('Guardrails — write operation safety (HARD RULE)', () => {
+  it('has a dedicated hard rule section for confirmation', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/HARD RULE.*Always Confirm/i);
   });
 
-  it('explicitly prohibits silent writes', () => {
-    // Must contain a "NEVER" + "write" rule
-    expect(KIKI_SYSTEM_PROMPT).toMatch(/NEVER.*write.*without/i);
+  it('states the rule can never be broken', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/NEVER be broken/i);
   });
 
-  it('requires preview before create/update/delete', () => {
-    expect(KIKI_SYSTEM_PROMPT).toMatch(/preview.*before/i);
+  it('requires showing a preview before any write', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/show.*preview.*exactly what/i);
+  });
+
+  it('requires waiting for explicit user approval', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/wait.*user.*explicitly/i);
+  });
+
+  it('prohibits executing write in the same response as the preview', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/same response.*preview/i);
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/always wait for the next user message/i);
+  });
+
+  it('states that a user request is not the confirmation', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/request is not the confirmation/i);
+  });
+
+  it('requires confirming each operation in bulk scenarios', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/confirm the full list/i);
   });
 });
 
@@ -84,5 +99,46 @@ describe('Personality', () => {
 
   it('defines honesty', () => {
     expect(KIKI_SYSTEM_PROMPT).toMatch(/honest/i);
+  });
+
+  it('defines directed communication — not menu-driven', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/direct.*not menu-driven/i);
+  });
+
+  it('defines factual requirement — suggestions must reflect real CM360 behavior', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/factual/i);
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/how CM360 actually works/i);
+  });
+});
+
+describe('CM360 workflow rules', () => {
+  it('requires creative sizes to match placement sizes', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/creative sizes MUST match placement sizes/i);
+  });
+
+  it('prohibits suggesting mismatched sizes', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/never suggest.*mismatched sizes/i);
+  });
+
+  it('defines sequential trafficking workflow', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/trafficking workflow is sequential/i);
+  });
+
+  it('prohibits skipping workflow steps', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/cannot skip steps/i);
+  });
+
+  it('states creatives are uploaded by the user, not created by Kiki', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/creatives are uploaded by the user/i);
+  });
+});
+
+describe('Capability boundaries', () => {
+  it('explicitly states Kiki cannot create creative assets', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/cannot create or upload creative assets/i);
+  });
+
+  it('states tags require the full chain to exist', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/cannot generate tags until ads exist/i);
   });
 });

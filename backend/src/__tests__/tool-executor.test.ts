@@ -164,7 +164,7 @@ describe('tool-executor', () => {
       });
       expect(result.isError).toBe(false);
       const data = result.result as { creatives: unknown[] };
-      expect(data.creatives).toHaveLength(2);
+      expect(data.creatives).toHaveLength(4); // 2 display + 2 video for Apex Motors
     });
   });
 

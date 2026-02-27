@@ -47,6 +47,22 @@ import {
   AssociateCreativeCampaignInputSchema,
   ListCampaignCreativeAssociationsInputSchema,
   UploadCreativeAssetInputSchema,
+  ListEventTagsInputSchema,
+  GetEventTagInputSchema,
+  CreateEventTagInputSchema,
+  UpdateEventTagInputSchema,
+  DeleteEventTagInputSchema,
+  ListPlacementGroupsInputSchema,
+  GetPlacementGroupInputSchema,
+  CreatePlacementGroupInputSchema,
+  UpdatePlacementGroupInputSchema,
+  ListDirectorySitesInputSchema,
+  GetDirectorySiteInputSchema,
+  InsertDirectorySiteInputSchema,
+  ListChangeLogsInputSchema,
+  GetChangeLogInputSchema,
+  ListReportsInputSchema,
+  GetReportInputSchema,
   formatZodErrors,
 } from './tool-input-schemas.js';
 
@@ -172,6 +188,27 @@ const VALID_TOOL_NAMES = new Set([
   'cm360_associate_creative_campaign',
   'cm360_list_campaign_creative_associations',
   'cm360_upload_creative_asset',
+  // Event tags
+  'cm360_list_event_tags',
+  'cm360_get_event_tag',
+  'cm360_create_event_tag',
+  'cm360_update_event_tag',
+  'cm360_delete_event_tag',
+  // Placement groups
+  'cm360_list_placement_groups',
+  'cm360_get_placement_group',
+  'cm360_create_placement_group',
+  'cm360_update_placement_group',
+  // Directory sites
+  'cm360_list_directory_sites',
+  'cm360_get_directory_site',
+  'cm360_insert_directory_site',
+  // Change logs
+  'cm360_list_change_logs',
+  'cm360_get_change_log',
+  // Reports
+  'cm360_list_reports',
+  'cm360_get_report',
 ]);
 
 function isValidToolName(name: string): boolean {
@@ -595,6 +632,151 @@ async function executeToolReal(
       return { result: asset, isError: false };
     }
 
+    // --- Phase C: Event Tags ---
+
+    case 'cm360_list_event_tags': {
+      const parsed = ListEventTagsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      // TODO: Implement real CM360 API call — client.listEventTags()
+      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_get_event_tag': {
+      const parsed = GetEventTagInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_create_event_tag': {
+      const parsed = CreateEventTagInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_update_event_tag': {
+      const parsed = UpdateEventTagInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_delete_event_tag': {
+      const parsed = DeleteEventTagInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_list_placement_groups': {
+      const parsed = ListPlacementGroupsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      // TODO: Implement real CM360 API call — client.listPlacementGroups()
+      return { result: null, isError: true, errorMessage: 'Placement group tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_get_placement_group': {
+      const parsed = GetPlacementGroupInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Placement group tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_create_placement_group': {
+      const parsed = CreatePlacementGroupInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Placement group tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_update_placement_group': {
+      const parsed = UpdatePlacementGroupInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Placement group tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    // --- Directory Sites ---
+
+    case 'cm360_list_directory_sites': {
+      const parsed = ListDirectorySitesInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Directory site tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_get_directory_site': {
+      const parsed = GetDirectorySiteInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Directory site tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_insert_directory_site': {
+      const parsed = InsertDirectorySiteInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Directory site tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    // --- Change Logs ---
+
+    case 'cm360_list_change_logs': {
+      const parsed = ListChangeLogsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Change log tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    case 'cm360_get_change_log': {
+      const parsed = GetChangeLogInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      return { result: null, isError: true, errorMessage: 'Change log tools are not implemented in live mode yet. Please use demo mode.' };
+    }
+
+    // --- Reports ---
+
+    case 'cm360_list_reports': {
+      const parsed = ListReportsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const data = await client.listReports(profileId);
+      return { result: { reports: data, totalResults: data.length }, isError: false };
+    }
+
+    case 'cm360_get_report': {
+      const parsed = GetReportInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const report = await client.getReport(profileId, parsed.data.reportId);
+      if (!report) {
+        return { result: null, isError: true, errorMessage: `Report ${parsed.data.reportId} not found` };
+      }
+      return { result: report, isError: false };
+    }
+
     default:
       return { result: null, isError: true, errorMessage: `Unknown tool: ${toolName}` };
   }
@@ -810,6 +992,7 @@ function executeToolMock(
         const tags = mockStore.generateTags(
           parsed.data.campaignId,
           parsed.data.placementIds,
+          parsed.data.tagFormats,
         );
         return { result: { placementTags: tags }, isError: false };
       }
@@ -1015,6 +1198,229 @@ function executeToolMock(
           assetData: parsed.data.assetData,
         });
         return { result: asset, isError: false };
+      }
+
+      // --- Phase C: Event Tags ---
+
+      case 'cm360_list_event_tags': {
+        const parsed = ListEventTagsInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const eventTags = mockStore.listEventTags(parsed.data.campaignId, {
+          advertiserId: parsed.data.advertiserId,
+          searchString: parsed.data.searchString,
+        });
+        return { result: { eventTags }, isError: false };
+      }
+
+      case 'cm360_get_event_tag': {
+        const parsed = GetEventTagInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const eventTag = mockStore.getEventTag(parsed.data.eventTagId);
+        if (!eventTag) {
+          return { result: null, isError: true, errorMessage: `Event tag ${parsed.data.eventTagId} not found` };
+        }
+        return { result: eventTag, isError: false };
+      }
+
+      case 'cm360_create_event_tag': {
+        const parsed = CreateEventTagInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const eventTag = mockStore.createEventTag({
+          advertiserId: parsed.data.advertiserId,
+          campaignId: parsed.data.campaignId,
+          name: parsed.data.name,
+          url: parsed.data.url,
+          type: parsed.data.type,
+          siteIds: parsed.data.siteIds,
+          enabledByDefault: parsed.data.enabledByDefault,
+        });
+        return { result: eventTag, isError: false };
+      }
+
+      case 'cm360_update_event_tag': {
+        const parsed = UpdateEventTagInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const updated = mockStore.updateEventTag(parsed.data.eventTagId, {
+          id: parsed.data.eventTagId,
+          name: parsed.data.name,
+          url: parsed.data.url,
+          status: parsed.data.status,
+          siteIds: parsed.data.siteIds,
+          enabledByDefault: parsed.data.enabledByDefault,
+        });
+        if (!updated) {
+          return { result: null, isError: true, errorMessage: `Event tag ${parsed.data.eventTagId} not found` };
+        }
+        return { result: updated, isError: false };
+      }
+
+      case 'cm360_delete_event_tag': {
+        const parsed = DeleteEventTagInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const deleted = mockStore.deleteEventTag(parsed.data.eventTagId);
+        if (!deleted) {
+          return { result: null, isError: true, errorMessage: `Event tag ${parsed.data.eventTagId} not found` };
+        }
+        return { result: { success: true, message: `Event tag ${parsed.data.eventTagId} deleted` }, isError: false };
+      }
+
+      case 'cm360_list_placement_groups': {
+        const parsed = ListPlacementGroupsInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const placementGroups = mockStore.listPlacementGroups(parsed.data.campaignId, {
+          advertiserId: parsed.data.advertiserId,
+          searchString: parsed.data.searchString,
+          maxResults: parsed.data.maxResults,
+        });
+        return { result: { placementGroups }, isError: false };
+      }
+
+      case 'cm360_get_placement_group': {
+        const parsed = GetPlacementGroupInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const placementGroup = mockStore.getPlacementGroup(parsed.data.placementGroupId);
+        if (!placementGroup) {
+          return { result: null, isError: true, errorMessage: `Placement group ${parsed.data.placementGroupId} not found` };
+        }
+        return { result: placementGroup, isError: false };
+      }
+
+      case 'cm360_create_placement_group': {
+        const parsed = CreatePlacementGroupInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const placementGroup = mockStore.createPlacementGroup({
+          campaignId: parsed.data.campaignId,
+          siteId: parsed.data.siteId,
+          name: parsed.data.name,
+          placementGroupType: parsed.data.placementGroupType,
+          placementIds: parsed.data.placementIds,
+          startDate: parsed.data.startDate,
+          endDate: parsed.data.endDate,
+        });
+        return { result: placementGroup, isError: false };
+      }
+
+      case 'cm360_update_placement_group': {
+        const parsed = UpdatePlacementGroupInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const updated = mockStore.updatePlacementGroup(parsed.data.placementGroupId, {
+          name: parsed.data.name,
+          activeStatus: parsed.data.activeStatus,
+          placementIds: parsed.data.placementIds,
+          startDate: parsed.data.startDate,
+          endDate: parsed.data.endDate,
+        });
+        if (!updated) {
+          return { result: null, isError: true, errorMessage: `Placement group ${parsed.data.placementGroupId} not found` };
+        }
+        return { result: updated, isError: false };
+      }
+
+      // --- Directory Sites ---
+
+      case 'cm360_list_directory_sites': {
+        const parsed = ListDirectorySitesInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const dirSites = mockStore.listDirectorySites({
+          searchString: parsed.data.searchString,
+          active: parsed.data.active,
+        });
+        return { result: { directorySites: dirSites, totalResults: dirSites.length }, isError: false };
+      }
+
+      case 'cm360_get_directory_site': {
+        const parsed = GetDirectorySiteInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const dirSite = mockStore.getDirectorySite(parsed.data.directorySiteId);
+        if (!dirSite) {
+          return { result: null, isError: true, errorMessage: `Directory site ${parsed.data.directorySiteId} not found` };
+        }
+        return { result: dirSite, isError: false };
+      }
+
+      case 'cm360_insert_directory_site': {
+        const parsed = InsertDirectorySiteInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const site = mockStore.insertDirectorySite(parsed.data.siteId);
+        return { result: { message: `Directory site approved and added as trafficking target`, site }, isError: false };
+      }
+
+      // --- Change Logs ---
+
+      case 'cm360_list_change_logs': {
+        const parsed = ListChangeLogsInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const changeLogs = mockStore.listChangeLogs({
+          objectType: parsed.data.objectType,
+          objectId: parsed.data.objectId,
+          action: parsed.data.action,
+          minChangeTime: parsed.data.minChangeTime,
+          maxChangeTime: parsed.data.maxChangeTime,
+          searchString: parsed.data.searchString,
+          maxResults: parsed.data.maxResults,
+        });
+        return { result: { changeLogs, totalResults: changeLogs.length }, isError: false };
+      }
+
+      case 'cm360_get_change_log': {
+        const parsed = GetChangeLogInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const changeLog = mockStore.getChangeLog(parsed.data.changeLogId);
+        if (!changeLog) {
+          return { result: null, isError: true, errorMessage: `Change log ${parsed.data.changeLogId} not found` };
+        }
+        return { result: changeLog, isError: false };
+      }
+
+      // --- Reports ---
+
+      case 'cm360_list_reports': {
+        const parsed = ListReportsInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const reports = mockStore.listReports();
+        return { result: { reports, totalResults: reports.length }, isError: false };
+      }
+
+      case 'cm360_get_report': {
+        const parsed = GetReportInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const report = mockStore.getReport(parsed.data.reportId);
+        if (!report) {
+          return { result: null, isError: true, errorMessage: `Report ${parsed.data.reportId} not found` };
+        }
+        return { result: report, isError: false };
       }
 
       default:

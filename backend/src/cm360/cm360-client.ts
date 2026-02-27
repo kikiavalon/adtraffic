@@ -41,6 +41,20 @@ import type {
   CM360UpdatePlacementInput,
   CM360UpdateCreativeInput,
   CM360UpdateAdInput,
+  CM360EventTag,
+  CM360EventTagType,
+  CM360EventTagStatus,
+  CM360CreateEventTagInput,
+  CM360UpdateEventTagInput,
+  CM360PlacementGroup,
+  CM360PlacementGroupType,
+  CM360CreatePlacementGroupInput,
+  CM360UpdatePlacementGroupInput,
+  CM360ChangeLog,
+  CM360ChangeLogObjectType,
+  CM360ChangeLogAction,
+  CM360Report,
+  CM360ReportType,
 } from '@adtraffic/shared';
 import { isGoogleAPIError } from './errors.js';
 import { Readable } from 'node:stream';
@@ -604,6 +618,127 @@ export class CM360Client {
     /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment */
   }
 
+  // ---------- Event Tags ----------
+
+  async listEventTags(profileId: string, campaignId: string, opts?: { advertiserId?: string; searchString?: string }): Promise<CM360EventTag[]> {
+    const res = await this.api.eventTags.list({
+      profileId,
+      campaignId,
+      advertiserId: opts?.advertiserId,
+      searchString: opts?.searchString,
+    });
+    return (res.data.eventTags ?? []).map(t => mapEventTag(t));
+  }
+
+  async getEventTag(profileId: string, eventTagId: string): Promise<CM360EventTag | null> {
+    try {
+      const res = await this.api.eventTags.get({ profileId, id: eventTagId });
+      if (!res.data) return null;
+      return mapEventTag(res.data);
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async createEventTag(profileId: string, input: CM360CreateEventTagInput): Promise<CM360EventTag> {
+    const res = await this.api.eventTags.insert({
+      profileId,
+      requestBody: {
+        advertiserId: input.advertiserId,
+        campaignId: input.campaignId,
+        name: input.name,
+        url: input.url,
+        type: input.type,
+        siteIds: input.siteIds,
+        enabledByDefault: input.enabledByDefault,
+      },
+    });
+    return mapEventTag(res.data);
+  }
+
+  async updateEventTag(profileId: string, eventTagId: string, input: CM360UpdateEventTagInput): Promise<CM360EventTag> {
+    const res = await this.api.eventTags.patch({
+      profileId,
+      id: eventTagId,
+      requestBody: {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.url !== undefined && { url: input.url }),
+        ...(input.status !== undefined && { status: input.status }),
+        ...(input.siteIds !== undefined && { siteIds: input.siteIds }),
+        ...(input.enabledByDefault !== undefined && { enabledByDefault: input.enabledByDefault }),
+      },
+    });
+    return mapEventTag(res.data);
+  }
+
+  async deleteEventTag(profileId: string, eventTagId: string): Promise<void> {
+    await this.api.eventTags.delete({ profileId, id: eventTagId });
+  }
+
+  // ---------- Placement Groups ----------
+
+  async listPlacementGroups(profileId: string, campaignId: string, opts?: { advertiserId?: string; searchString?: string; maxResults?: number }): Promise<CM360PlacementGroup[]> {
+    const res = await this.api.placementGroups.list({
+      profileId,
+      campaignIds: [campaignId],
+      advertiserIds: opts?.advertiserId ? [opts.advertiserId] : undefined,
+      searchString: opts?.searchString,
+      maxResults: opts?.maxResults ?? 100,
+      sortField: 'NAME',
+      sortOrder: 'ASCENDING',
+    });
+    return (res.data.placementGroups ?? []).map(pg => mapPlacementGroup(pg));
+  }
+
+  async getPlacementGroup(profileId: string, placementGroupId: string): Promise<CM360PlacementGroup | null> {
+    try {
+      const res = await this.api.placementGroups.get({ profileId, id: placementGroupId });
+      if (!res.data) return null;
+      return mapPlacementGroup(res.data);
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async createPlacementGroup(profileId: string, input: CM360CreatePlacementGroupInput): Promise<CM360PlacementGroup> {
+    const res = await this.api.placementGroups.insert({
+      profileId,
+      requestBody: {
+        campaignId: input.campaignId,
+        siteId: input.siteId,
+        name: input.name,
+        placementGroupType: input.placementGroupType,
+        childPlacementIds: input.placementIds,
+        pricingSchedule: {
+          startDate: input.startDate,
+          endDate: input.endDate,
+        },
+      },
+    });
+    return mapPlacementGroup(res.data);
+  }
+
+  async updatePlacementGroup(profileId: string, placementGroupId: string, input: CM360UpdatePlacementGroupInput): Promise<CM360PlacementGroup> {
+    const res = await this.api.placementGroups.patch({
+      profileId,
+      id: placementGroupId,
+      requestBody: {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.activeStatus !== undefined && { activeStatus: input.activeStatus }),
+        ...(input.placementIds !== undefined && { childPlacementIds: input.placementIds }),
+        ...((input.startDate !== undefined || input.endDate !== undefined) && {
+          pricingSchedule: {
+            ...(input.startDate !== undefined && { startDate: input.startDate }),
+            ...(input.endDate !== undefined && { endDate: input.endDate }),
+          },
+        }),
+      },
+    });
+    return mapPlacementGroup(res.data);
+  }
+
   // ---------- Tag Generation ----------
 
   async generateTags(
@@ -626,11 +761,122 @@ export class CM360Client {
       })),
     }));
   }
+
+  // ---------- Directory Sites ----------
+
+  async listDirectorySites(profileId: string, opts?: { searchString?: string; active?: boolean }): Promise<Array<{
+    id: string; name: string; url: string; active: boolean;
+    interstitialTagFormats: string[]; inpageTagFormats: string[];
+  }>> {
+    const res = await this.api.directorySites.list({
+      profileId,
+      ...(opts?.searchString && { searchString: opts.searchString }),
+      ...(opts?.active !== undefined && { active: opts.active }),
+    });
+    return (res.data.directorySites ?? []).map(mapDirectorySite);
+  }
+
+  async getDirectorySite(profileId: string, directorySiteId: string): Promise<{
+    id: string; name: string; url: string; active: boolean;
+    interstitialTagFormats: string[]; inpageTagFormats: string[];
+  } | null> {
+    try {
+      const res = await this.api.directorySites.get({
+        profileId,
+        id: directorySiteId,
+      });
+      return mapDirectorySite(res.data);
+    } catch (err) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  /**
+   * Insert a directory site — this approves the site and creates a trafficking-ready CM360 Site.
+   * The CM360 API returns the directory site entry (not the new site).
+   */
+  async insertDirectorySite(profileId: string, directorySiteId: string): Promise<CM360Site> {
+    const res = await this.api.directorySites.insert({
+      profileId,
+      requestBody: {
+        id: directorySiteId,
+      },
+    });
+    const ds = res.data;
+    return {
+      id: String(ds.id ?? ''),
+      name: ds.name ?? '',
+      accountId: '',
+      approved: true,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Change Logs (read-only audit trail)
+  // ---------------------------------------------------------------------------
+
+  /** List change logs with optional filters — returns newest first. */
+  async listChangeLogs(
+    profileId: string,
+    filter: {
+      objectType?: CM360ChangeLogObjectType;
+      objectId?: string;
+      action?: CM360ChangeLogAction;
+      minChangeTime?: string;
+      maxChangeTime?: string;
+      searchString?: string;
+      maxResults?: number;
+    } = {},
+  ): Promise<CM360ChangeLog[]> {
+    const res = await this.api.changeLogs.list({
+      profileId,
+      objectType: filter.objectType,
+      objectIds: filter.objectId ? [filter.objectId] : undefined,
+      action: filter.action,
+      minChangeTime: filter.minChangeTime,
+      maxChangeTime: filter.maxChangeTime,
+      searchString: filter.searchString,
+      maxResults: filter.maxResults,
+    });
+    const items = res.data.changeLogs ?? [];
+    return items.map(mapChangeLog);
+  }
+
+  /** Get a single change log entry by ID. Returns null if not found. */
+  async getChangeLog(profileId: string, changeLogId: string): Promise<CM360ChangeLog | null> {
+    try {
+      const res = await this.api.changeLogs.get({ profileId, id: changeLogId });
+      return mapChangeLog(res.data);
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  // --- Reports ---
+
+  /** List all saved report definitions in the account. */
+  async listReports(profileId: string): Promise<CM360Report[]> {
+    const res = await this.api.reports.list({ profileId });
+    return (res.data.items ?? []).map(mapReport);
+  }
+
+  /** Get a single report definition by ID. Returns null if not found. */
+  async getReport(profileId: string, reportId: string): Promise<CM360Report | null> {
+    try {
+      const res = await this.api.reports.get({ profileId, reportId });
+      return res.data ? mapReport(res.data) : null;
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
 }
 
 // ---------- Mapping Helpers ----------
 
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-base-to-string */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-base-to-string */
 function mapAdvertiser(a: any): CM360Advertiser {
   return {
     id: String(a.id ?? ''),
@@ -689,6 +935,7 @@ function mapAd(ad: any): CM360Ad {
     name: (ad.name as string) ?? '',
     campaignId: String(ad.campaignId ?? ''),
     advertiserId: String(ad.advertiserId ?? ''),
+    type: ((ad.type as string) ?? 'AD_SERVING_DEFAULT_AD') as CM360Ad['type'],
     active: (ad.active as boolean) ?? true,
     archived: (ad.archived as boolean) ?? false,
     startTime: (ad.startTime as string) ?? undefined,
@@ -697,13 +944,120 @@ function mapAd(ad: any): CM360Ad {
       placementId: String(pa.placementId ?? ''),
     })),
     creativeRotation: {
+      type: ((rotation?.type as string) ?? 'CREATIVE_ROTATION_TYPE_RANDOM') as CM360Ad['creativeRotation']['type'],
       creativeAssignments: (assignments ?? []).map(ca => ({
         creativeId: String(ca.creativeId ?? ''),
       })),
     },
   };
 }
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-base-to-string */
+function mapEventTag(t: any): CM360EventTag {
+  return {
+    id: String(t.id ?? ''),
+    accountId: String(t.accountId ?? ''),
+    advertiserId: String(t.advertiserId ?? ''),
+    campaignId: String(t.campaignId ?? ''),
+    name: String(t.name ?? ''),
+    url: String(t.url ?? ''),
+    type: (t.type ?? 'IMPRESSION_IMAGE_EVENT_TAG') as CM360EventTagType,
+    status: (t.status ?? 'ENABLED') as CM360EventTagStatus,
+    siteIds: ((t.siteIds ?? []) as unknown[]).map(String),
+    enabledByDefault: Boolean(t.enabledByDefault),
+    excludeFromAdxRequests: Boolean(t.excludeFromAdxRequests),
+    sslCompliant: Boolean(t.sslCompliant),
+  };
+}
+
+function mapPlacementGroup(pg: any): CM360PlacementGroup {
+  const pricing = pg.pricingSchedule as Record<string, unknown> | undefined;
+  return {
+    id: String(pg.id ?? ''),
+    name: (pg.name as string) ?? '',
+    accountId: String(pg.accountId ?? ''),
+    advertiserId: String(pg.advertiserId ?? ''),
+    campaignId: String(pg.campaignId ?? ''),
+    siteId: String(pg.siteId ?? ''),
+    placementGroupType: ((pg.placementGroupType as string) ?? 'PLACEMENT_PACKAGE') as CM360PlacementGroupType,
+    placementIds: ((pg.childPlacementIds ?? []) as unknown[]).map(String),
+    activeStatus: ((pg.activeStatus as string) ?? 'ACTIVE') as CM360PlacementGroup['activeStatus'],
+    pricingSchedule: {
+      startDate: (pricing?.startDate as string) ?? '',
+      endDate: (pricing?.endDate as string) ?? '',
+    },
+  };
+}
+function mapDirectorySite(ds: any): {
+  id: string; name: string; url: string; active: boolean;
+  interstitialTagFormats: string[]; inpageTagFormats: string[];
+} {
+  const interstitialFormats = ds.interstitialTagFormats ?? [];
+  const inpageFormats = ds.inpageTagFormats ?? [];
+  return {
+    id: String(ds.id ?? ''),
+    name: ds.name ?? '',
+    url: ds.url ?? '',
+    active: ds.active ?? true,
+    interstitialTagFormats: (interstitialFormats as unknown[]).map((f: unknown) => {
+      const obj = f as { type?: string };
+      return obj.type ?? 'PLACEMENT_TAG_STANDARD';
+    }),
+    inpageTagFormats: (inpageFormats as unknown[]).map((f: unknown) => {
+      const obj = f as { type?: string };
+      return obj.type ?? 'PLACEMENT_TAG_STANDARD';
+    }),
+  };
+}
+
+function mapChangeLog(cl: any): CM360ChangeLog {
+  return {
+    id: String(cl.id ?? ''),
+    userProfileId: String(cl.userProfileId ?? ''),
+    userProfileName: (cl.userProfileName as string) ?? '',
+    objectType: (cl.objectType ?? 'OBJECT_CAMPAIGN') as CM360ChangeLogObjectType,
+    objectId: String(cl.objectId ?? ''),
+    action: (cl.action ?? 'ACTION_UPDATE') as CM360ChangeLogAction,
+    fieldName: (cl.fieldName as string) ?? undefined,
+    oldValue: (cl.oldValue as string) ?? undefined,
+    newValue: (cl.newValue as string) ?? undefined,
+    changeTime: (cl.changeTime as string) ?? new Date().toISOString(),
+  };
+}
+
+function mapReport(r: any): CM360Report {
+  return {
+    id: String(r.id ?? ''),
+    name: (r.name as string) ?? '',
+    type: ((r.type as string) ?? 'STANDARD') as CM360ReportType,
+    accountId: String(r.accountId ?? ''),
+    ownerProfileId: String(r.ownerProfileId ?? ''),
+    criteria: {
+      dateRange: {
+        startDate: (r.criteria?.dateRange?.startDate as string) ?? '',
+        endDate: (r.criteria?.dateRange?.endDate as string) ?? '',
+        ...(r.criteria?.dateRange?.relativeDateRange && {
+          relativeDateRange: r.criteria.dateRange.relativeDateRange as string,
+        }),
+      },
+      dimensions: ((r.criteria?.dimensions as any[]) ?? []).map((d: any) => String(d.name ?? d)),
+      metricNames: ((r.criteria?.metricNames as string[]) ?? []),
+      ...(r.criteria?.dimensionFilters && {
+        filters: (r.criteria.dimensionFilters as any[]).map((f: any) => ({
+          dimensionName: String(f.dimensionName ?? ''),
+          value: String(f.value ?? ''),
+        })),
+      }),
+    },
+    ...(r.schedule && {
+      schedule: {
+        active: (r.schedule.active as boolean) ?? false,
+        repeats: (r.schedule.repeats as string) ?? '',
+        every: (r.schedule.every as number) ?? 0,
+      },
+    }),
+    lastModifiedTime: (r.lastModifiedTime as string) ?? '',
+  };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-base-to-string */
 
 /** Determine MIME type for creative asset upload based on filename extension and asset type */
 function getMimeType(filename: string, assetType: CM360CreativeAssetType): string {

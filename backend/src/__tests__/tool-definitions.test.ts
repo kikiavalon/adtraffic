@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { CM360_TOOLS } from '../claude/tool-definitions.js';
 
-// All 30 expected tools
+// All 46 expected tools
 const EXPECTED_TOOLS = [
   'cm360_list_profiles',
   'cm360_list_advertisers',
@@ -38,6 +38,27 @@ const EXPECTED_TOOLS = [
   'cm360_associate_creative_campaign',
   'cm360_list_campaign_creative_associations',
   'cm360_upload_creative_asset',
+  // Event tags
+  'cm360_list_event_tags',
+  'cm360_get_event_tag',
+  'cm360_create_event_tag',
+  'cm360_update_event_tag',
+  'cm360_delete_event_tag',
+  // Placement groups
+  'cm360_list_placement_groups',
+  'cm360_get_placement_group',
+  'cm360_create_placement_group',
+  'cm360_update_placement_group',
+  // Directory sites
+  'cm360_list_directory_sites',
+  'cm360_get_directory_site',
+  'cm360_insert_directory_site',
+  // Change logs
+  'cm360_list_change_logs',
+  'cm360_get_change_log',
+  // Reports
+  'cm360_list_reports',
+  'cm360_get_report',
 ];
 
 const WRITE_TOOLS = [
@@ -53,11 +74,20 @@ const WRITE_TOOLS = [
   'cm360_update_landing_page',
   'cm360_associate_creative_campaign',
   'cm360_upload_creative_asset',
+  // Event tags (write)
+  'cm360_create_event_tag',
+  'cm360_update_event_tag',
+  'cm360_delete_event_tag',
+  // Placement groups (write)
+  'cm360_create_placement_group',
+  'cm360_update_placement_group',
+  // Directory sites (write)
+  'cm360_insert_directory_site',
 ];
 
 describe('Tool inventory', () => {
-  it('defines exactly 30 tools', () => {
-    expect(CM360_TOOLS).toHaveLength(30);
+  it('defines exactly 46 tools', () => {
+    expect(CM360_TOOLS).toHaveLength(46);
   });
 
   it('includes all expected tool names', () => {

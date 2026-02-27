@@ -258,6 +258,115 @@ export const UploadCreativeAssetInputSchema = z.object({
   assetData: z.string().min(1, 'Asset data (base64) is required'),
 });
 
+// ---------------------------------------------------------------------------
+// Event Tags
+// ---------------------------------------------------------------------------
+
+export const ListEventTagsInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  campaignId: z.string().min(1, 'Campaign ID is required'),
+  advertiserId: z.string().optional(),
+  searchString: z.string().optional(),
+});
+
+export const GetEventTagInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  eventTagId: z.string().min(1, 'Event tag ID is required'),
+});
+
+export const CreateEventTagInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  campaignId: z.string().min(1, 'Campaign ID is required'),
+  name: z.string().min(1).max(256, 'Name must be under 256 characters'),
+  url: z.string().url('Must be a valid URL'),
+  type: z.enum([
+    'IMPRESSION_IMAGE_EVENT_TAG',
+    'IMPRESSION_JAVASCRIPT_EVENT_TAG',
+    'CLICK_THROUGH_EVENT_TAG',
+  ]),
+  siteIds: z.array(z.string()).optional(),
+  enabledByDefault: z.boolean().optional(),
+});
+
+export const UpdateEventTagInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  eventTagId: z.string().min(1, 'Event tag ID is required'),
+  name: z.string().min(1).max(256).optional(),
+  url: z.string().url().optional(),
+  status: z.enum(['ENABLED', 'DISABLED']).optional(),
+  siteIds: z.array(z.string()).optional(),
+  enabledByDefault: z.boolean().optional(),
+});
+
+export const DeleteEventTagInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  eventTagId: z.string().min(1, 'Event tag ID is required'),
+});
+
+// ---------------------------------------------------------------------------
+// Placement Groups
+// ---------------------------------------------------------------------------
+
+export const ListPlacementGroupsInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  campaignId: z.string().min(1, 'Campaign ID is required'),
+  advertiserId: z.string().optional(),
+  searchString: z.string().optional(),
+  maxResults: z.number().int().min(1).max(1000).optional(),
+});
+
+export const GetPlacementGroupInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  placementGroupId: z.string().min(1, 'Placement group ID is required'),
+});
+
+export const CreatePlacementGroupInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  campaignId: z.string().min(1, 'Campaign ID is required'),
+  siteId: z.string().min(1, 'Site ID is required'),
+  name: z.string().min(1, 'Placement group name is required').max(256),
+  placementGroupType: z.enum(['PLACEMENT_PACKAGE', 'PLACEMENT_ROADBLOCK']),
+  placementIds: z.array(z.string().min(1)).optional(),
+  startDate: dateString,
+  endDate: dateString,
+}).refine(
+  (data) => data.endDate >= data.startDate,
+  { message: 'End date must be on or after start date', path: ['endDate'] },
+);
+
+export const UpdatePlacementGroupInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  placementGroupId: z.string().min(1, 'Placement group ID is required'),
+  name: z.string().min(1).max(256).optional(),
+  activeStatus: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
+  placementIds: z.array(z.string().min(1)).optional(),
+  startDate: dateString.optional(),
+  endDate: dateString.optional(),
+}).refine(
+  (data) => {
+    if (data.startDate && data.endDate) return data.endDate >= data.startDate;
+    return true;
+  },
+  { message: 'End date must be on or after start date', path: ['endDate'] },
+);
+
+export const ListDirectorySitesInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  searchString: z.string().max(256).optional(),
+  active: z.boolean().optional(),
+});
+
+export const GetDirectorySiteInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  directorySiteId: z.string().min(1, 'Directory site ID is required'),
+});
+
+export const InsertDirectorySiteInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  siteId: z.string().min(1, 'Directory site ID is required'),
+});
+
 export const GenerateTagsInputSchema = z.object({
   profileId: z.string().min(1, 'Profile ID is required'),
   campaignId: z.string().min(1, 'Campaign ID is required'),
@@ -267,6 +376,7 @@ export const GenerateTagsInputSchema = z.object({
     'PLACEMENT_TAG_IFRAME_JAVASCRIPT',
     'PLACEMENT_TAG_INTERNAL_REDIRECT',
     'PLACEMENT_TAG_CLICK_COMMANDS',
+    'PLACEMENT_TAG_VAST_2_0',
   ])).optional(),
 });
 
@@ -304,6 +414,67 @@ export type CreateCreativeInput = z.infer<typeof CreateCreativeInputSchema>;
 export type AssociateCreativeCampaignInput = z.infer<typeof AssociateCreativeCampaignInputSchema>;
 export type ListCampaignCreativeAssociationsInput = z.infer<typeof ListCampaignCreativeAssociationsInputSchema>;
 export type UploadCreativeAssetInput = z.infer<typeof UploadCreativeAssetInputSchema>;
+export type ListEventTagsInput = z.infer<typeof ListEventTagsInputSchema>;
+export type GetEventTagInput = z.infer<typeof GetEventTagInputSchema>;
+export type CreateEventTagInput = z.infer<typeof CreateEventTagInputSchema>;
+export type UpdateEventTagInput = z.infer<typeof UpdateEventTagInputSchema>;
+export type DeleteEventTagInput = z.infer<typeof DeleteEventTagInputSchema>;
+export type ListPlacementGroupsInput = z.infer<typeof ListPlacementGroupsInputSchema>;
+export type GetPlacementGroupInput = z.infer<typeof GetPlacementGroupInputSchema>;
+export type CreatePlacementGroupInput = z.infer<typeof CreatePlacementGroupInputSchema>;
+export type UpdatePlacementGroupInput = z.infer<typeof UpdatePlacementGroupInputSchema>;
+export type ListDirectorySitesInput = z.infer<typeof ListDirectorySitesInputSchema>;
+export type GetDirectorySiteInput = z.infer<typeof GetDirectorySiteInputSchema>;
+export type InsertDirectorySiteInput = z.infer<typeof InsertDirectorySiteInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Change Logs (read-only audit trail)
+// ---------------------------------------------------------------------------
+
+export const ListChangeLogsInputSchema = z.object({
+  profileId: z.string().min(1),
+  objectType: z.enum([
+    'OBJECT_ADVERTISER', 'OBJECT_CAMPAIGN', 'OBJECT_PLACEMENT',
+    'OBJECT_AD', 'OBJECT_CREATIVE', 'OBJECT_LANDING_PAGE',
+    'OBJECT_EVENT_TAG', 'OBJECT_PLACEMENT_GROUP',
+    'OBJECT_FLOODLIGHT_ACTIVITY', 'OBJECT_SITE',
+  ]).optional(),
+  objectId: z.string().optional(),
+  action: z.enum([
+    'ACTION_CREATE', 'ACTION_UPDATE', 'ACTION_DELETE',
+    'ACTION_ACTIVATE', 'ACTION_DEACTIVATE', 'ACTION_ARCHIVE',
+  ]).optional(),
+  minChangeTime: z.string().optional(),
+  maxChangeTime: z.string().optional(),
+  searchString: z.string().max(256).optional(),
+  maxResults: z.number().int().min(1).max(1000).optional(),
+});
+
+export const GetChangeLogInputSchema = z.object({
+  profileId: z.string().min(1),
+  changeLogId: z.string().min(1),
+});
+
+export type ListChangeLogsInput = z.infer<typeof ListChangeLogsInputSchema>;
+export type GetChangeLogInput = z.infer<typeof GetChangeLogInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Reports (read-only saved report definitions)
+// ---------------------------------------------------------------------------
+
+export const ListReportsInputSchema = z.object({
+  profileId: z.string().max(50),
+  maxResults: z.number().min(1).max(100).optional(),
+  pageToken: z.string().max(500).optional(),
+});
+
+export const GetReportInputSchema = z.object({
+  profileId: z.string().max(50),
+  reportId: z.string().max(50),
+});
+
+export type ListReportsInput = z.infer<typeof ListReportsInputSchema>;
+export type GetReportInput = z.infer<typeof GetReportInputSchema>;
 
 // ---------------------------------------------------------------------------
 // Helper: format Zod errors into a readable string

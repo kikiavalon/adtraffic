@@ -3,7 +3,7 @@ import type { BooleanFlagName, ResolvedFlags } from '../feature-flags/flag-regis
 
 /**
  * CM360 tool definitions for Claude's tool use.
- * 30 CM360 tools: 14 read + 6 create + 5 update + 1 tag gen + 3 search/detail + 1 upload.
+ * 46 CM360 tools: 14 read + 6 create + 5 update + 1 tag gen + 3 search/detail + 1 upload + 5 event tags + 4 placement groups + 3 directory sites + 2 change logs + 2 reports.
  *
  * Note: Tools are defined but not executed yet.
  * When Claude returns a tool_use block, the chat service will
@@ -199,7 +199,7 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'cm360_generate_tags',
-    description: 'Generate ad serving tags (JavaScript, iframe, etc.) for one or more placements. Returns the tag code ready to send to publishers.',
+    description: 'Generate ad serving tags for one or more placements. Auto-detects VAST format for video placements, standard JavaScript for display. Returns the tag code ready to send to publishers.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -214,9 +214,9 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
           type: 'array',
           items: {
             type: 'string',
-            enum: ['PLACEMENT_TAG_STANDARD', 'PLACEMENT_TAG_IFRAME_JAVASCRIPT', 'PLACEMENT_TAG_INTERNAL_REDIRECT', 'PLACEMENT_TAG_CLICK_COMMANDS'],
+            enum: ['PLACEMENT_TAG_STANDARD', 'PLACEMENT_TAG_IFRAME_JAVASCRIPT', 'PLACEMENT_TAG_INTERNAL_REDIRECT', 'PLACEMENT_TAG_CLICK_COMMANDS', 'PLACEMENT_TAG_VAST_2_0'],
           },
-          description: 'Tag formats to generate (default: PLACEMENT_TAG_STANDARD)',
+          description: 'Tag formats to generate. If omitted, auto-detects based on placement type (VAST for video, standard for display).',
         },
       },
       required: ['profileId', 'campaignId', 'placementIds'],
@@ -468,6 +468,277 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
       required: ['profileId', 'advertiserId', 'assetName', 'assetType', 'assetData'],
     },
   },
+
+  // --- Phase C: Event Tags ---
+
+  {
+    name: 'cm360_list_event_tags',
+    description: 'List event tags for a campaign. Event tags are impression/click tracking pixels attached to campaigns for third-party verification (e.g., DoubleVerify, IAS, MOAT).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'Campaign ID to list event tags for' },
+        advertiserId: { type: 'string', description: 'Optional filter by advertiser ID' },
+        searchString: { type: 'string', description: 'Optional filter by event tag name (case-insensitive partial match)' },
+      },
+      required: ['profileId', 'campaignId'],
+    },
+  },
+  {
+    name: 'cm360_get_event_tag',
+    description: 'Get detailed information about a single event tag by ID, including type, URL, status, site assignments, and whether it fires by default.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        eventTagId: { type: 'string', description: 'The event tag ID to retrieve' },
+      },
+      required: ['profileId', 'eventTagId'],
+    },
+  },
+  {
+    name: 'cm360_create_event_tag',
+    description: '[WRITE] Create a new event tag (tracking pixel) for a campaign. IMPORTANT: Always preview and confirm with the user before calling this tool. Supports impression image pixels, impression JavaScript tags, and click-through event tags for third-party verification.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'The advertiser ID' },
+        campaignId: { type: 'string', description: 'The campaign ID to attach the event tag to' },
+        name: { type: 'string', description: 'Event tag name (max 256 characters)' },
+        url: { type: 'string', description: 'Tag URL (must be a valid URL, preferably HTTPS for SSL compliance)' },
+        type: {
+          type: 'string',
+          enum: ['IMPRESSION_IMAGE_EVENT_TAG', 'IMPRESSION_JAVASCRIPT_EVENT_TAG', 'CLICK_THROUGH_EVENT_TAG'],
+          description: 'Event tag type: image pixel (1x1 img), JavaScript tag, or click-through redirect',
+        },
+        siteIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional: restrict this tag to specific site IDs. If omitted, applies to all sites.',
+        },
+        enabledByDefault: { type: 'boolean', description: 'Whether the tag fires by default on all placements in the campaign (default: false)' },
+      },
+      required: ['profileId', 'advertiserId', 'campaignId', 'name', 'url', 'type'],
+    },
+  },
+  {
+    name: 'cm360_update_event_tag',
+    description: '[WRITE] Update an existing event tag. Can change name, URL, status (ENABLED/DISABLED), site assignments, or default firing behavior. Always preview changes and confirm with the user before executing.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        eventTagId: { type: 'string', description: 'The event tag ID to update' },
+        name: { type: 'string', description: 'New event tag name (1-256 characters)' },
+        url: { type: 'string', description: 'New tag URL (must be a valid URL)' },
+        status: { type: 'string', enum: ['ENABLED', 'DISABLED'], description: 'Enable or disable the event tag' },
+        siteIds: { type: 'array', items: { type: 'string' }, description: 'New site assignments (replaces existing)' },
+        enabledByDefault: { type: 'boolean', description: 'Whether the tag fires by default on all placements' },
+      },
+      required: ['profileId', 'eventTagId'],
+    },
+  },
+  {
+    name: 'cm360_delete_event_tag',
+    description: '[WRITE] Delete an event tag. IMPORTANT: This is a destructive action — always preview and confirm with the user before executing. The tag will be permanently removed from the campaign.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        eventTagId: { type: 'string', description: 'The event tag ID to delete' },
+      },
+      required: ['profileId', 'eventTagId'],
+    },
+  },
+  // --- Placement Groups ---
+  {
+    name: 'cm360_list_placement_groups',
+    description: 'List placement groups for a campaign. Placement groups bundle placements together — PLACEMENT_PACKAGE for consolidated billing, PLACEMENT_ROADBLOCK for simultaneous delivery on a site. Returns group name, type, member placements, and schedule.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'The campaign ID to list placement groups for' },
+        advertiserId: { type: 'string', description: 'Optional: filter by advertiser ID' },
+        searchString: { type: 'string', description: 'Optional: filter by name (case-insensitive partial match)' },
+        maxResults: { type: 'number', description: 'Maximum results to return (default 100, max 1000)' },
+      },
+      required: ['profileId', 'campaignId'],
+    },
+  },
+  {
+    name: 'cm360_get_placement_group',
+    description: 'Get detailed information about a single placement group by ID, including group type (package or roadblock), member placement IDs, site, and pricing schedule.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        placementGroupId: { type: 'string', description: 'The placement group ID to retrieve' },
+      },
+      required: ['profileId', 'placementGroupId'],
+    },
+  },
+  {
+    name: 'cm360_create_placement_group',
+    description: '[WRITE] Create a new placement group to bundle placements together. IMPORTANT: Always preview and confirm with the user before calling this tool. Use PLACEMENT_PACKAGE for billing bundles or PLACEMENT_ROADBLOCK for simultaneous ad delivery on a single site.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'The campaign ID to create the group under' },
+        siteId: { type: 'string', description: 'The site ID for this placement group' },
+        name: { type: 'string', description: 'Placement group name (max 256 characters)' },
+        placementGroupType: {
+          type: 'string',
+          enum: ['PLACEMENT_PACKAGE', 'PLACEMENT_ROADBLOCK'],
+          description: 'Group type: PLACEMENT_PACKAGE bundles placements for billing; PLACEMENT_ROADBLOCK ensures simultaneous delivery',
+        },
+        placementIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Optional: placement IDs to include in this group at creation time',
+        },
+        startDate: { type: 'string', description: 'Start date in YYYY-MM-DD format' },
+        endDate: { type: 'string', description: 'End date in YYYY-MM-DD format' },
+      },
+      required: ['profileId', 'campaignId', 'siteId', 'name', 'placementGroupType', 'startDate', 'endDate'],
+    },
+  },
+  {
+    name: 'cm360_update_placement_group',
+    description: '[WRITE] Update an existing placement group. Can change name, active status (ACTIVE/ARCHIVED), member placements, or schedule dates. Always preview changes and confirm with the user before executing. Note: group type (package/roadblock) cannot be changed after creation.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        placementGroupId: { type: 'string', description: 'The placement group ID to update' },
+        name: { type: 'string', description: 'New placement group name (1-256 characters)' },
+        activeStatus: { type: 'string', enum: ['ACTIVE', 'ARCHIVED'], description: 'Set active or archive the group' },
+        placementIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'New member placement IDs (replaces existing members)',
+        },
+        startDate: { type: 'string', description: 'New start date in YYYY-MM-DD format' },
+        endDate: { type: 'string', description: 'New end date in YYYY-MM-DD format' },
+      },
+      required: ['profileId', 'placementGroupId'],
+    },
+  },
+
+  // --- Directory Sites (browse/approve publishers from Google's directory) ---
+
+  {
+    name: 'cm360_list_directory_sites',
+    description: 'Browse directory sites from Google\'s publisher catalog. These are potential sites that can be approved for ad trafficking. Use searchString to filter by name. Returns site ID, name, URL, active status, and supported tag formats.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        searchString: { type: 'string', description: 'Filter by site name (case-insensitive partial match)' },
+        active: { type: 'boolean', description: 'Filter by active status (true/false)' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_get_directory_site',
+    description: 'Get details of a specific directory site by ID, including its name, URL, active status, and supported tag formats (interstitial and inpage).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        directorySiteId: { type: 'string', description: 'The directory site ID to look up' },
+      },
+      required: ['profileId', 'directorySiteId'],
+    },
+  },
+  {
+    name: 'cm360_insert_directory_site',
+    description: 'Approve a directory site for ad trafficking. This inserts the directory site entry, which creates an approved CM360 site that can be used for placements. IMPORTANT: Always preview the directory site details and get user confirmation before inserting.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        siteId: { type: 'string', description: 'The directory site ID to approve/insert' },
+      },
+      required: ['profileId', 'siteId'],
+    },
+  },
+
+  // --- Change Logs (read-only audit trail) ---
+
+  {
+    name: 'cm360_list_change_logs',
+    description: 'List change log entries — an audit trail of who changed what and when in the CM360 account. Can filter by object type (campaign, placement, ad, creative, etc.), specific object ID, action type (create, update, delete), date range, and search string. Returns newest changes first. Critical for enterprise compliance and audit-readiness.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        objectType: {
+          type: 'string',
+          enum: [
+            'OBJECT_ADVERTISER', 'OBJECT_CAMPAIGN', 'OBJECT_PLACEMENT',
+            'OBJECT_AD', 'OBJECT_CREATIVE', 'OBJECT_LANDING_PAGE',
+            'OBJECT_EVENT_TAG', 'OBJECT_PLACEMENT_GROUP',
+            'OBJECT_FLOODLIGHT_ACTIVITY', 'OBJECT_SITE',
+          ],
+          description: 'Filter by the type of object that was changed',
+        },
+        objectId: { type: 'string', description: 'Filter by specific object ID to see all changes to a single entity' },
+        action: {
+          type: 'string',
+          enum: ['ACTION_CREATE', 'ACTION_UPDATE', 'ACTION_DELETE', 'ACTION_ACTIVATE', 'ACTION_DEACTIVATE', 'ACTION_ARCHIVE'],
+          description: 'Filter by type of change action',
+        },
+        minChangeTime: { type: 'string', description: 'Only return changes after this ISO 8601 timestamp' },
+        maxChangeTime: { type: 'string', description: 'Only return changes before this ISO 8601 timestamp' },
+        searchString: { type: 'string', description: 'Search across field names, old/new values, object types, and actions' },
+        maxResults: { type: 'number', description: 'Maximum results to return (default 100, max 1000)' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_get_change_log',
+    description: 'Get details of a single change log entry by ID. Returns the full audit record including who made the change, what object was changed, the action taken, and the old/new field values.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        changeLogId: { type: 'string', description: 'The change log entry ID to retrieve' },
+      },
+      required: ['profileId', 'changeLogId'],
+    },
+  },
+  // --- Reports ---
+  {
+    name: 'cm360_list_reports',
+    description: 'List saved report definitions in the CM360 account. Reports define which dimensions, metrics, and filters are used to query campaign data. Returns report name, type (STANDARD, REACH, PATH_TO_CONVERSION, FLOODLIGHT, CROSS_MEDIA_REACH), criteria, and schedule information.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        maxResults: { type: 'number', description: 'Maximum number of results (1-100)' },
+        pageToken: { type: 'string', description: 'Token for next page of results' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_get_report',
+    description: 'Get detailed information about a specific saved report definition, including its dimensions, metrics, filters, date range, and schedule. Use this to understand what data a report will produce before running it.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        reportId: { type: 'string', description: 'The report ID' },
+      },
+      required: ['profileId', 'reportId'],
+    },
+  },
 ];
 
 /**
@@ -506,6 +777,30 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   cm360_update_landing_page: 'cm360.write_operations',
   cm360_associate_creative_campaign: 'cm360.write_operations',
   cm360_upload_creative_asset: 'cm360.write_operations',
+  // Event tags (read)
+  cm360_list_event_tags: 'cm360.read_operations',
+  cm360_get_event_tag: 'cm360.read_operations',
+  // Event tags (write)
+  cm360_create_event_tag: 'cm360.write_operations',
+  cm360_update_event_tag: 'cm360.write_operations',
+  cm360_delete_event_tag: 'cm360.write_operations',
+  // Placement groups (read)
+  cm360_list_placement_groups: 'cm360.read_operations',
+  cm360_get_placement_group: 'cm360.read_operations',
+  // Placement groups (write)
+  cm360_create_placement_group: 'cm360.write_operations',
+  cm360_update_placement_group: 'cm360.write_operations',
+  // Directory sites (read)
+  cm360_list_directory_sites: 'cm360.read_operations',
+  cm360_get_directory_site: 'cm360.read_operations',
+  // Directory sites (write — insert approves a site)
+  cm360_insert_directory_site: 'cm360.write_operations',
+  // Change logs (read-only audit trail)
+  cm360_list_change_logs: 'cm360.read_operations',
+  cm360_get_change_log: 'cm360.read_operations',
+  // Reports (read-only report definitions)
+  cm360_list_reports: 'cm360.read_operations',
+  cm360_get_report: 'cm360.read_operations',
   // Tag generation
   cm360_generate_tags: 'cm360.tag_generation',
 };

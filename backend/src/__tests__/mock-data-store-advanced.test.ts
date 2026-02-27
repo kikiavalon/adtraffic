@@ -279,10 +279,14 @@ describe('Seed data naming conventions', () => {
     }
   });
 
-  it('all placements have PLACEMENT_TAG_STANDARD format', () => {
+  it('all placements have a valid tag format', () => {
     const placements = mockStore.listPlacements();
+    const validFormats = ['PLACEMENT_TAG_STANDARD', 'PLACEMENT_TAG_VAST_2_0'];
     for (const p of placements) {
-      expect(p.tagFormats).toContain('PLACEMENT_TAG_STANDARD');
+      expect(p.tagFormats.length).toBeGreaterThanOrEqual(1);
+      for (const fmt of p.tagFormats) {
+        expect(validFormats).toContain(fmt);
+      }
     }
   });
 

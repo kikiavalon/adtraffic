@@ -41,9 +41,9 @@ describe('MockDataStore', () => {
       expect(campaigns.length).toBeLessThanOrEqual(28); // 7 * 4 max
     });
 
-    it('generates creatives (2 per advertiser)', () => {
+    it('generates creatives (2 display per advertiser + 3 video)', () => {
       const creatives = mockStore.listCreatives();
-      expect(creatives).toHaveLength(14);
+      expect(creatives).toHaveLength(17); // 7 advertisers * 2 display + 3 video
     });
 
     it('generates placements across campaigns', () => {
@@ -139,7 +139,7 @@ describe('MockDataStore', () => {
       const advertisers = mockStore.listAdvertisers();
       const advId = advertisers[0]!.id;
       const creatives = mockStore.listCreatives({ advertiserId: advId });
-      expect(creatives).toHaveLength(2);
+      expect(creatives).toHaveLength(4); // 2 display + 2 video for Apex Motors
       for (const c of creatives) {
         expect(c.advertiserId).toBe(advId);
       }

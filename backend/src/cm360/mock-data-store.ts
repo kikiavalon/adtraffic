@@ -25,12 +25,29 @@ import type {
   CM360CampaignCreativeAssociation,
   CM360CreativeAssetMetadata,
   CM360CreativeAssetType,
+  CM360CreativeRotationType,
+  CM360AdType,
   CM360UpdateCampaignInput,
   CM360UpdatePlacementInput,
   CM360UpdateAdInput,
   CM360UpdateCreativeInput,
   CM360UpdateLandingPageInput,
+  CM360TagFormat,
+  CM360EventTag,
+  CM360CreateEventTagInput,
+  CM360UpdateEventTagInput,
+  CM360EventTagType,
+  CM360PlacementGroup,
+  CM360PlacementGroupType,
+  CM360CreatePlacementGroupInput,
+  CM360UpdatePlacementGroupInput,
+  CM360ChangeLog,
+  CM360ChangeLogObjectType,
+  CM360ChangeLogAction,
+  CM360Report,
+  CM360ReportType,
 } from '@adtraffic/shared';
+import { randomUUID } from 'crypto';
 
 const ACCOUNT_ID = '67890';
 
@@ -62,6 +79,18 @@ class MockDataStore {
   /** Maps campaignId → Set of creativeIds */
   private campaignCreativeAssociations = new Map<string, Set<string>>();
   private creativeAssets = new Map<string, CM360CreativeAssetMetadata>();
+  private eventTags = new Map<string, CM360EventTag>();
+  private placementGroups = new Map<string, CM360PlacementGroup>();
+  private changeLogs: CM360ChangeLog[] = [];
+  private reports = new Map<string, CM360Report>();
+  private directorySites = new Map<string, {
+    id: string;
+    name: string;
+    url: string;
+    active: boolean;
+    interstitialTagFormats: string[];
+    inpageTagFormats: string[];
+  }>();
   private nextId = 90000;
 
   constructor() {
@@ -223,6 +252,36 @@ class MockDataStore {
       creativesByAdvertiser.set(advId, crIds);
     }
 
+    // --- Video Creatives ---
+    const videoCreativeDefs = [
+      { advIdx: 0, name: 'Apex_PreRoll_640x360_v1', width: 640, height: 360 },
+      { advIdx: 0, name: 'Apex_PreRoll_1920x1080_v1', width: 1920, height: 1080 },
+      { advIdx: 3, name: 'NovaTech_InStream_640x360_v1', width: 640, height: 360 },
+    ];
+    const videoCreativeIds: string[] = [];
+    for (const vcDef of videoCreativeDefs) {
+      const id = this.genId();
+      videoCreativeIds.push(id);
+      const advId = advertiserIds[vcDef.advIdx]!;
+      const existingCrIds = creativesByAdvertiser.get(advId) ?? [];
+      existingCrIds.push(id);
+      creativesByAdvertiser.set(advId, existingCrIds);
+      this.creatives.set(id, {
+        id,
+        name: vcDef.name,
+        advertiserId: advId,
+        type: 'VAST_REDIRECT',
+        size: {
+          id: `size-${vcDef.width}x${vcDef.height}`,
+          width: vcDef.width,
+          height: vcDef.height,
+          iab: false,
+        },
+        active: true,
+        archived: false,
+      });
+    }
+
     // --- Placements (~80 total, spread across campaigns and sites) ---
     const placementTypes = ['Standard', 'Roadblock', 'Interstitial'];
     for (let ai = 0; ai < advertiserIds.length; ai++) {
@@ -268,6 +327,52 @@ class MockDataStore {
       }
     }
 
+    // --- Video Placements ---
+    const videoPlacementDefs = [
+      { advIdx: 0, campIdx: 0, siteIdx: 8, name: 'Apex_Hulu_PreRoll_640x360', w: 640, h: 360 },
+      { advIdx: 0, campIdx: 0, siteIdx: 9, name: 'Apex_Spotify_Audio_640x360', w: 640, h: 360 },
+      { advIdx: 3, campIdx: 9, siteIdx: 8, name: 'NovaTech_Hulu_PreRoll_640x360', w: 640, h: 360 },
+      { advIdx: 3, campIdx: 9, siteIdx: 9, name: 'NovaTech_Spotify_InStream_640x360', w: 640, h: 360 },
+    ];
+    const videoPlacementIds: string[] = [];
+    for (const vpDef of videoPlacementDefs) {
+      const id = this.genId();
+      videoPlacementIds.push(id);
+      const advId = advertiserIds[vpDef.advIdx]!;
+      const campIds = campaignsByAdvertiser.get(advId) ?? [];
+      // campIdx is absolute index into the allCampaigns array for this advertiser
+      // For advIdx 0: campIdx 0 = first campaign
+      // For advIdx 3: campIdx 9 is relative — use last campaign for that advertiser
+      const campId = vpDef.advIdx === 0
+        ? campIds[vpDef.campIdx]!
+        : campIds[campIds.length - 1]!;
+      const siteId = siteIds[vpDef.siteIdx]!;
+      const camp = this.campaigns.get(campId)!;
+
+      this.placements.set(id, {
+        id,
+        name: vpDef.name,
+        accountId: ACCOUNT_ID,
+        advertiserId: advId,
+        campaignId: campId,
+        siteId,
+        size: {
+          id: `size-${vpDef.w}x${vpDef.h}`,
+          width: vpDef.w,
+          height: vpDef.h,
+          iab: false,
+        },
+        status: 'PAYMENT_ACCEPTED',
+        activeStatus: 'ACTIVE',
+        compatibility: 'IN_STREAM_VIDEO',
+        pricingSchedule: {
+          startDate: camp.startDate,
+          endDate: camp.endDate,
+        },
+        tagFormats: ['PLACEMENT_TAG_VAST_2_0'],
+      });
+    }
+
     // --- Ads (~40 total, subset linking creatives to placements) ---
     for (let ai = 0; ai < advertiserIds.length; ai++) {
       const advId = advertiserIds[ai]!;
@@ -292,15 +397,61 @@ class MockDataStore {
             name: `${advName}_Ad_${placement.size.width}x${placement.size.height}_${a + 1}`,
             campaignId: campId,
             advertiserId: advId,
+            type: 'AD_SERVING_DEFAULT_AD' as CM360AdType,
             active: true,
             archived: false,
             placementAssignments: [{ placementId: placement.id }],
             creativeRotation: {
+              type: 'CREATIVE_ROTATION_TYPE_RANDOM' as CM360CreativeRotationType,
               creativeAssignments: [{ creativeId }],
             },
           });
         }
       }
+    }
+
+    // --- Video Ads (linking video creatives to video placements) ---
+    // Video ad 1: Apex Motors - Hulu PreRoll
+    {
+      const id = this.genId();
+      const advId = advertiserIds[0]!;
+      const campIds = campaignsByAdvertiser.get(advId) ?? [];
+      const campId = campIds[0]!;
+      this.ads.set(id, {
+        id,
+        name: 'Apex_VideoAd_Hulu_PreRoll_1',
+        campaignId: campId,
+        advertiserId: advId,
+        type: 'AD_SERVING_DEFAULT_AD' as CM360AdType,
+        active: true,
+        archived: false,
+        placementAssignments: [{ placementId: videoPlacementIds[0]! }],
+        creativeRotation: {
+          type: 'CREATIVE_ROTATION_TYPE_RANDOM' as CM360CreativeRotationType,
+          creativeAssignments: [{ creativeId: videoCreativeIds[0]! }],
+        },
+      });
+    }
+    // Video ad 2: NovaTech - Hulu PreRoll
+    {
+      const id = this.genId();
+      const advId = advertiserIds[3]!;
+      const campIds = campaignsByAdvertiser.get(advId) ?? [];
+      const campId = campIds[campIds.length - 1]!;
+      this.ads.set(id, {
+        id,
+        name: 'NovaTech_VideoAd_Hulu_PreRoll_1',
+        campaignId: campId,
+        advertiserId: advId,
+        type: 'AD_SERVING_DEFAULT_AD' as CM360AdType,
+        active: true,
+        archived: false,
+        placementAssignments: [{ placementId: videoPlacementIds[2]! }],
+        creativeRotation: {
+          type: 'CREATIVE_ROTATION_TYPE_RANDOM' as CM360CreativeRotationType,
+          creativeAssignments: [{ creativeId: videoCreativeIds[2]! }],
+        },
+      });
     }
 
     // --- Campaign-Creative Associations (seed from ad data) ---
@@ -310,6 +461,277 @@ class MockDataStore {
         assocSet.add(ca.creativeId);
       }
       this.campaignCreativeAssociations.set(ad.campaignId, assocSet);
+    }
+
+    // --- Event Tags (6 tags across campaigns at advertiser indices 0, 3, 6) ---
+    const eventTagDefs: Array<{
+      advIdx: number;
+      campRelIdx: number;
+      name: string;
+      url: string;
+      type: CM360EventTagType;
+      enabledByDefault: boolean;
+    }> = [
+      {
+        advIdx: 0, campRelIdx: 0,
+        name: 'Apex DV Impression Tracker',
+        url: 'https://cdn.doubleverify.com/dvtp_src.js?ctx=1234567&cmp=DV_CAMPAIGN',
+        type: 'IMPRESSION_JAVASCRIPT_EVENT_TAG',
+        enabledByDefault: true,
+      },
+      {
+        advIdx: 0, campRelIdx: 0,
+        name: 'Apex IAS Viewability Pixel',
+        url: 'https://pixel.adsafeprotected.com/rjss/st/12345/67890/skeleton.js',
+        type: 'IMPRESSION_JAVASCRIPT_EVENT_TAG',
+        enabledByDefault: true,
+      },
+      {
+        advIdx: 3, campRelIdx: 0,
+        name: 'NovaTech Adobe Click Tracker',
+        url: 'https://metrics.example.com/b/ss/novatech-clicktag/1/JS-2.0/s123456',
+        type: 'CLICK_THROUGH_EVENT_TAG',
+        enabledByDefault: false,
+      },
+      {
+        advIdx: 3, campRelIdx: 1,
+        name: 'NovaTech MOAT Attention Pixel',
+        url: 'https://z.moatads.com/novatechpixel123456/moatad.js',
+        type: 'IMPRESSION_JAVASCRIPT_EVENT_TAG',
+        enabledByDefault: true,
+      },
+      {
+        advIdx: 6, campRelIdx: 0,
+        name: 'Harvest Impression Pixel',
+        url: 'https://secure.adnxs.com/imptr?id=9876543&t=1',
+        type: 'IMPRESSION_IMAGE_EVENT_TAG',
+        enabledByDefault: true,
+      },
+      {
+        advIdx: 6, campRelIdx: 0,
+        name: 'Harvest Click Redirect',
+        url: 'https://track.harvestorganics.com/click?cid=harvest-q1-2026',
+        type: 'CLICK_THROUGH_EVENT_TAG',
+        enabledByDefault: false,
+      },
+    ];
+
+    for (const etDef of eventTagDefs) {
+      const id = this.genId();
+      const advId = advertiserIds[etDef.advIdx]!;
+      const campIds = campaignsByAdvertiser.get(advId) ?? [];
+      const campId = campIds[etDef.campRelIdx] ?? campIds[0]!;
+      this.eventTags.set(id, {
+        id,
+        accountId: ACCOUNT_ID,
+        advertiserId: advId,
+        campaignId: campId,
+        name: etDef.name,
+        url: etDef.url,
+        type: etDef.type,
+        status: 'ENABLED',
+        siteIds: [],
+        enabledByDefault: etDef.enabledByDefault,
+        excludeFromAdxRequests: false,
+        sslCompliant: etDef.url.startsWith('https'),
+      });
+    }
+
+    // --- Placement Groups (4 groups across advertiser indices 0 and 3) ---
+    const placementGroupDefs: Array<{
+      advIdx: number;
+      campRelIdx: number;
+      name: string;
+      groupType: CM360PlacementGroupType;
+    }> = [
+      {
+        advIdx: 0, campRelIdx: 0,
+        name: 'Apex Motors Display Package Q1',
+        groupType: 'PLACEMENT_PACKAGE',
+      },
+      {
+        advIdx: 0, campRelIdx: 0,
+        name: 'Apex Motors Homepage Roadblock',
+        groupType: 'PLACEMENT_ROADBLOCK',
+      },
+      {
+        advIdx: 3, campRelIdx: 0,
+        name: 'NovaTech Standard Display Bundle',
+        groupType: 'PLACEMENT_PACKAGE',
+      },
+      {
+        advIdx: 3, campRelIdx: 1,
+        name: 'NovaTech Takeover Roadblock',
+        groupType: 'PLACEMENT_ROADBLOCK',
+      },
+    ];
+
+    for (const pgDef of placementGroupDefs) {
+      const id = this.genId();
+      const advId = advertiserIds[pgDef.advIdx]!;
+      const campIds = campaignsByAdvertiser.get(advId) ?? [];
+      const campId = campIds[pgDef.campRelIdx] ?? campIds[0]!;
+      const camp = this.campaigns.get(campId)!;
+
+      // Collect first 2 placements that belong to this campaign + advertiser
+      const matchingPlacements = [...this.placements.values()]
+        .filter((pl) => pl.campaignId === campId && pl.advertiserId === advId)
+        .slice(0, 2)
+        .map((pl) => pl.id);
+
+      // Use first placement's siteId, or fall back to first site
+      const siteId = matchingPlacements.length > 0
+        ? this.placements.get(matchingPlacements[0]!)!.siteId
+        : siteIds[0]!;
+
+      this.placementGroups.set(id, {
+        id,
+        name: pgDef.name,
+        accountId: ACCOUNT_ID,
+        advertiserId: advId,
+        campaignId: campId,
+        siteId,
+        placementGroupType: pgDef.groupType,
+        placementIds: matchingPlacements,
+        activeStatus: 'ACTIVE',
+        pricingSchedule: {
+          startDate: camp.startDate,
+          endDate: camp.endDate,
+        },
+      });
+    }
+
+    // --- Directory Sites (15 publishers from Google's directory, not yet approved) ---
+    const directorySiteDefs: Array<{ name: string; url: string }> = [
+      { name: 'BuzzFeed', url: 'https://www.buzzfeed.com' },
+      { name: 'Mashable', url: 'https://mashable.com' },
+      { name: 'Vox Media', url: 'https://www.voxmedia.com' },
+      { name: 'Wired', url: 'https://www.wired.com' },
+      { name: 'The Guardian', url: 'https://www.theguardian.com' },
+      { name: 'Business Insider', url: 'https://www.businessinsider.com' },
+      { name: 'Axios', url: 'https://www.axios.com' },
+      { name: 'Politico', url: 'https://www.politico.com' },
+      { name: 'Vice', url: 'https://www.vice.com' },
+      { name: 'The Atlantic', url: 'https://www.theatlantic.com' },
+      { name: 'Slate', url: 'https://slate.com' },
+      { name: 'The Daily Beast', url: 'https://www.thedailybeast.com' },
+      { name: 'Engadget', url: 'https://www.engadget.com' },
+      { name: 'Ars Technica', url: 'https://arstechnica.com' },
+      { name: 'Gizmodo', url: 'https://gizmodo.com' },
+    ];
+    const tagFormats = [
+      'PLACEMENT_TAG_STANDARD',
+      'PLACEMENT_TAG_IFRAME_JAVASCRIPT',
+      'PLACEMENT_TAG_INTERNAL_REDIRECT',
+      'PLACEMENT_TAG_JAVASCRIPT',
+    ];
+    for (const ds of directorySiteDefs) {
+      const id = this.genId();
+      this.directorySites.set(id, {
+        id,
+        name: ds.name,
+        url: ds.url,
+        active: true,
+        interstitialTagFormats: [tagFormats[0]!, tagFormats[1]!],
+        inpageTagFormats: [...tagFormats],
+      });
+    }
+
+    // --- Change Logs (20 audit trail entries referencing real entity IDs) ---
+    const allCampaignIds = [...this.campaigns.keys()];
+    const allPlacementIds = [...this.placements.keys()];
+    const allAdIds = [...this.ads.keys()];
+    const allCreativeIds = [...this.creatives.keys()];
+    const allEventTagIds = [...this.eventTags.keys()];
+    const allPlacementGroupIds = [...this.placementGroups.keys()];
+
+    const changeLogDefs: Array<{
+      objectType: CM360ChangeLogObjectType;
+      objectId: string;
+      action: CM360ChangeLogAction;
+      fieldName?: string;
+      oldValue?: string;
+      newValue?: string;
+      daysAgo: number;
+    }> = [
+      // Campaign changes
+      { objectType: 'OBJECT_CAMPAIGN', objectId: allCampaignIds[0]!, action: 'ACTION_CREATE', daysAgo: 30 },
+      { objectType: 'OBJECT_CAMPAIGN', objectId: allCampaignIds[0]!, action: 'ACTION_UPDATE', fieldName: 'name', oldValue: 'Q1 Launch Draft', newValue: 'Q1 Launch', daysAgo: 28 },
+      { objectType: 'OBJECT_CAMPAIGN', objectId: allCampaignIds[1]!, action: 'ACTION_CREATE', daysAgo: 25 },
+      { objectType: 'OBJECT_CAMPAIGN', objectId: allCampaignIds[2]!, action: 'ACTION_CREATE', daysAgo: 20 },
+      { objectType: 'OBJECT_CAMPAIGN', objectId: allCampaignIds[2]!, action: 'ACTION_ARCHIVE', daysAgo: 5 },
+      // Placement changes
+      { objectType: 'OBJECT_PLACEMENT', objectId: allPlacementIds[0]!, action: 'ACTION_CREATE', daysAgo: 29 },
+      { objectType: 'OBJECT_PLACEMENT', objectId: allPlacementIds[0]!, action: 'ACTION_ACTIVATE', daysAgo: 27 },
+      { objectType: 'OBJECT_PLACEMENT', objectId: allPlacementIds[1]!, action: 'ACTION_CREATE', daysAgo: 24 },
+      { objectType: 'OBJECT_PLACEMENT', objectId: allPlacementIds[2]!, action: 'ACTION_UPDATE', fieldName: 'activeStatus', oldValue: 'ACTIVE', newValue: 'INACTIVE', daysAgo: 10 },
+      // Ad changes
+      { objectType: 'OBJECT_AD', objectId: allAdIds[0]!, action: 'ACTION_CREATE', daysAgo: 26 },
+      { objectType: 'OBJECT_AD', objectId: allAdIds[0]!, action: 'ACTION_UPDATE', fieldName: 'name', oldValue: 'Ad Draft 1', newValue: 'Homepage Hero Ad', daysAgo: 23 },
+      { objectType: 'OBJECT_AD', objectId: allAdIds[1]!, action: 'ACTION_DEACTIVATE', daysAgo: 8 },
+      // Creative changes
+      { objectType: 'OBJECT_CREATIVE', objectId: allCreativeIds[0]!, action: 'ACTION_CREATE', daysAgo: 28 },
+      { objectType: 'OBJECT_CREATIVE', objectId: allCreativeIds[1]!, action: 'ACTION_CREATE', daysAgo: 22 },
+      { objectType: 'OBJECT_CREATIVE', objectId: allCreativeIds[1]!, action: 'ACTION_UPDATE', fieldName: 'name', oldValue: 'Banner v1', newValue: 'Banner v2 Final', daysAgo: 15 },
+      // Event tag changes
+      { objectType: 'OBJECT_EVENT_TAG', objectId: allEventTagIds[0]!, action: 'ACTION_CREATE', daysAgo: 27 },
+      { objectType: 'OBJECT_EVENT_TAG', objectId: allEventTagIds[1]!, action: 'ACTION_UPDATE', fieldName: 'url', oldValue: 'https://old-tracker.com/px', newValue: 'https://pixel.adsafeprotected.com/rjss/st/12345/67890/skeleton.js', daysAgo: 12 },
+      // Placement group changes
+      { objectType: 'OBJECT_PLACEMENT_GROUP', objectId: allPlacementGroupIds[0]!, action: 'ACTION_CREATE', daysAgo: 26 },
+      // Advertiser changes
+      { objectType: 'OBJECT_ADVERTISER', objectId: advertiserIds[0]!, action: 'ACTION_UPDATE', fieldName: 'status', oldValue: 'ON_HOLD', newValue: 'APPROVED', daysAgo: 31 },
+      // Landing page change
+      { objectType: 'OBJECT_LANDING_PAGE', objectId: [...this.landingPages.keys()][0]!, action: 'ACTION_CREATE', daysAgo: 30 },
+    ];
+
+    const now = Date.now();
+    for (const clDef of changeLogDefs) {
+      const changeTime = new Date(now - clDef.daysAgo * 86_400_000).toISOString();
+      this.changeLogs.push({
+        id: randomUUID(),
+        userProfileId: '12345',
+        userProfileName: 'demo@agency.com',
+        objectType: clDef.objectType,
+        objectId: clDef.objectId,
+        action: clDef.action,
+        ...(clDef.fieldName !== undefined && { fieldName: clDef.fieldName }),
+        ...(clDef.oldValue !== undefined && { oldValue: clDef.oldValue }),
+        ...(clDef.newValue !== undefined && { newValue: clDef.newValue }),
+        changeTime,
+      });
+    }
+
+    // --- Reports (5 saved report definitions) ---
+    const reportDefs: Array<{
+      name: string;
+      type: CM360ReportType;
+      dimensions: string[];
+      metricNames: string[];
+      schedule?: { active: boolean; repeats: string; every: number };
+    }> = [
+      { name: 'Campaign Performance Summary', type: 'STANDARD', dimensions: ['campaign', 'date'], metricNames: ['impressions', 'clicks', 'CTR'] },
+      { name: 'Placement Delivery Report', type: 'STANDARD', dimensions: ['placement', 'site'], metricNames: ['impressions', 'reach', 'frequency'] },
+      { name: 'Creative Breakdown', type: 'STANDARD', dimensions: ['creative', 'ad'], metricNames: ['impressions', 'clicks', 'conversions'] },
+      { name: 'Audience Reach Analysis', type: 'REACH', dimensions: ['campaign'], metricNames: ['totalReach', 'averageFrequency'] },
+      { name: 'Monthly Site Summary', type: 'STANDARD', dimensions: ['site', 'placement'], metricNames: ['impressions', 'clicks'], schedule: { active: true, repeats: 'MONTHLY', every: 1 } },
+    ];
+    for (let i = 0; i < reportDefs.length; i++) {
+      const def = reportDefs[i]!;
+      const rptId = `rpt-${i + 1}`;
+      this.reports.set(rptId, {
+        id: rptId,
+        name: def.name,
+        type: def.type,
+        accountId: ACCOUNT_ID,
+        ownerProfileId: '12345',
+        criteria: {
+          dateRange: { startDate: '2026-01-01', endDate: '2026-03-31' },
+          dimensions: def.dimensions,
+          metricNames: def.metricNames,
+        },
+        ...(def.schedule && { schedule: def.schedule }),
+        lastModifiedTime: new Date(now - (i + 1) * 86_400_000).toISOString(),
+      });
     }
   }
 
@@ -438,6 +860,11 @@ class MockDataStore {
     const id = this.genId();
     // Resolve advertiserId from campaign
     const campaign = this.campaigns.get(input.campaignId);
+    const compatibility = (input.compatibility as CM360Placement['compatibility']) ?? 'DISPLAY';
+    const defaultTagFormat: CM360TagFormat = compatibility === 'IN_STREAM_VIDEO' || compatibility === 'IN_STREAM_AUDIO'
+      ? 'PLACEMENT_TAG_VAST_2_0'
+      : 'PLACEMENT_TAG_STANDARD';
+
     const placement: CM360Placement = {
       id,
       name: input.name,
@@ -453,11 +880,12 @@ class MockDataStore {
       },
       status: 'DRAFT',
       activeStatus: 'ACTIVE',
+      compatibility,
       pricingSchedule: {
         startDate: input.startDate,
         endDate: input.endDate,
       },
-      tagFormats: ['PLACEMENT_TAG_STANDARD'],
+      tagFormats: [defaultTagFormat],
     };
     this.placements.set(id, placement);
     return placement;
@@ -492,10 +920,12 @@ class MockDataStore {
       name: input.name,
       campaignId: input.campaignId,
       advertiserId: campaign?.advertiserId ?? '',
+      type: 'AD_SERVING_DEFAULT_AD',
       active: true,
       archived: false,
       placementAssignments: input.placementIds.map((pid) => ({ placementId: pid })),
       creativeRotation: {
+        type: 'CREATIVE_ROTATION_TYPE_RANDOM',
         creativeAssignments: [{ creativeId: input.creativeId }],
       },
     };
@@ -516,16 +946,32 @@ class MockDataStore {
     return results.slice(0, max);
   }
 
-  generateTags(campaignId: string, placementIds: string[]): CM360PlacementTag[] {
+  generateTags(campaignId: string, placementIds: string[], tagFormats?: string[]): CM360PlacementTag[] {
     return placementIds.map((pid) => {
       const placement = this.placements.get(pid);
+
+      // Auto-detect format based on placement compatibility
+      let defaultFormat: CM360TagFormat = 'PLACEMENT_TAG_STANDARD';
+      if (placement?.compatibility === 'IN_STREAM_VIDEO' || placement?.compatibility === 'IN_STREAM_AUDIO') {
+        defaultFormat = 'PLACEMENT_TAG_VAST_2_0';
+      }
+
+      const formats = tagFormats ?? [defaultFormat];
+
       return {
         placementId: pid,
-        tagData: [{
-          format: 'PLACEMENT_TAG_STANDARD',
-          impressionTag: `<script src="https://ad.doubleclick.net/ddm/trackimp/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_aid=${placement?.id ?? 'unknown'};dc_trk_cid=${campaignId};ord=[timestamp]"></script>`,
-          clickTag: `https://ad.doubleclick.net/ddm/trackclk/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_aid=${placement?.id ?? 'unknown'};dc_trk_cid=${campaignId}`,
-        }],
+        tagData: formats.map((fmt) => {
+          const isVast = fmt.includes('VAST');
+          return {
+            format: fmt as CM360TagFormat,
+            impressionTag: isVast
+              ? `<VAST version="2.0"><Ad id="${pid}"><InLine><AdSystem>CM360</AdSystem><AdTitle>${placement?.name ?? 'Unknown'}</AdTitle><Impression><![CDATA[https://ad.doubleclick.net/ddm/trackimp/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_cid=${campaignId};ord=[timestamp]]]></Impression><Creatives><Creative><Linear><MediaFiles></MediaFiles></Linear></Creative></Creatives></InLine></Ad></VAST>`
+              : `<script src="https://ad.doubleclick.net/ddm/trackimp/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_aid=${placement?.id ?? 'unknown'};dc_trk_cid=${campaignId};ord=[timestamp]"></script>`,
+            clickTag: isVast
+              ? `https://ad.doubleclick.net/ddm/trackclk/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_cid=${campaignId}`
+              : `https://ad.doubleclick.net/ddm/trackclk/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_aid=${placement?.id ?? 'unknown'};dc_trk_cid=${campaignId}`,
+          };
+        }),
       };
     });
   }
@@ -658,6 +1104,142 @@ class MockDataStore {
     return asset;
   }
 
+  // --- Event Tags ---
+
+  listEventTags(
+    campaignId: string,
+    filter?: { advertiserId?: string; searchString?: string },
+  ): CM360EventTag[] {
+    let results = [...this.eventTags.values()].filter((et) => et.campaignId === campaignId);
+    if (filter?.advertiserId) {
+      results = results.filter((et) => et.advertiserId === filter.advertiserId);
+    }
+    if (filter?.searchString) {
+      const search = filter.searchString.toLowerCase();
+      results = results.filter((et) => et.name.toLowerCase().includes(search));
+    }
+    return results;
+  }
+
+  getEventTag(id: string): CM360EventTag | undefined {
+    return this.eventTags.get(id);
+  }
+
+  createEventTag(input: CM360CreateEventTagInput): CM360EventTag {
+    // Validate campaign exists
+    if (!this.campaigns.has(input.campaignId)) {
+      throw new Error(`Campaign ${input.campaignId} not found`);
+    }
+    const id = this.genId();
+    const tag: CM360EventTag = {
+      id,
+      accountId: ACCOUNT_ID,
+      advertiserId: input.advertiserId,
+      campaignId: input.campaignId,
+      name: input.name,
+      url: input.url,
+      type: input.type,
+      status: 'ENABLED',
+      siteIds: input.siteIds ?? [],
+      enabledByDefault: input.enabledByDefault ?? false,
+      excludeFromAdxRequests: false,
+      sslCompliant: input.url.startsWith('https'),
+    };
+    this.eventTags.set(id, tag);
+    return tag;
+  }
+
+  updateEventTag(id: string, input: CM360UpdateEventTagInput): CM360EventTag | undefined {
+    const tag = this.eventTags.get(id);
+    if (!tag) return undefined;
+    const updated: CM360EventTag = {
+      ...tag,
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.url !== undefined && { url: input.url, sslCompliant: input.url.startsWith('https') }),
+      ...(input.status !== undefined && { status: input.status }),
+      ...(input.siteIds !== undefined && { siteIds: input.siteIds }),
+      ...(input.enabledByDefault !== undefined && { enabledByDefault: input.enabledByDefault }),
+    };
+    this.eventTags.set(id, updated);
+    return updated;
+  }
+
+  deleteEventTag(id: string): boolean {
+    return this.eventTags.delete(id);
+  }
+
+  // --- Placement Groups ---
+
+  listPlacementGroups(
+    campaignId: string,
+    filter?: { advertiserId?: string; searchString?: string; maxResults?: number },
+  ): CM360PlacementGroup[] {
+    let results = [...this.placementGroups.values()].filter((pg) => pg.campaignId === campaignId);
+    if (filter?.advertiserId) {
+      results = results.filter((pg) => pg.advertiserId === filter.advertiserId);
+    }
+    if (filter?.searchString) {
+      const search = filter.searchString.toLowerCase();
+      results = results.filter((pg) => pg.name.toLowerCase().includes(search));
+    }
+    const max = filter?.maxResults ?? 100;
+    return results.slice(0, max);
+  }
+
+  getPlacementGroup(id: string): CM360PlacementGroup | undefined {
+    return this.placementGroups.get(id);
+  }
+
+  createPlacementGroup(input: CM360CreatePlacementGroupInput): CM360PlacementGroup {
+    // Validate campaign exists
+    if (!this.campaigns.has(input.campaignId)) {
+      throw new Error(`Campaign ${input.campaignId} not found`);
+    }
+    // Validate site exists
+    if (!this.sites.has(input.siteId)) {
+      throw new Error(`Site ${input.siteId} not found`);
+    }
+    // Derive advertiserId from campaign
+    const campaign = this.campaigns.get(input.campaignId)!;
+    const id = this.genId();
+    const group: CM360PlacementGroup = {
+      id,
+      name: input.name,
+      accountId: ACCOUNT_ID,
+      advertiserId: campaign.advertiserId,
+      campaignId: input.campaignId,
+      siteId: input.siteId,
+      placementGroupType: input.placementGroupType,
+      placementIds: input.placementIds ?? [],
+      activeStatus: 'ACTIVE',
+      pricingSchedule: {
+        startDate: input.startDate,
+        endDate: input.endDate,
+      },
+    };
+    this.placementGroups.set(id, group);
+    return group;
+  }
+
+  updatePlacementGroup(id: string, input: CM360UpdatePlacementGroupInput): CM360PlacementGroup | undefined {
+    const group = this.placementGroups.get(id);
+    if (!group) return undefined;
+    const updated: CM360PlacementGroup = {
+      ...group,
+      ...(input.name !== undefined && { name: input.name }),
+      ...(input.activeStatus !== undefined && { activeStatus: input.activeStatus }),
+      ...(input.placementIds !== undefined && { placementIds: input.placementIds }),
+      ...((input.startDate !== undefined || input.endDate !== undefined) && {
+        pricingSchedule: {
+          startDate: input.startDate ?? group.pricingSchedule.startDate,
+          endDate: input.endDate ?? group.pricingSchedule.endDate,
+        },
+      }),
+    };
+    this.placementGroups.set(id, updated);
+    return updated;
+  }
+
   // --- Update methods ---
 
   updateCampaign(id: string, input: CM360UpdateCampaignInput): CM360Campaign | undefined {
@@ -709,6 +1291,7 @@ class MockDataStore {
       }),
       ...(input.creativeId !== undefined && {
         creativeRotation: {
+          type: ad.creativeRotation.type,
           creativeAssignments: [{ creativeId: input.creativeId }],
         },
       }),
@@ -743,6 +1326,121 @@ class MockDataStore {
     return updated;
   }
 
+  // --- Directory Sites ---
+
+  listDirectorySites(filter: { searchString?: string; active?: boolean } = {}): Array<{
+    id: string; name: string; url: string; active: boolean;
+    interstitialTagFormats: string[]; inpageTagFormats: string[];
+  }> {
+    let results = [...this.directorySites.values()];
+    if (filter.searchString) {
+      const s = filter.searchString.toLowerCase();
+      results = results.filter(
+        (ds) => ds.name.toLowerCase().includes(s) || ds.url.toLowerCase().includes(s),
+      );
+    }
+    if (filter.active !== undefined) {
+      results = results.filter((ds) => ds.active === filter.active);
+    }
+    return results;
+  }
+
+  getDirectorySite(id: string): {
+    id: string; name: string; url: string; active: boolean;
+    interstitialTagFormats: string[]; inpageTagFormats: string[];
+  } | null {
+    return this.directorySites.get(id) ?? null;
+  }
+
+  /**
+   * "Insert" a directory site — this creates an approved CM360Site from the
+   * directory entry, mirroring the real CM360 directorySites.insert behavior.
+   */
+  insertDirectorySite(directorySiteId: string): CM360Site {
+    const ds = this.directorySites.get(directorySiteId);
+    if (!ds) {
+      throw new Error(`Directory site ${directorySiteId} not found`);
+    }
+    // Check if already approved as a site
+    for (const site of this.sites.values()) {
+      if (site.name === ds.name) {
+        return site; // Idempotent — return existing site
+      }
+    }
+    const siteId = this.genId();
+    const site: CM360Site = {
+      id: siteId,
+      name: ds.name,
+      accountId: ACCOUNT_ID,
+      approved: true,
+    };
+    this.sites.set(siteId, site);
+    return site;
+  }
+
+  // --- Change Logs ---
+
+  listChangeLogs(filter: {
+    objectType?: CM360ChangeLogObjectType;
+    objectId?: string;
+    action?: CM360ChangeLogAction;
+    minChangeTime?: string;
+    maxChangeTime?: string;
+    searchString?: string;
+    maxResults?: number;
+  } = {}): CM360ChangeLog[] {
+    let results = [...this.changeLogs];
+
+    if (filter.objectType) {
+      results = results.filter((cl) => cl.objectType === filter.objectType);
+    }
+    if (filter.objectId) {
+      results = results.filter((cl) => cl.objectId === filter.objectId);
+    }
+    if (filter.action) {
+      results = results.filter((cl) => cl.action === filter.action);
+    }
+    if (filter.minChangeTime) {
+      const min = new Date(filter.minChangeTime).getTime();
+      results = results.filter((cl) => new Date(cl.changeTime).getTime() >= min);
+    }
+    if (filter.maxChangeTime) {
+      const max = new Date(filter.maxChangeTime).getTime();
+      results = results.filter((cl) => new Date(cl.changeTime).getTime() <= max);
+    }
+    if (filter.searchString) {
+      const s = filter.searchString.toLowerCase();
+      results = results.filter(
+        (cl) =>
+          cl.objectType.toLowerCase().includes(s) ||
+          cl.action.toLowerCase().includes(s) ||
+          (cl.fieldName && cl.fieldName.toLowerCase().includes(s)) ||
+          (cl.oldValue && cl.oldValue.toLowerCase().includes(s)) ||
+          (cl.newValue && cl.newValue.toLowerCase().includes(s)),
+      );
+    }
+
+    // Sort by changeTime descending (newest first)
+    results.sort((a, b) => new Date(b.changeTime).getTime() - new Date(a.changeTime).getTime());
+
+    const max = filter.maxResults ?? 100;
+    return results.slice(0, max);
+  }
+
+  getChangeLog(id: string): CM360ChangeLog | undefined {
+    return this.changeLogs.find((cl) => cl.id === id);
+  }
+
+  // --- Reports ---
+
+  listReports(): CM360Report[] {
+    return Array.from(this.reports.values());
+  }
+
+  getReport(reportId: string): CM360Report | undefined {
+    return this.reports.get(reportId);
+  }
+
   reset(): void {
     this.profiles = [];
     this.advertisers.clear();
@@ -754,6 +1452,11 @@ class MockDataStore {
     this.creatives.clear();
     this.campaignCreativeAssociations.clear();
     this.creativeAssets.clear();
+    this.eventTags.clear();
+    this.placementGroups.clear();
+    this.changeLogs = [];
+    this.reports.clear();
+    this.directorySites.clear();
     this.nextId = 90000;
     this.seed();
   }

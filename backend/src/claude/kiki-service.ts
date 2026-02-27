@@ -191,21 +191,21 @@ export async function chatStream(
   if (flags && !flags['chat.enabled']) {
     const messageId = uuidv4();
     emit({ type: 'message_start', messageId, conversationId });
-    const disabledMessage = 'Chat is currently disabled for your account. Please contact support.';
-    emit({ type: 'content_delta', delta: disabledMessage });
-    const chatMessage: ChatMessage = {
+    const disabledContent = 'Chat is currently disabled for your account. Please contact support.';
+    emit({ type: 'content_delta', delta: disabledContent });
+    const disabledMessage: ChatMessage = {
       id: messageId,
       role: 'assistant',
-      content: disabledMessage,
+      content: disabledContent,
       timestamp: Date.now(),
     };
-    await saveMessage(conversationId, chatMessage);
-    emit({ type: 'message_end', message: chatMessage });
+    await saveMessage(conversationId, disabledMessage);
+    emit({ type: 'message_end', message: disabledMessage });
     return;
   }
 
   const maxToolRounds = flags?.['limits.max_tool_rounds'] ?? DEFAULT_MAX_TOOL_ROUNDS;
-  const dailyLimit = flags?.['limits.daily_api_requests'] ?? undefined;
+  const dailyLimit = flags?.['limits.daily_api_requests'];
   const tools = flags ? getEnabledTools(flags) : CM360_TOOLS;
 
   // Check daily usage limit before making any API call

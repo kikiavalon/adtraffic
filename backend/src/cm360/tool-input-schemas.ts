@@ -85,7 +85,7 @@ export const GetPlacementInputSchema = z.object({
   placementId: z.string().min(1, 'Placement ID is required'),
 });
 
-export const GetAdInputSchema2 = z.object({
+export const GetAdInputSchema = z.object({
   profileId: z.string().min(1, 'Profile ID is required'),
   adId: z.string().min(1, 'Ad ID is required'),
 });
@@ -400,7 +400,7 @@ export type CreateAdInput = z.infer<typeof CreateAdInputSchema>;
 export type GenerateTagsInput = z.infer<typeof GenerateTagsInputSchema>;
 export type GetCampaignInput = z.infer<typeof GetCampaignInputSchema>;
 export type GetPlacementInput = z.infer<typeof GetPlacementInputSchema>;
-export type GetAdInput2 = z.infer<typeof GetAdInputSchema2>;
+export type GetAdInput = z.infer<typeof GetAdInputSchema>;
 export type UpdateCampaignInput = z.infer<typeof UpdateCampaignInputSchema>;
 export type UpdatePlacementInput = z.infer<typeof UpdatePlacementInputSchema>;
 export type UpdateAdInput = z.infer<typeof UpdateAdInputSchema>;

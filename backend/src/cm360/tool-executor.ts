@@ -33,7 +33,7 @@ import {
   GenerateTagsInputSchema,
   GetCampaignInputSchema,
   GetPlacementInputSchema,
-  GetAdInputSchema2,
+  GetAdInputSchema,
   UpdateCampaignInputSchema,
   UpdatePlacementInputSchema,
   UpdateAdInputSchema,
@@ -457,7 +457,7 @@ async function executeToolReal(
     }
 
     case 'cm360_get_ad': {
-      const parsed = GetAdInputSchema2.safeParse(toolInput);
+      const parsed = GetAdInputSchema.safeParse(toolInput);
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
@@ -1024,7 +1024,7 @@ function executeToolMock(
       }
 
       case 'cm360_get_ad': {
-        const parsed = GetAdInputSchema2.safeParse(toolInput);
+        const parsed = GetAdInputSchema.safeParse(toolInput);
         if (!parsed.success) {
           return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
         }

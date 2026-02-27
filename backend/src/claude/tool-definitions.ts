@@ -95,6 +95,7 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
       properties: {
         profileId: { type: 'string', description: 'The CM360 user profile ID' },
         advertiserId: { type: 'string', description: 'Filter by advertiser ID' },
+        searchString: { type: 'string', description: 'Filter by landing page name' },
         maxResults: { type: 'number', description: 'Maximum results to return (default 100, max 1000)' },
       },
       required: ['profileId', 'advertiserId'],

@@ -185,10 +185,28 @@ export async function chatStream(
   emit: (event: StreamEvent) => void,
   signal: AbortSignal,
   userId?: string,
-  flags?: Record<string, unknown>,
+  flags?: ResolvedFlags,
 ): Promise<void> {
-  const maxToolRounds = (flags?.['limits.max_tool_rounds'] as number | undefined) ?? DEFAULT_MAX_TOOL_ROUNDS;
-  const dailyLimit = (flags?.['limits.daily_api_requests'] as number | undefined) ?? undefined;
+  // Check if chat is enabled via feature flags
+  if (flags && !flags['chat.enabled']) {
+    const messageId = uuidv4();
+    emit({ type: 'message_start', messageId, conversationId });
+    const disabledMessage = 'Chat is currently disabled for your account. Please contact support.';
+    emit({ type: 'content_delta', delta: disabledMessage });
+    const chatMessage: ChatMessage = {
+      id: messageId,
+      role: 'assistant',
+      content: disabledMessage,
+      timestamp: Date.now(),
+    };
+    await saveMessage(conversationId, chatMessage);
+    emit({ type: 'message_end', message: chatMessage });
+    return;
+  }
+
+  const maxToolRounds = flags?.['limits.max_tool_rounds'] ?? DEFAULT_MAX_TOOL_ROUNDS;
+  const dailyLimit = flags?.['limits.daily_api_requests'] ?? undefined;
+  const tools = flags ? getEnabledTools(flags) : CM360_TOOLS;
 
   // Check daily usage limit before making any API call
   const limitCheck = await checkLimit(dailyLimit);
@@ -248,7 +266,7 @@ export async function chatStream(
           model: CLAUDE_MODEL,
           max_tokens: CLAUDE_MAX_TOKENS,
           system: getSystemPrompt('Demo Agency', '67890', isLiveData),
-          tools: CM360_TOOLS,
+          tools,
           messages: history,
         },
         { signal },

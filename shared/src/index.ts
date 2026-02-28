@@ -44,6 +44,8 @@ export type {
   BuildOperation,
 } from './types/chat.js';
 
+export type { TraffickingPlan } from './types/trafficking-plan.js';
+
 export type {
   StreamEvent,
   StreamMessageStart,

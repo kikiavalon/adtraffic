@@ -58,6 +58,37 @@ describe('TraffickingPlanSchema', () => {
       placements: [{ ...minimalValid.placements[0], creativeType: 'Video' }],
     };
     expect(TraffickingPlanSchema.safeParse(plan).success).toBe(true);
+    const bad = {
+      ...minimalValid,
+      placements: [{ ...minimalValid.placements[0], creativeType: 'Banner' }],
+    };
+    expect(TraffickingPlanSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('validates creativeRotation enum', () => {
+    const plan = {
+      ...minimalValid,
+      placements: [{ ...minimalValid.placements[0], creativeRotation: 'Even' }],
+    };
+    expect(TraffickingPlanSchema.safeParse(plan).success).toBe(true);
+    const bad = {
+      ...minimalValid,
+      placements: [{ ...minimalValid.placements[0], creativeRotation: 'Random' }],
+    };
+    expect(TraffickingPlanSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it('validates vastVpaid enum', () => {
+    const plan = {
+      ...minimalValid,
+      placements: [{ ...minimalValid.placements[0], vastVpaid: 'VAST' }],
+    };
+    expect(TraffickingPlanSchema.safeParse(plan).success).toBe(true);
+    const bad = {
+      ...minimalValid,
+      placements: [{ ...minimalValid.placements[0], vastVpaid: 'VAST3' }],
+    };
+    expect(TraffickingPlanSchema.safeParse(bad).success).toBe(false);
   });
 
   it('validates placement group type enum', () => {
@@ -66,6 +97,11 @@ describe('TraffickingPlanSchema', () => {
       placementGroups: [{ name: 'Group 1', type: 'Package', placementIndices: [0] }],
     };
     expect(TraffickingPlanSchema.safeParse(plan).success).toBe(true);
+    const bad = {
+      ...minimalValid,
+      placementGroups: [{ name: 'Group 1', type: 'Bundle', placementIndices: [0] }],
+    };
+    expect(TraffickingPlanSchema.safeParse(bad).success).toBe(false);
   });
 
   it('validates frequency cap period enum', () => {
@@ -77,6 +113,14 @@ describe('TraffickingPlanSchema', () => {
       }],
     };
     expect(TraffickingPlanSchema.safeParse(plan).success).toBe(true);
+    const bad = {
+      ...minimalValid,
+      placements: [{
+        ...minimalValid.placements[0],
+        frequencyCap: { impressions: 3, period: 'Year', perUser: true },
+      }],
+    };
+    expect(TraffickingPlanSchema.safeParse(bad).success).toBe(false);
   });
 
   it('validates billing adServingFee paidBy enum', () => {
@@ -85,6 +129,11 @@ describe('TraffickingPlanSchema', () => {
       billing: { adServingFee: { paidBy: 'Advertiser' } },
     };
     expect(TraffickingPlanSchema.safeParse(plan).success).toBe(true);
+    const bad = {
+      ...minimalValid,
+      billing: { adServingFee: { paidBy: 'Agency' } },
+    };
+    expect(TraffickingPlanSchema.safeParse(bad).success).toBe(false);
   });
 
   it('validates a fully populated plan', () => {

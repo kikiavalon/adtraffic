@@ -191,6 +191,12 @@ function Chat() {
     }];
   });
   const [input, setInput] = useState('');
+  const [pendingAttachment, setPendingAttachment] = useState<{
+    name: string;
+    type: string;
+    data: string;  // base64
+    sizeBytes: number;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [toolStatus, setToolStatus] = useState<{ toolName: string; status: 'running' } | null>(null);
@@ -268,6 +274,10 @@ function Chat() {
       timestamp: Date.now(),
     };
 
+    // Capture and clear attachment before async work
+    const sentAttachment = pendingAttachment;
+    setPendingAttachment(null);
+
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -286,7 +296,11 @@ function Chat() {
       const response = await authFetch(`${API_URL}/api/v1/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId, message: text }),
+        body: JSON.stringify({
+          conversationId,
+          message: text,
+          ...(sentAttachment ? { attachment: sentAttachment } : {}),
+        }),
         signal: controller.signal,
       });
 
@@ -388,7 +402,7 @@ function Chat() {
       setIsLoading(false);
       setToolStatus(null);
     }
-  }, [isLoading, conversationId, authFetch, appendDelta, flushDelta]);
+  }, [isLoading, conversationId, authFetch, appendDelta, flushDelta, pendingAttachment]);
 
   // Accept context from companion Chrome extension (?advertiserId=X&campaignId=Y)
   const extensionContextHandled = useRef(false);
@@ -468,13 +482,23 @@ function Chat() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: 'user',
-      content: `Uploaded: ${file.name}`,
-      timestamp: Date.now(),
+    // Client-side size validation (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1]; // strip data:... prefix
+      setPendingAttachment({
+        name: file.name,
+        type: file.type,
+        data: base64,
+        sizeBytes: file.size,
+      });
     };
-    setMessages((prev) => [...prev, userMessage]);
+    reader.readAsDataURL(file);
 
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -573,6 +597,21 @@ function Chat() {
       </main>
 
       <footer className="chat-input-area">
+        {pendingAttachment && (
+          <div className="attachment-chip">
+            <span className="attachment-chip-name">{pendingAttachment.name}</span>
+            <span className="attachment-chip-size">
+              ({(pendingAttachment.sizeBytes / 1024).toFixed(0)}KB)
+            </span>
+            <button
+              className="attachment-chip-remove"
+              onClick={() => setPendingAttachment(null)}
+              aria-label="Remove attachment"
+            >
+              ×
+            </button>
+          </div>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -580,6 +619,7 @@ function Chat() {
           onChange={handleFileChange}
           hidden
         />
+        <div className="chat-input-row">
         <button className="chat-upload-btn" onClick={handleFileUpload} title="Upload IO" aria-label="Upload file">
           +
         </button>
@@ -600,6 +640,7 @@ function Chat() {
         >
           Send
         </button>
+        </div>
       </footer>
     </div>
   );

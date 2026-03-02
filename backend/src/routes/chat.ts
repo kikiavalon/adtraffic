@@ -36,7 +36,13 @@ router.post('/chat', chatLimiter, requireAuth, featureFlagsMiddleware, express.j
     return;
   }
 
-  const { conversationId, message } = parsed.data;
+  const { conversationId, message, attachment } = parsed.data;
+
+  // Check file_upload feature flag if attachment present
+  if (attachment && req.featureFlags && !req.featureFlags['chat.file_upload']) {
+    res.status(403).json({ error: 'File upload is not enabled for your account' });
+    return;
+  }
 
   try {
     const userId = req.user!.userId;
@@ -56,7 +62,7 @@ router.post('/chat', chatLimiter, requireAuth, featureFlagsMiddleware, express.j
       timestamp: Date.now(),
     }, userId);
 
-    const assistantMessage = await chat(conversationId, message, userId, req.featureFlags);
+    const assistantMessage = await chat(conversationId, message, userId, req.featureFlags, attachment);
 
     // Save assistant message to DB
     await saveMessage(conversationId, assistantMessage);
@@ -94,7 +100,13 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
     return;
   }
 
-  const { conversationId, message } = parsed.data;
+  const { conversationId, message, attachment } = parsed.data;
+
+  // Check file_upload feature flag if attachment present
+  if (attachment && req.featureFlags && !req.featureFlags['chat.file_upload']) {
+    res.status(403).json({ error: 'File upload is not enabled for your account' });
+    return;
+  }
 
   try {
     const userId = req.user!.userId;
@@ -132,7 +144,7 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
     req.on('close', () => controller.abort());
 
     try {
-      await chatStream(conversationId, message, sendEvent, controller.signal, userId, req.featureFlags);
+      await chatStream(conversationId, message, sendEvent, controller.signal, userId, req.featureFlags, attachment);
     } catch (error) {
       // Don't send error events for intentional client disconnects
       if (!(error instanceof Error && error.name === 'AbortError')) {

@@ -61,6 +61,8 @@ export type {
   BuildOperation,
 } from './types/chat.js';
 
+export type { TraffickingPlan } from './types/trafficking-plan.js';
+
 export type {
   StreamEvent,
   StreamMessageStart,
@@ -86,3 +88,6 @@ export {
   ChatRequestSchema,
 } from './schemas/chat.js';
 export type { ValidatedChatRequest } from './schemas/chat.js';
+
+export { TraffickingPlanSchema } from './schemas/trafficking-plan.js';
+export type { ValidatedTraffickingPlan } from './schemas/trafficking-plan.js';

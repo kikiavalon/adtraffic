@@ -169,9 +169,58 @@
   padding: 16px 24px;
   border-top: 1px solid #e5e5e5;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: 8px;
   background: #fafafa;
+}
+
+.chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Attachment chip */
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #eef4ff;
+  border: 1px solid #b8d4ff;
+  border-radius: 16px;
+  font-size: 13px;
+  color: #0052cc;
+  max-width: 100%;
+}
+
+.attachment-chip-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-chip-size {
+  color: #666;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.attachment-chip-remove {
+  border: none;
+  background: none;
+  color: #999;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 2px;
+}
+
+.attachment-chip-remove:hover {
+  color: #cc0000;
 }
 
 .chat-message-input {

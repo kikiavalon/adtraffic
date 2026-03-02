@@ -490,7 +490,7 @@ function Chat() {
 
     const reader = new FileReader();
     reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1]; // strip data:... prefix
+      const base64 = (reader.result as string).split(',')[1] ?? ''; // strip data:... prefix
       setPendingAttachment({
         name: file.name,
         type: file.type,

@@ -66,6 +66,14 @@ import {
   RunReportInputSchema,
   GetReportFileInputSchema,
   QueryCompatibleFieldsInputSchema,
+  ListFloodlightActivitiesInputSchema,
+  GetFloodlightActivityInputSchema,
+  CreateFloodlightActivityInputSchema,
+  GenerateFloodlightTagInputSchema,
+  ListFloodlightActivityGroupsInputSchema,
+  GetFloodlightActivityGroupInputSchema,
+  CreateFloodlightActivityGroupInputSchema,
+  ListFloodlightConfigurationsInputSchema,
   formatZodErrors,
 } from './tool-input-schemas.js';
 
@@ -215,6 +223,15 @@ const VALID_TOOL_NAMES = new Set([
   'cm360_run_report',
   'cm360_get_report_file',
   'cm360_query_compatible_fields',
+  // Floodlight
+  'cm360_list_floodlight_activities',
+  'cm360_get_floodlight_activity',
+  'cm360_create_floodlight_activity',
+  'cm360_generate_floodlight_tag',
+  'cm360_list_floodlight_activity_groups',
+  'cm360_get_floodlight_activity_group',
+  'cm360_create_floodlight_activity_group',
+  'cm360_list_floodlight_configurations',
 ]);
 
 function isValidToolName(name: string): boolean {
@@ -814,6 +831,114 @@ async function executeToolReal(
       const profileId = await resolveProfileId(client);
       const fields = await client.queryCompatibleFields(profileId, parsed.data.reportType);
       return { result: fields, isError: false };
+    }
+
+    // --- Floodlight Activities ---
+
+    case 'cm360_list_floodlight_activities': {
+      const parsed = ListFloodlightActivitiesInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const flProfileId = await resolveProfileId(client);
+      const activities = await client.listFloodlightActivities(flProfileId, parsed.data.advertiserId, {
+        floodlightActivityGroupId: parsed.data.floodlightActivityGroupId,
+        searchString: parsed.data.searchString,
+      });
+      return { result: { floodlightActivities: activities }, isError: false };
+    }
+
+    case 'cm360_get_floodlight_activity': {
+      const parsed = GetFloodlightActivityInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const gfaProfileId = await resolveProfileId(client);
+      const flActivity = await client.getFloodlightActivity(gfaProfileId, parsed.data.floodlightActivityId);
+      if (!flActivity) {
+        return { result: null, isError: true, errorMessage: `Floodlight activity ${parsed.data.floodlightActivityId} not found` };
+      }
+      return { result: flActivity, isError: false };
+    }
+
+    case 'cm360_create_floodlight_activity': {
+      const parsed = CreateFloodlightActivityInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const cfaProfileId = await resolveProfileId(client);
+      const newActivity = await client.createFloodlightActivity(cfaProfileId, {
+        advertiserId: parsed.data.advertiserId,
+        floodlightActivityGroupId: parsed.data.floodlightActivityGroupId,
+        name: parsed.data.name,
+        type: parsed.data.type,
+        countingMethod: parsed.data.countingMethod,
+        tagString: parsed.data.tagString,
+        tagFormat: parsed.data.tagFormat,
+        expectedUrl: parsed.data.expectedUrl,
+        notes: parsed.data.notes,
+      });
+      return { result: newActivity, isError: false };
+    }
+
+    case 'cm360_generate_floodlight_tag': {
+      const parsed = GenerateFloodlightTagInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const gftProfileId = await resolveProfileId(client);
+      const flTag = await client.generateFloodlightTag(gftProfileId, parsed.data.floodlightActivityId);
+      return { result: flTag, isError: false };
+    }
+
+    case 'cm360_list_floodlight_activity_groups': {
+      const parsed = ListFloodlightActivityGroupsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const lagProfileId = await resolveProfileId(client);
+      const groups = await client.listFloodlightActivityGroups(lagProfileId, parsed.data.advertiserId, {
+        searchString: parsed.data.searchString,
+      });
+      return { result: { floodlightActivityGroups: groups }, isError: false };
+    }
+
+    case 'cm360_get_floodlight_activity_group': {
+      const parsed = GetFloodlightActivityGroupInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const gagProfileId = await resolveProfileId(client);
+      const flGroup = await client.getFloodlightActivityGroup(gagProfileId, parsed.data.floodlightActivityGroupId);
+      if (!flGroup) {
+        return { result: null, isError: true, errorMessage: `Floodlight activity group ${parsed.data.floodlightActivityGroupId} not found` };
+      }
+      return { result: flGroup, isError: false };
+    }
+
+    case 'cm360_create_floodlight_activity_group': {
+      const parsed = CreateFloodlightActivityGroupInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const cagProfileId = await resolveProfileId(client);
+      const newGroup = await client.createFloodlightActivityGroup(cagProfileId, {
+        advertiserId: parsed.data.advertiserId,
+        name: parsed.data.name,
+        type: parsed.data.type,
+        tagString: parsed.data.tagString,
+      });
+      return { result: newGroup, isError: false };
+    }
+
+    case 'cm360_list_floodlight_configurations': {
+      const parsed = ListFloodlightConfigurationsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const lcProfileId = await resolveProfileId(client);
+      const configs = await client.listFloodlightConfigurations(lcProfileId, parsed.data.advertiserId);
+      return { result: { floodlightConfigurations: configs }, isError: false };
     }
 
     default:
@@ -1493,6 +1618,117 @@ function executeToolMock(
         }
         const fields = mockStore.queryCompatibleFields(parsed.data.reportType);
         return { result: fields, isError: false };
+      }
+
+      // --- Floodlight Activities ---
+
+      case 'cm360_list_floodlight_activities': {
+        const parsed = ListFloodlightActivitiesInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const activities = mockStore.listFloodlightActivities(parsed.data.advertiserId, {
+          floodlightActivityGroupId: parsed.data.floodlightActivityGroupId,
+          searchString: parsed.data.searchString,
+        });
+        return { result: { floodlightActivities: activities }, isError: false };
+      }
+
+      case 'cm360_get_floodlight_activity': {
+        const parsed = GetFloodlightActivityInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const activity = mockStore.getFloodlightActivity(parsed.data.floodlightActivityId);
+        if (!activity) {
+          return { result: null, isError: true, errorMessage: `Floodlight activity ${parsed.data.floodlightActivityId} not found` };
+        }
+        return { result: activity, isError: false };
+      }
+
+      case 'cm360_create_floodlight_activity': {
+        const parsed = CreateFloodlightActivityInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        try {
+          const newFlActivity = mockStore.createFloodlightActivity({
+            advertiserId: parsed.data.advertiserId,
+            floodlightActivityGroupId: parsed.data.floodlightActivityGroupId,
+            name: parsed.data.name,
+            type: parsed.data.type,
+            countingMethod: parsed.data.countingMethod,
+            tagString: parsed.data.tagString,
+            tagFormat: parsed.data.tagFormat,
+            expectedUrl: parsed.data.expectedUrl,
+            notes: parsed.data.notes,
+          });
+          return { result: newFlActivity, isError: false };
+        } catch (err) {
+          return { result: null, isError: true, errorMessage: err instanceof Error ? err.message : 'Failed to create activity' };
+        }
+      }
+
+      case 'cm360_generate_floodlight_tag': {
+        const parsed = GenerateFloodlightTagInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const tag = mockStore.generateFloodlightTag(parsed.data.floodlightActivityId);
+        if (!tag) {
+          return { result: null, isError: true, errorMessage: `Floodlight activity ${parsed.data.floodlightActivityId} not found` };
+        }
+        return { result: tag, isError: false };
+      }
+
+      case 'cm360_list_floodlight_activity_groups': {
+        const parsed = ListFloodlightActivityGroupsInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const flGroups = mockStore.listFloodlightActivityGroups(parsed.data.advertiserId, {
+          searchString: parsed.data.searchString,
+        });
+        return { result: { floodlightActivityGroups: flGroups }, isError: false };
+      }
+
+      case 'cm360_get_floodlight_activity_group': {
+        const parsed = GetFloodlightActivityGroupInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const flGroup = mockStore.getFloodlightActivityGroup(parsed.data.floodlightActivityGroupId);
+        if (!flGroup) {
+          return { result: null, isError: true, errorMessage: `Floodlight activity group ${parsed.data.floodlightActivityGroupId} not found` };
+        }
+        return { result: flGroup, isError: false };
+      }
+
+      case 'cm360_create_floodlight_activity_group': {
+        const parsed = CreateFloodlightActivityGroupInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        try {
+          const newFlGroup = mockStore.createFloodlightActivityGroup({
+            advertiserId: parsed.data.advertiserId,
+            name: parsed.data.name,
+            type: parsed.data.type,
+            tagString: parsed.data.tagString,
+          });
+          return { result: newFlGroup, isError: false };
+        } catch (err) {
+          return { result: null, isError: true, errorMessage: err instanceof Error ? err.message : 'Failed to create activity group' };
+        }
+      }
+
+      case 'cm360_list_floodlight_configurations': {
+        const parsed = ListFloodlightConfigurationsInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const configs = mockStore.listFloodlightConfigurations(parsed.data.advertiserId);
+        return { result: { floodlightConfigurations: configs }, isError: false };
       }
 
       default:

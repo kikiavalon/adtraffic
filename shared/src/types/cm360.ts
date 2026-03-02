@@ -500,6 +500,116 @@ export interface CM360CompatibleFields {
   pivotedActivityMetrics: string[];
 }
 
+// ---------------------------------------------------------------------------
+// Floodlight — conversion tracking (activities, groups, configurations)
+// ---------------------------------------------------------------------------
+
+/** Floodlight activity type — determines available counting methods. Immutable after creation. */
+export type CM360FloodlightActivityType = 'COUNTER' | 'SALE';
+
+/** Counting method for Counter activities */
+export type CM360FloodlightCountingMethod =
+  | 'STANDARD_COUNTING'
+  | 'UNIQUE_COUNTING'
+  | 'SESSION_COUNTING';
+
+/** Tag format for Floodlight tags */
+export type CM360FloodlightTagFormat =
+  | 'HTML'
+  | 'XHTML'
+  | 'GLOBAL_SITE_TAG';
+
+/** Floodlight activity status */
+export type CM360FloodlightActivityStatus = 'ACTIVE' | 'ARCHIVED_AND_DISABLED';
+
+/** A single Floodlight activity (conversion event) */
+export interface CM360FloodlightActivity {
+  id: string;
+  name: string;
+  accountId: string;
+  advertiserId: string;
+  floodlightConfigurationId: string;
+  floodlightActivityGroupId: string;
+  floodlightActivityGroupName: string;
+  floodlightActivityGroupType: CM360FloodlightActivityType;
+  /** Activity type — Counter (page visits, form submits) or Sale (purchases with revenue). Immutable after creation. */
+  type: CM360FloodlightActivityType;
+  countingMethod: CM360FloodlightCountingMethod;
+  /** Tag string used in tag code (e.g., "apex_newsletter_signup") */
+  tagString: string;
+  tagFormat: CM360FloodlightTagFormat;
+  /** Expected URL where the tag fires */
+  expectedUrl?: string;
+  /** Custom Floodlight variables (u1-u100) */
+  customFloodlightVariables?: Array<{ type: string; value: string }>;
+  /** Whether this activity is synced from SA360 */
+  floodlightTagType?: 'GLOBAL_SITE_TAG' | 'IFRAME' | 'IMAGE';
+  cacheBustingType?: 'JAVASCRIPT' | 'ACTIVE_SERVER_PAGE' | 'JSP' | 'PHP' | 'COLD_FUSION';
+  status: CM360FloodlightActivityStatus;
+  /** Whether synced from SA360 (shared activity) */
+  sslRequired: boolean;
+  /** Notes for the activity */
+  notes?: string;
+}
+
+/** Input for creating a new Floodlight activity */
+export interface CM360CreateFloodlightActivityInput {
+  advertiserId: string;
+  floodlightActivityGroupId: string;
+  name: string;
+  type: CM360FloodlightActivityType;
+  countingMethod: CM360FloodlightCountingMethod;
+  tagString: string;
+  tagFormat?: CM360FloodlightTagFormat;
+  expectedUrl?: string;
+  notes?: string;
+}
+
+/** Floodlight activity group — organizational container for activities */
+export interface CM360FloodlightActivityGroup {
+  id: string;
+  name: string;
+  accountId: string;
+  advertiserId: string;
+  floodlightConfigurationId: string;
+  /** Group type determines what kinds of activities can be in this group */
+  type: CM360FloodlightActivityType;
+  tagString: string;
+}
+
+/** Input for creating a new Floodlight activity group */
+export interface CM360CreateFloodlightActivityGroupInput {
+  advertiserId: string;
+  name: string;
+  type: CM360FloodlightActivityType;
+  tagString: string;
+}
+
+/** Account-level Floodlight configuration (read-only in Kiki) */
+export interface CM360FloodlightConfiguration {
+  id: string;
+  accountId: string;
+  advertiserId: string;
+  /** Click-through lookback window in days */
+  lookbackClickDays: number;
+  /** View-through lookback window in days */
+  lookbackImpressionDays: number;
+  /** Default tag format for new activities */
+  naturalSearchConversionAttributionOption: string;
+  tagSettings: {
+    dynamicTagEnabled: boolean;
+    imageTagEnabled: boolean;
+  };
+}
+
+/** Generated Floodlight tag (gtag.js / iframe / image snippet) */
+export interface CM360FloodlightTag {
+  globalSiteTagGlobalSnippet?: string;
+  globalSiteTagEventSnippet?: string;
+  iframeTag?: string;
+  imageTag?: string;
+}
+
 /** Generic list response wrapper */
 export interface CM360ListResponse<T> {
   items: T[];

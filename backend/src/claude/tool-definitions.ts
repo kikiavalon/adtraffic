@@ -782,6 +782,135 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
       required: ['profileId', 'reportType'],
     },
   },
+  // --- Floodlight Activities ---
+  {
+    name: 'cm360_list_floodlight_activities',
+    description: 'List Floodlight activities for an advertiser. Floodlight activities are conversion events (form submits, purchases, sign-ups) tracked via Floodlight tags. Filter by activity group or search by name.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'Advertiser ID to list activities for' },
+        floodlightActivityGroupId: { type: 'string', description: 'Optional: filter to activities in a specific group' },
+        searchString: { type: 'string', description: 'Optional: filter by activity name (case-insensitive partial match)' },
+      },
+      required: ['profileId', 'advertiserId'],
+    },
+  },
+  {
+    name: 'cm360_get_floodlight_activity',
+    description: 'Get details of a single Floodlight activity, including counting method, tag string, status, type (Counter vs Sales), and custom variables.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        floodlightActivityId: { type: 'string', description: 'The Floodlight activity ID' },
+      },
+      required: ['profileId', 'floodlightActivityId'],
+    },
+  },
+  {
+    name: 'cm360_create_floodlight_activity',
+    description: '[WRITE] Create a new Floodlight activity (conversion event). IMPORTANT: Activity type (Counter vs Sale) cannot be changed after creation — confirm with the user first. Counter = page visits, form submits, sign-ups. Sale = purchases with revenue/item tracking. Always preview and confirm before calling.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'The advertiser ID' },
+        floodlightActivityGroupId: { type: 'string', description: 'The activity group this activity belongs to' },
+        name: { type: 'string', description: 'Activity name (max 256 characters)' },
+        type: {
+          type: 'string',
+          enum: ['COUNTER', 'SALE'],
+          description: 'Activity type. COUNTER: page visits, form submits, sign-ups. SALE: purchases with revenue/item tracking. IMMUTABLE after creation.',
+        },
+        countingMethod: {
+          type: 'string',
+          enum: ['STANDARD_COUNTING', 'UNIQUE_COUNTING', 'SESSION_COUNTING'],
+          description: 'STANDARD: one per user per session (sign-ups, leads). UNIQUE: one per user per day (daily unique). SESSION: each qualifying event (multiple purchases).',
+        },
+        tagString: { type: 'string', description: 'Tag string used in tag code (letters, numbers, underscores only, e.g., "apex_newsletter_signup")' },
+        tagFormat: {
+          type: 'string',
+          enum: ['HTML', 'XHTML', 'GLOBAL_SITE_TAG'],
+          description: 'Tag format. GLOBAL_SITE_TAG (gtag.js) is recommended for modern implementations.',
+        },
+        expectedUrl: { type: 'string', description: 'Optional: expected URL where the tag fires (for documentation/verification)' },
+        notes: { type: 'string', description: 'Optional: notes about the activity (max 1024 characters)' },
+      },
+      required: ['profileId', 'advertiserId', 'floodlightActivityGroupId', 'name', 'type', 'countingMethod', 'tagString'],
+    },
+  },
+  {
+    name: 'cm360_generate_floodlight_tag',
+    description: 'Generate implementable Floodlight tag code (gtag.js global snippet + event snippet, iframe, and image tag) for an existing activity. Returns copyable code blocks. Does not modify anything — safe to call at any time.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        floodlightActivityId: { type: 'string', description: 'The Floodlight activity ID to generate a tag for' },
+      },
+      required: ['profileId', 'floodlightActivityId'],
+    },
+  },
+  // --- Floodlight Activity Groups ---
+  {
+    name: 'cm360_list_floodlight_activity_groups',
+    description: 'List Floodlight activity groups for an advertiser. Groups organize activities by category (e.g., "Lead Gen", "Ecommerce"). Each group has a type (Counter or Sale) that determines what activities it can contain.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'Advertiser ID to list activity groups for' },
+        searchString: { type: 'string', description: 'Optional: filter by group name (case-insensitive partial match)' },
+      },
+      required: ['profileId', 'advertiserId'],
+    },
+  },
+  {
+    name: 'cm360_get_floodlight_activity_group',
+    description: 'Get details of a single Floodlight activity group, including its type (Counter or Sale) and tag string.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        floodlightActivityGroupId: { type: 'string', description: 'The activity group ID' },
+      },
+      required: ['profileId', 'floodlightActivityGroupId'],
+    },
+  },
+  {
+    name: 'cm360_create_floodlight_activity_group',
+    description: '[WRITE] Create a new Floodlight activity group. Groups organize conversion activities by category (e.g., "Lead Gen", "Ecommerce"). The group type (Counter or Sale) determines what activities can be added. Always preview and confirm before calling.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'The advertiser ID' },
+        name: { type: 'string', description: 'Group name (max 256 characters)' },
+        type: {
+          type: 'string',
+          enum: ['COUNTER', 'SALE'],
+          description: 'Group type. COUNTER: groups page visit/form submit/sign-up activities. SALE: groups purchase/revenue activities.',
+        },
+        tagString: { type: 'string', description: 'Tag string for the group (letters, numbers, underscores only)' },
+      },
+      required: ['profileId', 'advertiserId', 'name', 'type', 'tagString'],
+    },
+  },
+  // --- Floodlight Configurations (read-only) ---
+  {
+    name: 'cm360_list_floodlight_configurations',
+    description: 'List account-level Floodlight configurations for an advertiser. Returns lookback windows (click-through, view-through), tag format defaults, and natural search settings. Read-only — configurations are managed in CM360 admin settings.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        advertiserId: { type: 'string', description: 'The advertiser ID to get Floodlight configuration for' },
+      },
+      required: ['profileId', 'advertiserId'],
+    },
+  },
 ];
 
 /**
@@ -847,6 +976,16 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   cm360_run_report: 'cm360.read_operations',
   cm360_get_report_file: 'cm360.read_operations',
   cm360_query_compatible_fields: 'cm360.read_operations',
+  // Floodlight (read)
+  cm360_list_floodlight_activities: 'cm360.read_operations',
+  cm360_get_floodlight_activity: 'cm360.read_operations',
+  cm360_list_floodlight_activity_groups: 'cm360.read_operations',
+  cm360_get_floodlight_activity_group: 'cm360.read_operations',
+  cm360_list_floodlight_configurations: 'cm360.read_operations',
+  cm360_generate_floodlight_tag: 'cm360.read_operations',
+  // Floodlight (write)
+  cm360_create_floodlight_activity: 'cm360.write_operations',
+  cm360_create_floodlight_activity_group: 'cm360.write_operations',
   // Tag generation
   cm360_generate_tags: 'cm360.tag_generation',
 };

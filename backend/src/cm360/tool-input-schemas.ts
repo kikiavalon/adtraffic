@@ -428,6 +428,83 @@ export type GetDirectorySiteInput = z.infer<typeof GetDirectorySiteInputSchema>;
 export type InsertDirectorySiteInput = z.infer<typeof InsertDirectorySiteInputSchema>;
 
 // ---------------------------------------------------------------------------
+// Floodlight Activities
+// ---------------------------------------------------------------------------
+
+export const ListFloodlightActivitiesInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  floodlightActivityGroupId: z.string().optional(),
+  searchString: z.string().max(256).optional(),
+});
+
+export const GetFloodlightActivityInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  floodlightActivityId: z.string().min(1, 'Floodlight activity ID is required'),
+});
+
+export const CreateFloodlightActivityInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  floodlightActivityGroupId: z.string().min(1, 'Activity group ID is required'),
+  name: z.string().min(1).max(256, 'Name must be under 256 characters'),
+  type: z.enum(['COUNTER', 'SALE']),
+  countingMethod: z.enum(['STANDARD_COUNTING', 'UNIQUE_COUNTING', 'SESSION_COUNTING']),
+  tagString: z.string().min(1).max(256, 'Tag string must be under 256 characters')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Tag string may only contain letters, numbers, and underscores'),
+  tagFormat: z.enum(['HTML', 'XHTML', 'GLOBAL_SITE_TAG']).optional(),
+  expectedUrl: z.string().url().optional(),
+  notes: z.string().max(1024).optional(),
+});
+
+export const GenerateFloodlightTagInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  floodlightActivityId: z.string().min(1, 'Floodlight activity ID is required'),
+});
+
+// ---------------------------------------------------------------------------
+// Floodlight Activity Groups
+// ---------------------------------------------------------------------------
+
+export const ListFloodlightActivityGroupsInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  searchString: z.string().max(256).optional(),
+});
+
+export const GetFloodlightActivityGroupInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  floodlightActivityGroupId: z.string().min(1, 'Activity group ID is required'),
+});
+
+export const CreateFloodlightActivityGroupInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  name: z.string().min(1).max(256, 'Name must be under 256 characters'),
+  type: z.enum(['COUNTER', 'SALE']),
+  tagString: z.string().min(1).max(256, 'Tag string must be under 256 characters')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Tag string may only contain letters, numbers, and underscores'),
+});
+
+// ---------------------------------------------------------------------------
+// Floodlight Configurations (read-only)
+// ---------------------------------------------------------------------------
+
+export const ListFloodlightConfigurationsInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+});
+
+export type ListFloodlightActivitiesInput = z.infer<typeof ListFloodlightActivitiesInputSchema>;
+export type GetFloodlightActivityInput = z.infer<typeof GetFloodlightActivityInputSchema>;
+export type CreateFloodlightActivityInput = z.infer<typeof CreateFloodlightActivityInputSchema>;
+export type GenerateFloodlightTagInput = z.infer<typeof GenerateFloodlightTagInputSchema>;
+export type ListFloodlightActivityGroupsInput = z.infer<typeof ListFloodlightActivityGroupsInputSchema>;
+export type GetFloodlightActivityGroupInput = z.infer<typeof GetFloodlightActivityGroupInputSchema>;
+export type CreateFloodlightActivityGroupInput = z.infer<typeof CreateFloodlightActivityGroupInputSchema>;
+export type ListFloodlightConfigurationsInput = z.infer<typeof ListFloodlightConfigurationsInputSchema>;
+
+// ---------------------------------------------------------------------------
 // Change Logs (read-only audit trail)
 // ---------------------------------------------------------------------------
 

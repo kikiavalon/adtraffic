@@ -49,6 +49,14 @@ import type {
   CM360ReportFile,
   CM360ReportFileStatus,
   CM360CompatibleFields,
+  CM360FloodlightActivity,
+  CM360FloodlightActivityType,
+  CM360FloodlightCountingMethod,
+  CM360FloodlightActivityGroup,
+  CM360FloodlightConfiguration,
+  CM360CreateFloodlightActivityInput,
+  CM360CreateFloodlightActivityGroupInput,
+  CM360FloodlightTag,
 } from '@adtraffic/shared';
 import { randomUUID } from 'crypto';
 
@@ -87,6 +95,9 @@ class MockDataStore {
   private changeLogs: CM360ChangeLog[] = [];
   private reports = new Map<string, CM360Report>();
   private reportFiles = new Map<string, CM360ReportFile>();
+  private floodlightActivities = new Map<string, CM360FloodlightActivity>();
+  private floodlightActivityGroups = new Map<string, CM360FloodlightActivityGroup>();
+  private floodlightConfigurations = new Map<string, CM360FloodlightConfiguration>();
   private directorySites = new Map<string, {
     id: string;
     name: string;
@@ -735,6 +746,108 @@ class MockDataStore {
         },
         ...(def.schedule && { schedule: def.schedule }),
         lastModifiedTime: new Date(now - (i + 1) * 86_400_000).toISOString(),
+      });
+    }
+
+    // --- Floodlight Configurations (one per advertiser, tied to floodlightConfigurationId) ---
+    for (const advId of advertiserIds) {
+      const adv = this.advertisers.get(advId)!;
+      const configId = adv.floodlightConfigurationId ?? this.genId();
+      this.floodlightConfigurations.set(configId, {
+        id: configId,
+        accountId: ACCOUNT_ID,
+        advertiserId: advId,
+        lookbackClickDays: 30,
+        lookbackImpressionDays: 7,
+        naturalSearchConversionAttributionOption: 'INCLUDE_NATURAL_SEARCH_CONVERSIONS_IN_FLOODLIGHT_REPORTING',
+        tagSettings: {
+          dynamicTagEnabled: true,
+          imageTagEnabled: true,
+        },
+      });
+    }
+
+    // --- Floodlight Activity Groups (2-3 per advertiser indices 0, 3, 6) ---
+    const flGroupDefs: Array<{
+      advIdx: number;
+      name: string;
+      type: CM360FloodlightActivityType;
+      tagString: string;
+    }> = [
+      { advIdx: 0, name: 'Apex Lead Gen', type: 'COUNTER', tagString: 'apex_lead_gen' },
+      { advIdx: 0, name: 'Apex Ecommerce', type: 'SALE', tagString: 'apex_ecommerce' },
+      { advIdx: 3, name: 'NovaTech Signups', type: 'COUNTER', tagString: 'novatech_signups' },
+      { advIdx: 3, name: 'NovaTech Revenue', type: 'SALE', tagString: 'novatech_revenue' },
+      { advIdx: 6, name: 'Harvest Conversions', type: 'COUNTER', tagString: 'harvest_conversions' },
+    ];
+
+    const groupIdsByAdvIdx = new Map<number, string[]>();
+    for (const gDef of flGroupDefs) {
+      const id = this.genId();
+      const advId = advertiserIds[gDef.advIdx]!;
+      const adv = this.advertisers.get(advId)!;
+      const configId = adv.floodlightConfigurationId ?? [...this.floodlightConfigurations.values()].find(c => c.advertiserId === advId)!.id;
+      this.floodlightActivityGroups.set(id, {
+        id,
+        name: gDef.name,
+        accountId: ACCOUNT_ID,
+        advertiserId: advId,
+        floodlightConfigurationId: configId,
+        type: gDef.type,
+        tagString: gDef.tagString,
+      });
+      const existing = groupIdsByAdvIdx.get(gDef.advIdx) ?? [];
+      existing.push(id);
+      groupIdsByAdvIdx.set(gDef.advIdx, existing);
+    }
+
+    // --- Floodlight Activities (2-3 per group) ---
+    const flActivityDefs: Array<{
+      advIdx: number;
+      groupRelIdx: number;
+      name: string;
+      countingMethod: CM360FloodlightCountingMethod;
+      tagString: string;
+      expectedUrl?: string;
+      notes?: string;
+    }> = [
+      { advIdx: 0, groupRelIdx: 0, name: 'Form Submit', countingMethod: 'STANDARD_COUNTING', tagString: 'apex_form_submit', expectedUrl: 'https://www.apexmotors.com/thank-you', notes: 'Fires on thank-you page after lead form submission' },
+      { advIdx: 0, groupRelIdx: 0, name: 'Phone Click', countingMethod: 'UNIQUE_COUNTING', tagString: 'apex_phone_click', notes: 'Unique daily — tracks click-to-call on mobile' },
+      { advIdx: 0, groupRelIdx: 0, name: 'Newsletter Signup', countingMethod: 'STANDARD_COUNTING', tagString: 'apex_newsletter_signup' },
+      { advIdx: 0, groupRelIdx: 1, name: 'Vehicle Purchase', countingMethod: 'STANDARD_COUNTING', tagString: 'apex_purchase', expectedUrl: 'https://www.apexmotors.com/order-confirmation', notes: 'Sales activity — tracks revenue and order ID' },
+      { advIdx: 0, groupRelIdx: 1, name: 'Add to Cart', countingMethod: 'SESSION_COUNTING', tagString: 'apex_add_to_cart' },
+      { advIdx: 3, groupRelIdx: 0, name: 'Free Trial Signup', countingMethod: 'STANDARD_COUNTING', tagString: 'novatech_trial', expectedUrl: 'https://novatech.io/welcome' },
+      { advIdx: 3, groupRelIdx: 0, name: 'Demo Request', countingMethod: 'UNIQUE_COUNTING', tagString: 'novatech_demo' },
+      { advIdx: 3, groupRelIdx: 1, name: 'SaaS Purchase', countingMethod: 'STANDARD_COUNTING', tagString: 'novatech_purchase', expectedUrl: 'https://novatech.io/success' },
+      { advIdx: 6, groupRelIdx: 0, name: 'Recipe Download', countingMethod: 'STANDARD_COUNTING', tagString: 'harvest_recipe_download' },
+      { advIdx: 6, groupRelIdx: 0, name: 'Store Locator Click', countingMethod: 'UNIQUE_COUNTING', tagString: 'harvest_store_locator' },
+    ];
+
+    for (const aDef of flActivityDefs) {
+      const id = this.genId();
+      const advId = advertiserIds[aDef.advIdx]!;
+      const adv = this.advertisers.get(advId)!;
+      const configId = adv.floodlightConfigurationId ?? [...this.floodlightConfigurations.values()].find(c => c.advertiserId === advId)!.id;
+      const groupIds = groupIdsByAdvIdx.get(aDef.advIdx) ?? [];
+      const groupId = groupIds[aDef.groupRelIdx] ?? groupIds[0]!;
+      const group = this.floodlightActivityGroups.get(groupId)!;
+      this.floodlightActivities.set(id, {
+        id,
+        name: aDef.name,
+        accountId: ACCOUNT_ID,
+        advertiserId: advId,
+        floodlightConfigurationId: configId,
+        floodlightActivityGroupId: groupId,
+        floodlightActivityGroupName: group.name,
+        floodlightActivityGroupType: group.type,
+        type: group.type,
+        countingMethod: aDef.countingMethod,
+        tagString: aDef.tagString,
+        tagFormat: 'GLOBAL_SITE_TAG',
+        expectedUrl: aDef.expectedUrl,
+        notes: aDef.notes,
+        status: 'ACTIVE',
+        sslRequired: true,
       });
     }
   }
@@ -1587,6 +1700,125 @@ class MockDataStore {
     return summary;
   }
 
+  // --- Floodlight Activities ---
+
+  listFloodlightActivities(
+    advertiserId: string,
+    filter?: { floodlightActivityGroupId?: string; searchString?: string },
+  ): CM360FloodlightActivity[] {
+    let results = [...this.floodlightActivities.values()].filter(
+      (a) => a.advertiserId === advertiserId,
+    );
+    if (filter?.floodlightActivityGroupId) {
+      results = results.filter(
+        (a) => a.floodlightActivityGroupId === filter.floodlightActivityGroupId,
+      );
+    }
+    if (filter?.searchString) {
+      const search = filter.searchString.toLowerCase();
+      results = results.filter((a) => a.name.toLowerCase().includes(search));
+    }
+    return results;
+  }
+
+  getFloodlightActivity(id: string): CM360FloodlightActivity | undefined {
+    return this.floodlightActivities.get(id);
+  }
+
+  createFloodlightActivity(input: CM360CreateFloodlightActivityInput): CM360FloodlightActivity {
+    const group = this.floodlightActivityGroups.get(input.floodlightActivityGroupId);
+    if (!group) {
+      throw new Error(`Floodlight activity group ${input.floodlightActivityGroupId} not found`);
+    }
+    if (input.type !== group.type) {
+      throw new Error(`Activity type ${input.type} does not match group type ${group.type}`);
+    }
+    const id = this.genId();
+    const activity: CM360FloodlightActivity = {
+      id,
+      name: input.name,
+      accountId: ACCOUNT_ID,
+      advertiserId: input.advertiserId,
+      floodlightConfigurationId: group.floodlightConfigurationId,
+      floodlightActivityGroupId: group.id,
+      floodlightActivityGroupName: group.name,
+      floodlightActivityGroupType: group.type,
+      type: input.type,
+      countingMethod: input.countingMethod,
+      tagString: input.tagString,
+      tagFormat: input.tagFormat ?? 'GLOBAL_SITE_TAG',
+      expectedUrl: input.expectedUrl,
+      notes: input.notes,
+      status: 'ACTIVE',
+      sslRequired: true,
+    };
+    this.floodlightActivities.set(id, activity);
+    return activity;
+  }
+
+  generateFloodlightTag(activityId: string): CM360FloodlightTag | undefined {
+    const activity = this.floodlightActivities.get(activityId);
+    if (!activity) return undefined;
+    const config = this.floodlightConfigurations.get(activity.floodlightConfigurationId);
+    const src = config?.id ?? 'UNKNOWN';
+    return {
+      globalSiteTagGlobalSnippet: `<!-- Global site tag (gtag.js) - CM360 -->\n<script async src="https://www.googletagmanager.com/gtag/js?id=DC-${src}"></script>\n<script>\n  window.dataLayer = window.dataLayer || [];\n  function gtag(){dataLayer.push(arguments);}\n  gtag('js', new Date());\n  gtag('config', 'DC-${src}');\n</script>`,
+      globalSiteTagEventSnippet: `<!-- Event snippet for ${activity.name} -->\n<script>\n  gtag('event', 'conversion', {\n    'allow_custom_scripts': true,\n    'send_to': 'DC-${src}/${activity.floodlightActivityGroupName.replace(/\\s/g, '_').toLowerCase()}/${activity.tagString}+${activity.type.toLowerCase() === 'counter' ? 'standard' : 'transactions'}'\n  });\n</script>`,
+      iframeTag: `<iframe src="https://ad.doubleclick.net/ddm/activity/src=${src};type=${activity.floodlightActivityGroupName.replace(/\\s/g, '_').toLowerCase()};cat=${activity.tagString};dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;npa=;gdpr=\${GDPR};gdpr_consent=\${GDPR_CONSENT_755};ord=1?" width="1" height="1" frameborder="0" style="display:none"></iframe>`,
+      imageTag: `<img src="https://ad.doubleclick.net/ddm/activity/src=${src};type=${activity.floodlightActivityGroupName.replace(/\\s/g, '_').toLowerCase()};cat=${activity.tagString};dc_lat=;dc_rdid=;tag_for_child_directed_treatment=;tfua=;npa=;gdpr=\${GDPR};gdpr_consent=\${GDPR_CONSENT_755};ord=1?" width="1" height="1" alt=""/>`,
+    };
+  }
+
+  // --- Floodlight Activity Groups ---
+
+  listFloodlightActivityGroups(
+    advertiserId: string,
+    filter?: { searchString?: string },
+  ): CM360FloodlightActivityGroup[] {
+    let results = [...this.floodlightActivityGroups.values()].filter(
+      (g) => g.advertiserId === advertiserId,
+    );
+    if (filter?.searchString) {
+      const search = filter.searchString.toLowerCase();
+      results = results.filter((g) => g.name.toLowerCase().includes(search));
+    }
+    return results;
+  }
+
+  getFloodlightActivityGroup(id: string): CM360FloodlightActivityGroup | undefined {
+    return this.floodlightActivityGroups.get(id);
+  }
+
+  createFloodlightActivityGroup(input: CM360CreateFloodlightActivityGroupInput): CM360FloodlightActivityGroup {
+    // Find the advertiser's floodlight configuration
+    const config = [...this.floodlightConfigurations.values()].find(
+      (c) => c.advertiserId === input.advertiserId,
+    );
+    if (!config) {
+      throw new Error(`No Floodlight configuration found for advertiser ${input.advertiserId}`);
+    }
+    const id = this.genId();
+    const group: CM360FloodlightActivityGroup = {
+      id,
+      name: input.name,
+      accountId: ACCOUNT_ID,
+      advertiserId: input.advertiserId,
+      floodlightConfigurationId: config.id,
+      type: input.type,
+      tagString: input.tagString,
+    };
+    this.floodlightActivityGroups.set(id, group);
+    return group;
+  }
+
+  // --- Floodlight Configurations (read-only) ---
+
+  listFloodlightConfigurations(advertiserId: string): CM360FloodlightConfiguration[] {
+    return [...this.floodlightConfigurations.values()].filter(
+      (c) => c.advertiserId === advertiserId,
+    );
+  }
+
   reset(): void {
     this.profiles = [];
     this.advertisers.clear();
@@ -1604,6 +1836,9 @@ class MockDataStore {
     this.reports.clear();
     this.reportFiles.clear();
     this.directorySites.clear();
+    this.floodlightActivities.clear();
+    this.floodlightActivityGroups.clear();
+    this.floodlightConfigurations.clear();
     this.nextId = 90000;
     this.seed();
   }

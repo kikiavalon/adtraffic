@@ -58,6 +58,16 @@ import type {
   CM360ReportFile,
   CM360ReportFileStatus,
   CM360CompatibleFields,
+  CM360FloodlightActivity,
+  CM360FloodlightActivityType,
+  CM360FloodlightCountingMethod,
+  CM360FloodlightTagFormat,
+  CM360FloodlightActivityStatus,
+  CM360FloodlightActivityGroup,
+  CM360FloodlightConfiguration,
+  CM360FloodlightTag,
+  CM360CreateFloodlightActivityInput,
+  CM360CreateFloodlightActivityGroupInput,
 } from '@adtraffic/shared';
 import { isGoogleAPIError } from './errors.js';
 import { Readable } from 'node:stream';
@@ -955,6 +965,136 @@ export class CM360Client {
     };
   }
 
+  // --- Floodlight Activities ---
+
+  async listFloodlightActivities(
+    profileId: string,
+    advertiserId: string,
+    opts?: { floodlightActivityGroupId?: string; searchString?: string },
+  ): Promise<CM360FloodlightActivity[]> {
+    const res = await this.api.floodlightActivities.list({
+      profileId,
+      advertiserId,
+      floodlightActivityGroupIds: opts?.floodlightActivityGroupId ? [opts.floodlightActivityGroupId] : undefined,
+      searchString: opts?.searchString,
+    });
+    return (res.data.floodlightActivities ?? []).map(a => mapFloodlightActivity(a));
+  }
+
+  async getFloodlightActivity(
+    profileId: string,
+    floodlightActivityId: string,
+  ): Promise<CM360FloodlightActivity | null> {
+    try {
+      const res = await this.api.floodlightActivities.get({
+        profileId,
+        id: floodlightActivityId,
+      });
+      if (!res.data) return null;
+      return mapFloodlightActivity(res.data);
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async createFloodlightActivity(
+    profileId: string,
+    input: CM360CreateFloodlightActivityInput,
+  ): Promise<CM360FloodlightActivity> {
+    const res = await this.api.floodlightActivities.insert({
+      profileId,
+      requestBody: {
+        advertiserId: input.advertiserId,
+        floodlightActivityGroupId: input.floodlightActivityGroupId,
+        name: input.name,
+        countingMethod: input.countingMethod,
+        tagString: input.tagString,
+        tagFormat: input.tagFormat,
+        expectedUrl: input.expectedUrl,
+        notes: input.notes,
+      },
+    });
+    return mapFloodlightActivity(res.data);
+  }
+
+  async generateFloodlightTag(
+    profileId: string,
+    floodlightActivityId: string,
+  ): Promise<CM360FloodlightTag> {
+    const res = await this.api.floodlightActivities.generatetag({
+      profileId,
+      floodlightActivityId,
+    });
+    return {
+      globalSiteTagGlobalSnippet: res.data.globalSiteTagGlobalSnippet ?? undefined,
+      globalSiteTagEventSnippet: res.data.floodlightActivityTag ?? undefined,
+      iframeTag: undefined,
+      imageTag: undefined,
+    };
+  }
+
+  // --- Floodlight Activity Groups ---
+
+  async listFloodlightActivityGroups(
+    profileId: string,
+    advertiserId: string,
+    opts?: { searchString?: string },
+  ): Promise<CM360FloodlightActivityGroup[]> {
+    const res = await this.api.floodlightActivityGroups.list({
+      profileId,
+      advertiserId,
+      searchString: opts?.searchString,
+    });
+    return (res.data.floodlightActivityGroups ?? []).map(g => mapFloodlightActivityGroup(g));
+  }
+
+  async getFloodlightActivityGroup(
+    profileId: string,
+    floodlightActivityGroupId: string,
+  ): Promise<CM360FloodlightActivityGroup | null> {
+    try {
+      const res = await this.api.floodlightActivityGroups.get({
+        profileId,
+        id: floodlightActivityGroupId,
+      });
+      if (!res.data) return null;
+      return mapFloodlightActivityGroup(res.data);
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async createFloodlightActivityGroup(
+    profileId: string,
+    input: CM360CreateFloodlightActivityGroupInput,
+  ): Promise<CM360FloodlightActivityGroup> {
+    const res = await this.api.floodlightActivityGroups.insert({
+      profileId,
+      requestBody: {
+        advertiserId: input.advertiserId,
+        name: input.name,
+        type: input.type,
+        tagString: input.tagString,
+      },
+    });
+    return mapFloodlightActivityGroup(res.data);
+  }
+
+  // --- Floodlight Configurations (read-only) ---
+
+  async listFloodlightConfigurations(
+    profileId: string,
+    advertiserId: string,
+  ): Promise<CM360FloodlightConfiguration[]> {
+    const res = await this.api.floodlightConfigurations.list({
+      profileId,
+      ids: [advertiserId],
+    });
+    return (res.data.floodlightConfigurations ?? []).map(c => mapFloodlightConfiguration(c));
+  }
+
   /** Parse CM360 CSV report content into structured data */
   private parseCSV(csv: string, maxRows: number): { columns: string[]; rows: Array<Record<string, string>>; totalRows: number } {
     const lines = csv.split('\n').filter(line => line.trim().length > 0);
@@ -1198,6 +1338,54 @@ function mapReport(r: any): CM360Report {
     lastModifiedTime: (r.lastModifiedTime as string) ?? '',
   };
 }
+function mapFloodlightActivity(a: any): CM360FloodlightActivity {
+  return {
+    id: String(a.id ?? ''),
+    name: String(a.name ?? ''),
+    accountId: String(a.accountId ?? ''),
+    advertiserId: String(a.advertiserId ?? ''),
+    floodlightConfigurationId: String(a.floodlightConfigurationId ?? ''),
+    floodlightActivityGroupId: String(a.floodlightActivityGroupId ?? ''),
+    floodlightActivityGroupName: String(a.floodlightActivityGroupName ?? ''),
+    floodlightActivityGroupType: (a.floodlightActivityGroupType ?? 'COUNTER') as CM360FloodlightActivityType,
+    type: (a.floodlightActivityGroupType ?? 'COUNTER') as CM360FloodlightActivityType,
+    countingMethod: (a.countingMethod ?? 'STANDARD_COUNTING') as CM360FloodlightCountingMethod,
+    tagString: String(a.tagString ?? ''),
+    tagFormat: (a.tagFormat ?? 'GLOBAL_SITE_TAG') as CM360FloodlightTagFormat,
+    expectedUrl: a.expectedUrl ? String(a.expectedUrl) : undefined,
+    status: (a.status ?? 'ACTIVE') as CM360FloodlightActivityStatus,
+    sslRequired: Boolean(a.sslRequired),
+    notes: a.notes ? String(a.notes) : undefined,
+  };
+}
+
+function mapFloodlightActivityGroup(g: any): CM360FloodlightActivityGroup {
+  return {
+    id: String(g.id ?? ''),
+    name: String(g.name ?? ''),
+    accountId: String(g.accountId ?? ''),
+    advertiserId: String(g.advertiserId ?? ''),
+    floodlightConfigurationId: String(g.floodlightConfigurationId ?? ''),
+    type: (g.type ?? 'COUNTER') as CM360FloodlightActivityType,
+    tagString: String(g.tagString ?? ''),
+  };
+}
+
+function mapFloodlightConfiguration(c: any): CM360FloodlightConfiguration {
+  return {
+    id: String(c.id ?? ''),
+    accountId: String(c.accountId ?? ''),
+    advertiserId: String(c.advertiserId ?? ''),
+    lookbackClickDays: Number(c.lookbackConfiguration?.clickDuration ?? 30),
+    lookbackImpressionDays: Number(c.lookbackConfiguration?.postImpressionActivitiesDuration ?? 7),
+    naturalSearchConversionAttributionOption: String(c.naturalSearchConversionAttributionOption ?? ''),
+    tagSettings: {
+      dynamicTagEnabled: Boolean(c.tagSettings?.dynamicTagEnabled),
+      imageTagEnabled: Boolean(c.tagSettings?.imageTagEnabled),
+    },
+  };
+}
+
 /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-base-to-string */
 
 /** Determine MIME type for creative asset upload based on filename extension and asset type */

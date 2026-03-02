@@ -50,6 +50,16 @@ export type {
   CM360ReportFileStatus,
   CM360ReportFile,
   CM360CompatibleFields,
+  CM360FloodlightActivityType,
+  CM360FloodlightCountingMethod,
+  CM360FloodlightTagFormat,
+  CM360FloodlightActivityStatus,
+  CM360FloodlightActivity,
+  CM360CreateFloodlightActivityInput,
+  CM360FloodlightActivityGroup,
+  CM360CreateFloodlightActivityGroupInput,
+  CM360FloodlightConfiguration,
+  CM360FloodlightTag,
 } from './types/cm360.js';
 
 export type {

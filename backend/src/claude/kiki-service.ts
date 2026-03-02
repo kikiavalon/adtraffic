@@ -1,12 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { v4 as uuidv4 } from 'uuid';
-import type { ChatMessage, StreamEvent } from '@adtraffic/shared';
+import type { ChatMessage, StreamEvent, FileAttachment } from '@adtraffic/shared';
 import { getSystemPrompt } from './system-prompt.js';
 import { CM360_TOOLS, getEnabledTools } from './tool-definitions.js';
 import type { ResolvedFlags } from '../feature-flags/flag-registry.js';
 import { executeTool } from '../cm360/tool-executor.js';
 import { getHistory, saveHistory, clearHistory, getHistoryLength, saveMessage } from '../db/conversation-store.js';
 import { checkLimit, recordUsage } from './usage-tracker.js';
+import { prepareIOContent } from '../io/io-parser.js';
+import { getExtractionPrompt } from '../io/extraction-prompt.js';
 
 const anthropic = new Anthropic();
 
@@ -15,6 +17,7 @@ const DEFAULT_MAX_TOOL_ROUNDS = 5;
 // Configurable via env vars — defaults are cost-conscious for testing
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001';
 const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS ?? '1024', 10);
+const CLAUDE_IO_MODEL = process.env.CLAUDE_IO_MODEL ?? CLAUDE_MODEL;
 
 /**
  * Send a message to Kiki and get a response.
@@ -25,12 +28,14 @@ const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS ?? '1024', 10);
  *                 When omitted, tool calls always use the mock data store.
  * @param flags - Optional resolved feature flags for the current user.
  *                Controls tool availability, daily limits, and max tool rounds.
+ * @param attachment - Optional file attachment for IO extraction.
  */
 export async function chat(
   conversationId: string,
   userMessage: string,
   userId?: string,
   flags?: ResolvedFlags,
+  attachment?: FileAttachment,
 ): Promise<ChatMessage> {
   // Check if chat is enabled via feature flags
   if (flags && !flags['chat.enabled']) {
@@ -70,7 +75,25 @@ export async function chat(
 
   const history = await getHistory(conversationId);
 
-  history.push({ role: 'user', content: userMessage });
+  // Prepare IO content if attachment present
+  let ioContentBlocks: Anthropic.ContentBlockParam[] | undefined;
+  let useIOModel = false;
+  if (attachment) {
+    const ioContent = await prepareIOContent(attachment);
+    ioContentBlocks = ioContent.contentBlocks;
+    useIOModel = true;
+  }
+
+  // Build user message content — multimodal if attachment present
+  if (ioContentBlocks && ioContentBlocks.length > 0) {
+    const contentArray: Anthropic.ContentBlockParam[] = [
+      { type: 'text', text: userMessage },
+      ...ioContentBlocks,
+    ];
+    history.push({ role: 'user', content: contentArray });
+  } else {
+    history.push({ role: 'user', content: userMessage });
+  }
 
   let toolRounds = 0;
 
@@ -95,10 +118,12 @@ export async function chat(
       try {
         response = await anthropic.messages.create(
           {
-            model: CLAUDE_MODEL,
-            max_tokens: CLAUDE_MAX_TOKENS,
-            system: getSystemPrompt('Demo Agency', '67890', isLiveData),
-            tools,
+            model: useIOModel ? CLAUDE_IO_MODEL : CLAUDE_MODEL,
+            max_tokens: useIOModel ? 4096 : CLAUDE_MAX_TOKENS,
+            system: useIOModel
+              ? getExtractionPrompt()
+              : getSystemPrompt('Demo Agency', '67890', isLiveData),
+            ...(useIOModel ? {} : { tools }),
             messages: history,
           },
           { signal: controller.signal },
@@ -106,6 +131,9 @@ export async function chat(
       } finally {
         clearTimeout(timeoutId);
       }
+
+      // After first extraction call, revert to normal mode for subsequent rounds
+      useIOModel = false;
 
       // Record token usage
       await recordUsage(
@@ -186,6 +214,7 @@ export async function chatStream(
   signal: AbortSignal,
   userId?: string,
   flags?: Record<string, unknown>,
+  attachment?: FileAttachment,
 ): Promise<void> {
   const maxToolRounds = (flags?.['limits.max_tool_rounds'] as number | undefined) ?? DEFAULT_MAX_TOOL_ROUNDS;
   const dailyLimit = (flags?.['limits.daily_api_requests'] as number | undefined) ?? undefined;
@@ -219,7 +248,25 @@ export async function chatStream(
   }
 
   const history = await getHistory(conversationId);
-  history.push({ role: 'user', content: userMessage });
+
+  // Prepare IO content if attachment present
+  let useIOModel = false;
+  if (attachment) {
+    const ioContent = await prepareIOContent(attachment);
+    const ioContentBlocks = ioContent.contentBlocks;
+    if (ioContentBlocks.length > 0) {
+      const contentArray: Anthropic.ContentBlockParam[] = [
+        { type: 'text', text: userMessage },
+        ...ioContentBlocks,
+      ];
+      history.push({ role: 'user', content: contentArray });
+    } else {
+      history.push({ role: 'user', content: userMessage });
+    }
+    useIOModel = true;
+  } else {
+    history.push({ role: 'user', content: userMessage });
+  }
 
   const messageId = uuidv4();
   emit({ type: 'message_start', messageId, conversationId });
@@ -245,14 +292,19 @@ export async function chatStream(
       // Streaming call to Claude
       const stream = anthropic.messages.stream(
         {
-          model: CLAUDE_MODEL,
-          max_tokens: CLAUDE_MAX_TOKENS,
-          system: getSystemPrompt('Demo Agency', '67890', isLiveData),
-          tools: CM360_TOOLS,
+          model: useIOModel ? CLAUDE_IO_MODEL : CLAUDE_MODEL,
+          max_tokens: useIOModel ? 4096 : CLAUDE_MAX_TOKENS,
+          system: useIOModel
+            ? getExtractionPrompt()
+            : getSystemPrompt('Demo Agency', '67890', isLiveData),
+          ...(useIOModel ? {} : { tools: CM360_TOOLS }),
           messages: history,
         },
         { signal },
       );
+
+      // After first extraction call, revert to normal mode for subsequent rounds
+      useIOModel = false;
 
       // Process stream events — emit text deltas as they arrive
       for await (const event of stream) {

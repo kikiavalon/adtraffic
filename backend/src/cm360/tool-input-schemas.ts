@@ -476,6 +476,29 @@ export const GetReportInputSchema = z.object({
 export type ListReportsInput = z.infer<typeof ListReportsInputSchema>;
 export type GetReportInput = z.infer<typeof GetReportInputSchema>;
 
+// Report execution and file retrieval
+
+export const RunReportInputSchema = z.object({
+  profileId: z.string().max(50),
+  reportId: z.string().max(50),
+});
+
+export const GetReportFileInputSchema = z.object({
+  profileId: z.string().max(50),
+  reportId: z.string().max(50),
+  fileId: z.string().max(50),
+  maxRows: z.number().min(1).max(200).optional(),
+});
+
+export const QueryCompatibleFieldsInputSchema = z.object({
+  profileId: z.string().max(50),
+  reportType: z.enum(['STANDARD', 'REACH', 'PATH_TO_CONVERSION', 'FLOODLIGHT', 'CROSS_MEDIA_REACH']),
+});
+
+export type RunReportInput = z.infer<typeof RunReportInputSchema>;
+export type GetReportFileInput = z.infer<typeof GetReportFileInputSchema>;
+export type QueryCompatibleFieldsInput = z.infer<typeof QueryCompatibleFieldsInputSchema>;
+
 // ---------------------------------------------------------------------------
 // Helper: format Zod errors into a readable string
 // ---------------------------------------------------------------------------

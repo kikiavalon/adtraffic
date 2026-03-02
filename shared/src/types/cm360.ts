@@ -459,6 +459,47 @@ export interface CM360Report {
   lastModifiedTime: string;
 }
 
+// ---------------------------------------------------------------------------
+// Reporting — report execution and compatible fields
+// ---------------------------------------------------------------------------
+
+/** Status of a report file after execution */
+export type CM360ReportFileStatus = 'PROCESSING' | 'REPORT_AVAILABLE' | 'CANCELLED' | 'FAILED';
+
+/** A report file — the result of running a report */
+export interface CM360ReportFile {
+  reportId: string;
+  fileId: string;
+  status: CM360ReportFileStatus;
+  fileName?: string;
+  /** ISO date string when the file was last modified */
+  dateRange?: { startDate: string; endDate: string };
+  /** Parsed report data (only present when status is REPORT_AVAILABLE) */
+  totalRows?: number;
+  rowsReturned?: number;
+  truncated?: boolean;
+  columns?: string[];
+  rows?: Array<Record<string, string>>;
+  summary?: {
+    totalImpressions?: number;
+    totalClicks?: number;
+    averageCTR?: number;
+    totalConversions?: number;
+    totalSpend?: number;
+  };
+  cm360Link: string;
+  message?: string;
+}
+
+/** Compatible fields response for a given report type */
+export interface CM360CompatibleFields {
+  reportType: CM360ReportType;
+  dimensions: string[];
+  metrics: string[];
+  dimensionFilters: string[];
+  pivotedActivityMetrics: string[];
+}
+
 /** Generic list response wrapper */
 export interface CM360ListResponse<T> {
   items: T[];

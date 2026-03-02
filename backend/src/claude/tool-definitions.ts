@@ -3,7 +3,7 @@ import type { BooleanFlagName, ResolvedFlags } from '../feature-flags/flag-regis
 
 /**
  * CM360 tool definitions for Claude's tool use.
- * 46 CM360 tools: 14 read + 6 create + 5 update + 1 tag gen + 3 search/detail + 1 upload + 5 event tags + 4 placement groups + 3 directory sites + 2 change logs + 2 reports.
+ * 49 CM360 tools: 14 read + 6 create + 5 update + 1 tag gen + 3 search/detail + 1 upload + 5 event tags + 4 placement groups + 3 directory sites + 2 change logs + 5 reports.
  *
  * Note: Tools are defined but not executed yet.
  * When Claude returns a tool_use block, the chat service will
@@ -740,6 +740,48 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
       required: ['profileId', 'reportId'],
     },
   },
+  {
+    name: 'cm360_run_report',
+    description: 'Execute a saved report asynchronously. Returns a report file object with a fileId and initial status (usually PROCESSING). Use cm360_get_report_file to poll for completion and retrieve the results. Reports typically complete within a few seconds for small date ranges.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        reportId: { type: 'string', description: 'The report ID to execute' },
+      },
+      required: ['profileId', 'reportId'],
+    },
+  },
+  {
+    name: 'cm360_get_report_file',
+    description: 'Get the results of a previously executed report. Returns the report file status, and when status is REPORT_AVAILABLE, includes parsed data rows with columns and an aggregated summary (impressions, clicks, CTR, conversions, spend). Use maxRows to limit the number of data rows returned (default 50, max 200).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        reportId: { type: 'string', description: 'The report ID' },
+        fileId: { type: 'string', description: 'The file ID returned by cm360_run_report' },
+        maxRows: { type: 'number', description: 'Maximum data rows to return (1-200, default 50). Use a lower value to keep token usage manageable.' },
+      },
+      required: ['profileId', 'reportId', 'fileId'],
+    },
+  },
+  {
+    name: 'cm360_query_compatible_fields',
+    description: 'Query which dimensions, metrics, and dimension filters are compatible with a given report type. Use this BEFORE creating or modifying reports to ensure the selected fields are valid together. Returns arrays of compatible dimensions, metrics, dimensionFilters, and pivotedActivityMetrics for the specified report type.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        reportType: {
+          type: 'string',
+          description: 'Report type to query compatible fields for',
+          enum: ['STANDARD', 'REACH', 'PATH_TO_CONVERSION', 'FLOODLIGHT', 'CROSS_MEDIA_REACH'],
+        },
+      },
+      required: ['profileId', 'reportType'],
+    },
+  },
 ];
 
 /**
@@ -799,9 +841,12 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   // Change logs (read-only audit trail)
   cm360_list_change_logs: 'cm360.read_operations',
   cm360_get_change_log: 'cm360.read_operations',
-  // Reports (read-only report definitions)
+  // Reports (read-only report definitions and execution)
   cm360_list_reports: 'cm360.read_operations',
   cm360_get_report: 'cm360.read_operations',
+  cm360_run_report: 'cm360.read_operations',
+  cm360_get_report_file: 'cm360.read_operations',
+  cm360_query_compatible_fields: 'cm360.read_operations',
   // Tag generation
   cm360_generate_tags: 'cm360.tag_generation',
 };

@@ -63,6 +63,9 @@ import {
   GetChangeLogInputSchema,
   ListReportsInputSchema,
   GetReportInputSchema,
+  RunReportInputSchema,
+  GetReportFileInputSchema,
+  QueryCompatibleFieldsInputSchema,
   formatZodErrors,
 } from './tool-input-schemas.js';
 
@@ -209,6 +212,9 @@ const VALID_TOOL_NAMES = new Set([
   // Reports
   'cm360_list_reports',
   'cm360_get_report',
+  'cm360_run_report',
+  'cm360_get_report_file',
+  'cm360_query_compatible_fields',
 ]);
 
 function isValidToolName(name: string): boolean {
@@ -775,6 +781,39 @@ async function executeToolReal(
         return { result: null, isError: true, errorMessage: `Report ${parsed.data.reportId} not found` };
       }
       return { result: report, isError: false };
+    }
+
+    case 'cm360_run_report': {
+      const parsed = RunReportInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const file = await client.runReport(profileId, parsed.data.reportId);
+      return { result: file, isError: false };
+    }
+
+    case 'cm360_get_report_file': {
+      const parsed = GetReportFileInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const file = await client.getReportFile(profileId, parsed.data.reportId, parsed.data.fileId, parsed.data.maxRows);
+      if (!file) {
+        return { result: null, isError: true, errorMessage: `Report file ${parsed.data.fileId} not found` };
+      }
+      return { result: file, isError: false };
+    }
+
+    case 'cm360_query_compatible_fields': {
+      const parsed = QueryCompatibleFieldsInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const fields = await client.queryCompatibleFields(profileId, parsed.data.reportType);
+      return { result: fields, isError: false };
     }
 
     default:
@@ -1421,6 +1460,39 @@ function executeToolMock(
           return { result: null, isError: true, errorMessage: `Report ${parsed.data.reportId} not found` };
         }
         return { result: report, isError: false };
+      }
+
+      case 'cm360_run_report': {
+        const parsed = RunReportInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const file = mockStore.runReport(parsed.data.reportId, parsed.data.profileId);
+        if (!file) {
+          return { result: null, isError: true, errorMessage: `Report ${parsed.data.reportId} not found` };
+        }
+        return { result: file, isError: false };
+      }
+
+      case 'cm360_get_report_file': {
+        const parsed = GetReportFileInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const file = mockStore.getReportFile(parsed.data.fileId);
+        if (!file) {
+          return { result: null, isError: true, errorMessage: `Report file ${parsed.data.fileId} not found` };
+        }
+        return { result: file, isError: false };
+      }
+
+      case 'cm360_query_compatible_fields': {
+        const parsed = QueryCompatibleFieldsInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const fields = mockStore.queryCompatibleFields(parsed.data.reportType);
+        return { result: fields, isError: false };
       }
 
       default:

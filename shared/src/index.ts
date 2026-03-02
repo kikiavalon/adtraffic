@@ -47,6 +47,9 @@ export type {
   CM360InsertDirectorySiteInput,
   CM360ReportType,
   CM360Report,
+  CM360ReportFileStatus,
+  CM360ReportFile,
+  CM360CompatibleFields,
 } from './types/cm360.js';
 
 export type {

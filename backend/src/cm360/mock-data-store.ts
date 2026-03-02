@@ -46,6 +46,9 @@ import type {
   CM360ChangeLogAction,
   CM360Report,
   CM360ReportType,
+  CM360ReportFile,
+  CM360ReportFileStatus,
+  CM360CompatibleFields,
 } from '@adtraffic/shared';
 import { randomUUID } from 'crypto';
 
@@ -83,6 +86,7 @@ class MockDataStore {
   private placementGroups = new Map<string, CM360PlacementGroup>();
   private changeLogs: CM360ChangeLog[] = [];
   private reports = new Map<string, CM360Report>();
+  private reportFiles = new Map<string, CM360ReportFile>();
   private directorySites = new Map<string, {
     id: string;
     name: string;
@@ -1441,6 +1445,148 @@ class MockDataStore {
     return this.reports.get(reportId);
   }
 
+  /** Simulate running a saved report — returns a mock fileId immediately */
+  runReport(reportId: string, profileId: string): CM360ReportFile | null {
+    const report = this.reports.get(reportId);
+    if (!report) return null;
+
+    const fileId = `file-${reportId}-${Date.now()}`;
+    const reportFile: CM360ReportFile = {
+      reportId,
+      fileId,
+      status: 'REPORT_AVAILABLE' as CM360ReportFileStatus,
+      fileName: `${report.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`,
+      totalRows: 0,
+      rowsReturned: 0,
+      truncated: false,
+      columns: [...report.criteria.dimensions, ...report.criteria.metricNames],
+      rows: [],
+      summary: {},
+      cm360Link: `https://campaignmanager.google.com/#/reporting/${profileId}/report/${reportId}`,
+    };
+
+    // Generate mock rows based on the report's dimensions and metrics
+    const rows = this.generateMockReportRows(report);
+    reportFile.rows = rows;
+    reportFile.totalRows = rows.length;
+    reportFile.rowsReturned = rows.length;
+    reportFile.summary = this.computeSummary(rows, report.criteria.metricNames);
+
+    this.reportFiles.set(fileId, reportFile);
+    return reportFile;
+  }
+
+  /** Get a previously-run report file by fileId */
+  getReportFile(fileId: string): CM360ReportFile | undefined {
+    return this.reportFiles.get(fileId);
+  }
+
+  /** Return compatible dimensions/metrics for a given report type */
+  queryCompatibleFields(reportType: string): CM360CompatibleFields {
+    const standardFields = {
+      dimensions: ['campaign', 'placement', 'site', 'ad', 'creative', 'date', 'week', 'month', 'advertiser', 'placementSize'],
+      metrics: ['impressions', 'clicks', 'clickRate', 'totalConversions', 'mediaCost', 'richMediaVideoViews', 'richMediaVideoCompletions'],
+      dimensionFilters: ['advertiser', 'campaign', 'site', 'placement', 'ad', 'creative'],
+      pivotedActivityMetrics: ['totalConversions', 'totalConversionsRevenue'],
+    };
+
+    const fieldsByType: Record<string, Omit<CM360CompatibleFields, 'reportType'>> = {
+      STANDARD: standardFields,
+      REACH: {
+        dimensions: ['campaign', 'site', 'date', 'month'],
+        metrics: ['totalReach', 'averageFrequency', 'impressions'],
+        dimensionFilters: ['advertiser', 'campaign'],
+        pivotedActivityMetrics: [],
+      },
+      PATH_TO_CONVERSION: {
+        dimensions: ['campaign', 'placement', 'ad', 'creative', 'interactionType', 'interactionTime'],
+        metrics: ['totalConversions', 'totalConversionsRevenue'],
+        dimensionFilters: ['advertiser', 'campaign', 'floodlightActivity'],
+        pivotedActivityMetrics: ['totalConversions', 'totalConversionsRevenue'],
+      },
+      FLOODLIGHT: {
+        dimensions: ['floodlightActivity', 'campaign', 'date'],
+        metrics: ['floodlightImpressions', 'floodlightClicks', 'floodlightConversions', 'floodlightRevenue'],
+        dimensionFilters: ['advertiser', 'floodlightConfiguration'],
+        pivotedActivityMetrics: ['floodlightConversions', 'floodlightRevenue'],
+      },
+      CROSS_MEDIA_REACH: {
+        dimensions: ['campaign', 'date'],
+        metrics: ['crossMediaReach', 'crossMediaFrequency', 'impressions'],
+        dimensionFilters: ['advertiser', 'campaign'],
+        pivotedActivityMetrics: [],
+      },
+    };
+
+    const fields = fieldsByType[reportType] ?? standardFields;
+    return { reportType: reportType as CM360ReportType, ...fields };
+  }
+
+  /** Generate mock report rows based on report dimensions and metrics */
+  private generateMockReportRows(report: CM360Report): Array<Record<string, string>> {
+    const rows: Array<Record<string, string>> = [];
+    const campaigns = Array.from(this.campaigns.values()).slice(0, 3);
+    const placements = Array.from(this.placements.values()).slice(0, 5);
+    const sites = Array.from(this.sites.values()).slice(0, 3);
+
+    // Generate 8-15 rows with realistic-looking data
+    const rowCount = 8 + Math.floor(Math.random() * 8);
+    for (let i = 0; i < rowCount; i++) {
+      const row: Record<string, string> = {};
+      for (const dim of report.criteria.dimensions) {
+        switch (dim) {
+          case 'campaign': row[dim] = campaigns[i % campaigns.length]?.name ?? `Campaign ${i}`; break;
+          case 'placement': row[dim] = placements[i % placements.length]?.name ?? `Placement ${i}`; break;
+          case 'site': row[dim] = sites[i % sites.length]?.name ?? `Site ${i}`; break;
+          case 'date': row[dim] = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10); break;
+          case 'ad': row[dim] = `Ad ${i + 1}`; break;
+          case 'creative': row[dim] = `Creative ${i + 1}`; break;
+          default: row[dim] = `${dim}_${i}`; break;
+        }
+      }
+      for (const metric of report.criteria.metricNames) {
+        switch (metric) {
+          case 'impressions': row[metric] = String(10000 + Math.floor(Math.random() * 90000)); break;
+          case 'clicks': row[metric] = String(100 + Math.floor(Math.random() * 900)); break;
+          case 'CTR':
+          case 'clickRate': row[metric] = (0.005 + Math.random() * 0.02).toFixed(4); break;
+          case 'conversions':
+          case 'totalConversions': row[metric] = String(Math.floor(Math.random() * 50)); break;
+          case 'mediaCost': row[metric] = (100 + Math.random() * 5000).toFixed(2); break;
+          case 'totalReach': row[metric] = String(50000 + Math.floor(Math.random() * 200000)); break;
+          case 'averageFrequency': row[metric] = (1.5 + Math.random() * 3).toFixed(2); break;
+          case 'reach':
+          case 'frequency': row[metric] = (1 + Math.random() * 5).toFixed(2); break;
+          default: row[metric] = String(Math.floor(Math.random() * 1000)); break;
+        }
+      }
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  /** Compute summary aggregates from parsed rows */
+  private computeSummary(rows: Array<Record<string, string>>, metricNames: string[]): CM360ReportFile['summary'] {
+    const summary: CM360ReportFile['summary'] = {};
+    if (metricNames.includes('impressions')) {
+      summary.totalImpressions = rows.reduce((sum, r) => sum + (parseInt(r['impressions'] ?? '0', 10) || 0), 0);
+    }
+    if (metricNames.includes('clicks')) {
+      summary.totalClicks = rows.reduce((sum, r) => sum + (parseInt(r['clicks'] ?? '0', 10) || 0), 0);
+    }
+    if (summary.totalImpressions && summary.totalClicks) {
+      summary.averageCTR = summary.totalImpressions > 0 ? summary.totalClicks / summary.totalImpressions : 0;
+    }
+    if (metricNames.includes('totalConversions') || metricNames.includes('conversions')) {
+      const key = metricNames.includes('totalConversions') ? 'totalConversions' : 'conversions';
+      summary.totalConversions = rows.reduce((sum, r) => sum + (parseInt(r[key] ?? '0', 10) || 0), 0);
+    }
+    if (metricNames.includes('mediaCost')) {
+      summary.totalSpend = rows.reduce((sum, r) => sum + (parseFloat(r['mediaCost'] ?? '0') || 0), 0);
+    }
+    return summary;
+  }
+
   reset(): void {
     this.profiles = [];
     this.advertisers.clear();
@@ -1456,6 +1602,7 @@ class MockDataStore {
     this.placementGroups.clear();
     this.changeLogs = [];
     this.reports.clear();
+    this.reportFiles.clear();
     this.directorySites.clear();
     this.nextId = 90000;
     this.seed();

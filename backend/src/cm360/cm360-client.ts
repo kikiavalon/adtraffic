@@ -55,6 +55,9 @@ import type {
   CM360ChangeLogAction,
   CM360Report,
   CM360ReportType,
+  CM360ReportFile,
+  CM360ReportFileStatus,
+  CM360CompatibleFields,
 } from '@adtraffic/shared';
 import { isGoogleAPIError } from './errors.js';
 import { Readable } from 'node:stream';
@@ -871,6 +874,144 @@ export class CM360Client {
       if (isGoogleAPIError(err) && err.code === 404) return null;
       throw err;
     }
+  }
+
+  /** Run a saved report. Returns the file metadata (status will be PROCESSING initially). */
+  async runReport(profileId: string, reportId: string): Promise<CM360ReportFile> {
+    const res = await this.api.reports.run({ profileId, reportId });
+    const file = res.data;
+    return {
+      reportId,
+      fileId: String(file.id ?? ''),
+      status: (file.status as CM360ReportFileStatus) ?? 'PROCESSING',
+      fileName: (file.fileName as string) ?? undefined,
+      cm360Link: `https://campaignmanager.google.com/#/reporting/${profileId}/report/${reportId}`,
+      message: 'Report execution started. Use cm360_get_report_file to retrieve results.',
+    };
+  }
+
+  /** Get a report file. If status is REPORT_AVAILABLE, downloads and parses the CSV. */
+  async getReportFile(profileId: string, reportId: string, fileId: string, maxRows = 50): Promise<CM360ReportFile> {
+    // First check the file status
+    const meta = await this.api.reports.files.get({ profileId, reportId, fileId });
+    const status = (meta.data.status as CM360ReportFileStatus) ?? 'PROCESSING';
+    const cm360Link = `https://campaignmanager.google.com/#/reporting/${profileId}/report/${reportId}`;
+
+    if (status !== 'REPORT_AVAILABLE') {
+      return {
+        reportId,
+        fileId,
+        status,
+        cm360Link,
+        message: status === 'PROCESSING'
+          ? 'Report is still generating. Check back in a moment or view in CM360.'
+          : `Report file status: ${status}`,
+      };
+    }
+
+    // Download the actual file content
+    const fileRes = await this.api.reports.files.get({
+      profileId,
+      reportId,
+      fileId,
+      alt: 'media',
+    });
+
+    // Parse CSV content
+    const csvContent = typeof fileRes.data === 'string' ? fileRes.data : '';
+    const { columns, rows, totalRows } = this.parseCSV(csvContent, maxRows);
+
+    const summary = this.computeReportSummary(rows, columns);
+
+    return {
+      reportId,
+      fileId,
+      status: 'REPORT_AVAILABLE',
+      fileName: (meta.data.fileName as string) ?? undefined,
+      totalRows,
+      rowsReturned: rows.length,
+      truncated: rows.length < totalRows,
+      columns,
+      rows,
+      summary,
+      cm360Link,
+    };
+  }
+
+  /** Query which dimensions/metrics/filters are compatible for a given report type */
+  async queryCompatibleFields(profileId: string, reportType: string): Promise<CM360CompatibleFields> {
+    const res = await this.api.reports.compatibleFields.query({
+      profileId,
+      requestBody: { type: reportType, criteria: {} },
+    });
+
+    const fields = res.data.reportCompatibleFields;
+    return {
+      reportType: reportType as CM360ReportType,
+      dimensions: (Array.isArray(fields?.dimensions) ? fields.dimensions : []).map((d) => String(d.name ?? '')),
+      metrics: (Array.isArray(fields?.metrics) ? fields.metrics : []).map((m) => String(m.name ?? '')),
+      dimensionFilters: (Array.isArray(fields?.dimensionFilters) ? fields.dimensionFilters : []).map((f) => String(f.name ?? '')),
+      pivotedActivityMetrics: (Array.isArray(fields?.pivotedActivityMetrics) ? fields.pivotedActivityMetrics : []).map((m) => String(m.name ?? '')),
+    };
+  }
+
+  /** Parse CM360 CSV report content into structured data */
+  private parseCSV(csv: string, maxRows: number): { columns: string[]; rows: Array<Record<string, string>>; totalRows: number } {
+    const lines = csv.split('\n').filter(line => line.trim().length > 0);
+    if (lines.length === 0) return { columns: [], rows: [], totalRows: 0 };
+
+    // CM360 reports have a header section — find the actual data header
+    let dataStartIndex = 0;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i]!.includes(',') && !lines[i]!.startsWith('Report')) {
+        dataStartIndex = i;
+        break;
+      }
+    }
+
+    const columns = lines[dataStartIndex]!.split(',').map(col => col.trim().replace(/^"|"$/g, ''));
+    const dataLines = lines.slice(dataStartIndex + 1);
+    const totalRows = dataLines.length;
+
+    const rows: Array<Record<string, string>> = [];
+    for (let i = 0; i < Math.min(dataLines.length, maxRows); i++) {
+      const values = dataLines[i]!.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const row: Record<string, string> = {};
+      for (let j = 0; j < columns.length; j++) {
+        row[columns[j]!] = values[j] ?? '';
+      }
+      rows.push(row);
+    }
+
+    return { columns, rows, totalRows };
+  }
+
+  /** Compute summary aggregates from parsed report rows */
+  private computeReportSummary(rows: Array<Record<string, string>>, columns: string[]): CM360ReportFile['summary'] {
+    const summary: CM360ReportFile['summary'] = {};
+    const lowerCols = columns.map(c => c.toLowerCase());
+
+    const sumColumn = (name: string): number =>
+      rows.reduce((sum, r) => {
+        const key = columns.find((_, i) => lowerCols[i] === name.toLowerCase());
+        return sum + (parseFloat(r[key ?? ''] ?? '0') || 0);
+      }, 0);
+
+    if (lowerCols.includes('impressions')) summary.totalImpressions = Math.round(sumColumn('impressions'));
+    if (lowerCols.includes('clicks')) summary.totalClicks = Math.round(sumColumn('clicks'));
+    if (summary.totalImpressions && summary.totalClicks) {
+      summary.averageCTR = summary.totalImpressions > 0 ? summary.totalClicks / summary.totalImpressions : 0;
+    }
+    if (lowerCols.some(c => c.includes('conversion'))) {
+      const convCol = lowerCols.find(c => c.includes('conversion'))!;
+      summary.totalConversions = Math.round(sumColumn(convCol));
+    }
+    if (lowerCols.some(c => c.includes('cost') || c.includes('spend'))) {
+      const costCol = lowerCols.find(c => c.includes('cost') || c.includes('spend'))!;
+      summary.totalSpend = Math.round(sumColumn(costCol) * 100) / 100;
+    }
+
+    return summary;
   }
 }
 

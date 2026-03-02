@@ -141,6 +141,13 @@ export interface CM360Placement {
   pricingSchedule: {
     startDate: string;
     endDate: string;
+    pricingType?: 'CPM' | 'CPC' | 'CPA' | 'FLAT_RATE_IMPRESSIONS' | 'FLAT_RATE_CLICKS';
+    pricingPeriods?: Array<{
+      startDate: string;
+      endDate: string;
+      rateOrCostNanos: number;
+      units: number;
+    }>;
   };
   tagFormats: CM360TagFormat[];
   archived?: boolean;

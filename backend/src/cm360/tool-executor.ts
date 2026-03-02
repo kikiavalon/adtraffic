@@ -75,6 +75,7 @@ import {
   GetFloodlightActivityGroupInputSchema,
   CreateFloodlightActivityGroupInputSchema,
   ListFloodlightConfigurationsInputSchema,
+  PacingAnalysisInputSchema,
   formatZodErrors,
 } from './tool-input-schemas.js';
 
@@ -234,6 +235,8 @@ const VALID_TOOL_NAMES = new Set([
   'cm360_get_floodlight_activity_group',
   'cm360_create_floodlight_activity_group',
   'cm360_list_floodlight_configurations',
+  // Pacing analysis
+  'cm360_pacing_analysis',
 ]);
 
 function isValidToolName(name: string): boolean {
@@ -951,6 +954,19 @@ async function executeToolReal(
       const lcProfileId = await resolveProfileId(client);
       const configs = await client.listFloodlightConfigurations(lcProfileId, parsed.data.advertiserId);
       return { result: { floodlightConfigurations: configs }, isError: false };
+    }
+
+    // --- Pacing Analysis (computed from placement data) ---
+    case 'cm360_pacing_analysis': {
+      const parsed = PacingAnalysisInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      // Pacing analysis is always computed from mock data for now.
+      // In real mode, we would fetch placements + delivery data from the CM360 API
+      // and compute pacing server-side. For MVP, mock data provides realistic results.
+      const analysis = mockStore.getPacingAnalysis(parsed.data.campaignId);
+      return { result: analysis, isError: false };
     }
 
     default:
@@ -1750,6 +1766,16 @@ function executeToolMock(
         }
         const configs = mockStore.listFloodlightConfigurations(parsed.data.advertiserId);
         return { result: { floodlightConfigurations: configs }, isError: false };
+      }
+
+      // --- Pacing Analysis ---
+      case 'cm360_pacing_analysis': {
+        const parsed = PacingAnalysisInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const analysis = mockStore.getPacingAnalysis(parsed.data.campaignId);
+        return { result: analysis, isError: false };
       }
 
       default:

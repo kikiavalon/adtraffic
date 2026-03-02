@@ -361,6 +361,7 @@ describe('tool gating', () => {
       'cm360_create_placement_group', 'cm360_update_placement_group',
       'cm360_insert_directory_site',
       'cm360_create_floodlight_activity', 'cm360_create_floodlight_activity_group',
+      'cm360_create_report',
     ];
     for (const tool of tools) {
       expect(writeToolNames).not.toContain(tool.name);

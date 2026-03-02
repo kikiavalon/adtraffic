@@ -593,6 +593,18 @@ export const CreateReportInputSchema = z.object({
 export type CreateReportInput = z.infer<typeof CreateReportInputSchema>;
 
 // ---------------------------------------------------------------------------
+// Pacing Analysis
+// ---------------------------------------------------------------------------
+
+export const PacingAnalysisInputSchema = z.object({
+  profileId: z.string().min(1, 'Profile ID is required'),
+  campaignId: z.string().min(1, 'Campaign ID is required'),
+  advertiserId: z.string().optional(),
+});
+
+export type PacingAnalysisInput = z.infer<typeof PacingAnalysisInputSchema>;
+
+// ---------------------------------------------------------------------------
 // Helper: format Zod errors into a readable string
 // ---------------------------------------------------------------------------
 

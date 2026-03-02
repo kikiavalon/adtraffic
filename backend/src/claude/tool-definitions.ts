@@ -3,7 +3,7 @@ import type { BooleanFlagName, ResolvedFlags } from '../feature-flags/flag-regis
 
 /**
  * CM360 tool definitions for Claude's tool use.
- * 49 CM360 tools: 14 read + 6 create + 5 update + 1 tag gen + 3 search/detail + 1 upload + 5 event tags + 4 placement groups + 3 directory sites + 2 change logs + 5 reports.
+ * 59 CM360 tools: 14 read + 6 create + 5 update + 1 tag gen + 3 search/detail + 1 upload + 5 event tags + 4 placement groups + 3 directory sites + 2 change logs + 6 reports + 2 floodlight configs + 1 pacing analysis.
  *
  * Note: Tools are defined but not executed yet.
  * When Claude returns a tool_use block, the chat service will
@@ -742,7 +742,7 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'cm360_create_report',
-    description: 'Create a new report definition with the specified dimensions, metrics, date range, and optional filters. Use cm360_query_compatible_fields FIRST to verify your dimensions and metrics are valid for the report type. After creating, use cm360_run_report to execute it and cm360_get_report_file to retrieve results.',
+    description: '[WRITE] Create a new report definition with the specified dimensions, metrics, date range, and optional filters. Use cm360_query_compatible_fields FIRST to verify your dimensions and metrics are valid for the report type. After creating, use cm360_run_report to execute it and cm360_get_report_file to retrieve results. IMPORTANT: Always show a preview of what will be created and get user confirmation before calling this tool.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -952,6 +952,20 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
       required: ['profileId', 'advertiserId'],
     },
   },
+  // --- Pacing Analysis ---
+  {
+    name: 'cm360_pacing_analysis',
+    description: 'Analyze delivery pacing for a campaign. Compares actual impressions delivered against linear flight-date goals for each placement. Returns per-placement pacing status (ahead/behind/on_track), spend tracking for CPM placements, and an overall campaign health summary. Use this when the user asks about pacing, delivery status, under-delivery, over-delivery, or spend tracking.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'The CM360 user profile ID' },
+        campaignId: { type: 'string', description: 'The campaign ID to analyze pacing for' },
+        advertiserId: { type: 'string', description: 'Optional advertiser ID for scoping' },
+      },
+      required: ['profileId', 'campaignId'],
+    },
+  },
 ];
 
 /**
@@ -1014,7 +1028,7 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   // Reports (read-only report definitions and execution)
   cm360_list_reports: 'cm360.read_operations',
   cm360_get_report: 'cm360.read_operations',
-  cm360_create_report: 'cm360.read_operations',
+  cm360_create_report: 'cm360.write_operations',
   cm360_run_report: 'cm360.read_operations',
   cm360_get_report_file: 'cm360.read_operations',
   cm360_query_compatible_fields: 'cm360.read_operations',
@@ -1030,6 +1044,8 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   cm360_create_floodlight_activity_group: 'cm360.write_operations',
   // Tag generation
   cm360_generate_tags: 'cm360.tag_generation',
+  // Pacing analysis (read-only computed data)
+  cm360_pacing_analysis: 'cm360.read_operations',
 };
 
 /**

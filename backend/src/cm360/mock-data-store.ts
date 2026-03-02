@@ -335,6 +335,13 @@ class MockDataStore {
             pricingSchedule: {
               startDate: camp.startDate,
               endDate: camp.endDate,
+              pricingType: 'CPM' as const,
+              pricingPeriods: [{
+                startDate: camp.startDate,
+                endDate: camp.endDate,
+                rateOrCostNanos: faker.number.int({ min: 3, max: 15 }) * 1_000_000_000,
+                units: faker.number.int({ min: 100_000, max: 1_000_000 }),
+              }],
             },
             activeStatus: 'ACTIVE',
             tagFormats: ['PLACEMENT_TAG_STANDARD'],
@@ -384,6 +391,13 @@ class MockDataStore {
         pricingSchedule: {
           startDate: camp.startDate,
           endDate: camp.endDate,
+          pricingType: 'CPM' as const,
+          pricingPeriods: [{
+            startDate: camp.startDate,
+            endDate: camp.endDate,
+            rateOrCostNanos: faker.number.int({ min: 8, max: 25 }) * 1_000_000_000,
+            units: faker.number.int({ min: 50_000, max: 500_000 }),
+          }],
         },
         tagFormats: ['PLACEMENT_TAG_VAST_2_0'],
       });
@@ -412,7 +426,17 @@ class MockDataStore {
         size: { id: 'size-1x1', width: 1, height: 1, iab: true },
         status: 'PAYMENT_ACCEPTED',
         activeStatus: 'ACTIVE',
-        pricingSchedule: { startDate: camp.startDate, endDate: camp.endDate },
+        pricingSchedule: {
+          startDate: camp.startDate,
+          endDate: camp.endDate,
+          pricingType: 'CPM' as const,
+          pricingPeriods: [{
+            startDate: camp.startDate,
+            endDate: camp.endDate,
+            rateOrCostNanos: faker.number.int({ min: 1, max: 5 }) * 1_000_000_000,
+            units: faker.number.int({ min: 50_000, max: 200_000 }),
+          }],
+        },
         tagFormats: ['PLACEMENT_TAG_TRACKING'],
       });
     }
@@ -439,7 +463,17 @@ class MockDataStore {
         size: { id: 'size-300x250', width: 300, height: 250, iab: true },
         status: 'PAYMENT_ACCEPTED',
         activeStatus: 'ACTIVE',
-        pricingSchedule: { startDate: camp.startDate, endDate: camp.endDate },
+        pricingSchedule: {
+          startDate: camp.startDate,
+          endDate: camp.endDate,
+          pricingType: 'CPM' as const,
+          pricingPeriods: [{
+            startDate: camp.startDate,
+            endDate: camp.endDate,
+            rateOrCostNanos: faker.number.int({ min: 5, max: 20 }) * 1_000_000_000,
+            units: faker.number.int({ min: 50_000, max: 300_000 }),
+          }],
+        },
         tagFormats: ['PLACEMENT_TAG_STANDARD'],
       });
     }
@@ -2001,6 +2035,166 @@ class MockDataStore {
     return [...this.floodlightConfigurations.values()].filter(
       (c) => c.advertiserId === advertiserId,
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pacing Analysis — computes linear pacing per placement for a campaign
+  // ---------------------------------------------------------------------------
+
+  getPacingAnalysis(campaignId: string): {
+    campaignName: string;
+    analysisDate: string;
+    overallStatus: 'ahead' | 'behind' | 'on_track' | 'completed' | 'not_started';
+    placements: Array<{
+      placementId: string;
+      placementName: string;
+      siteName: string;
+      flightStart: string;
+      flightEnd: string;
+      daysElapsed: number;
+      daysRemaining: number;
+      percentTimeElapsed: number;
+      impressionsGoal: number;
+      impressionsDelivered: number;
+      impressionsExpected: number;
+      impressionsPacingPercent: number;
+      impressionsStatus: 'ahead' | 'behind' | 'on_track' | 'completed' | 'not_started';
+      budget?: number;
+      spend?: number;
+      spendExpected?: number;
+      spendPacingPercent?: number;
+      spendStatus?: 'ahead' | 'behind' | 'on_track';
+    }>;
+    summary: string;
+  } {
+    const campaign = this.campaigns.get(campaignId);
+    if (!campaign) throw new Error(`Campaign ${campaignId} not found`);
+
+    const today = new Date();
+    const analysisDate = today.toISOString().slice(0, 10);
+    const placements = this.listPlacements({ campaignId });
+
+    const pacingPlacements = placements
+      .filter(p => p.pricingSchedule.pricingPeriods && p.pricingSchedule.pricingPeriods.length > 0)
+      .map(p => {
+        const period = p.pricingSchedule.pricingPeriods![0]!;
+        const flightStart = new Date(p.pricingSchedule.startDate);
+        const flightEnd = new Date(p.pricingSchedule.endDate);
+        const totalFlightMs = flightEnd.getTime() - flightStart.getTime();
+        const totalFlightDays = Math.max(1, Math.ceil(totalFlightMs / (1000 * 60 * 60 * 24)));
+
+        let daysElapsed: number;
+        let daysRemaining: number;
+        let status: 'ahead' | 'behind' | 'on_track' | 'completed' | 'not_started';
+
+        if (today < flightStart) {
+          daysElapsed = 0;
+          daysRemaining = totalFlightDays;
+          status = 'not_started';
+        } else if (today > flightEnd) {
+          daysElapsed = totalFlightDays;
+          daysRemaining = 0;
+          status = 'completed';
+        } else {
+          const elapsedMs = today.getTime() - flightStart.getTime();
+          daysElapsed = Math.ceil(elapsedMs / (1000 * 60 * 60 * 24));
+          daysRemaining = totalFlightDays - daysElapsed;
+          status = 'on_track';
+        }
+
+        const percentTimeElapsed = Math.round((daysElapsed / totalFlightDays) * 1000) / 10;
+        const impressionsGoal = period.units;
+        const impressionsExpected = Math.round(impressionsGoal * (daysElapsed / totalFlightDays));
+
+        // Generate synthetic delivery data with ±20% variance using seeded random
+        const seed = parseInt(p.id, 10) || 42;
+        const variance = ((seed * 7 + 13) % 41 - 20) / 100;
+        const impressionsDelivered = status === 'not_started' ? 0
+          : status === 'completed' ? Math.round(impressionsGoal * (1 + variance * 0.5))
+          : Math.round(impressionsExpected * (1 + variance));
+
+        let impressionsPacingPercent = 0;
+        if (impressionsExpected > 0) {
+          impressionsPacingPercent = Math.round((impressionsDelivered / impressionsExpected) * 1000) / 10;
+        }
+
+        let impressionsStatus: 'ahead' | 'behind' | 'on_track' | 'completed' | 'not_started';
+        if (status === 'not_started' || status === 'completed') {
+          impressionsStatus = status;
+        } else if (impressionsPacingPercent < 90) {
+          impressionsStatus = 'behind';
+        } else if (impressionsPacingPercent > 110) {
+          impressionsStatus = 'ahead';
+        } else {
+          impressionsStatus = 'on_track';
+        }
+
+        // Compute spend pacing for CPM placements
+        const ratePerThousand = period.rateOrCostNanos / 1_000_000_000;
+        const budget = Math.round((impressionsGoal / 1000) * ratePerThousand * 100) / 100;
+        const spend = Math.round((impressionsDelivered / 1000) * ratePerThousand * 100) / 100;
+        const spendExpected = Math.round((impressionsExpected / 1000) * ratePerThousand * 100) / 100;
+        const spendPacingPercent = spendExpected > 0
+          ? Math.round((spend / spendExpected) * 1000) / 10
+          : 0;
+        let spendStatus: 'ahead' | 'behind' | 'on_track' | undefined;
+        if (status !== 'not_started' && status !== 'completed') {
+          spendStatus = spendPacingPercent < 90 ? 'behind' : spendPacingPercent > 110 ? 'ahead' : 'on_track';
+        }
+
+        const site = this.sites.get(p.siteId);
+
+        return {
+          placementId: p.id,
+          placementName: p.name,
+          siteName: site?.name ?? 'Unknown',
+          flightStart: p.pricingSchedule.startDate,
+          flightEnd: p.pricingSchedule.endDate,
+          daysElapsed,
+          daysRemaining,
+          percentTimeElapsed,
+          impressionsGoal,
+          impressionsDelivered,
+          impressionsExpected,
+          impressionsPacingPercent,
+          impressionsStatus,
+          budget,
+          spend,
+          spendExpected,
+          spendPacingPercent,
+          spendStatus,
+        };
+      });
+
+    // Overall status: worst-case across placements
+    const statusPriority: Record<string, number> = { behind: 0, on_track: 1, ahead: 2, not_started: 3, completed: 4 };
+    const overallStatus = pacingPlacements.length === 0
+      ? 'not_started' as const
+      : pacingPlacements.reduce((worst, p) =>
+          statusPriority[p.impressionsStatus]! < statusPriority[worst]!
+            ? p.impressionsStatus
+            : worst,
+        'completed' as 'ahead' | 'behind' | 'on_track' | 'completed' | 'not_started');
+
+    // Generate summary
+    const behindCount = pacingPlacements.filter(p => p.impressionsStatus === 'behind').length;
+    const aheadCount = pacingPlacements.filter(p => p.impressionsStatus === 'ahead').length;
+    const onTrackCount = pacingPlacements.filter(p => p.impressionsStatus === 'on_track').length;
+    const totalBudget = pacingPlacements.reduce((sum, p) => sum + (p.budget ?? 0), 0);
+    const totalSpend = pacingPlacements.reduce((sum, p) => sum + (p.spend ?? 0), 0);
+
+    const summary = `Campaign "${campaign.name}" pacing analysis as of ${analysisDate}: `
+      + `${pacingPlacements.length} placements analyzed. `
+      + `${onTrackCount} on track, ${aheadCount} ahead, ${behindCount} behind. `
+      + `Total budget: $${totalBudget.toLocaleString()}, spent: $${totalSpend.toLocaleString()}.`;
+
+    return {
+      campaignName: campaign.name,
+      analysisDate,
+      overallStatus,
+      placements: pacingPlacements,
+      summary,
+    };
   }
 
   reset(): void {

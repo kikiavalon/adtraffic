@@ -67,9 +67,9 @@ describe('IO Integration', () => {
 
     // Verify Claude received multimodal content
     expect(createMock).toHaveBeenCalled();
-    const callArgs = createMock.mock.calls[0][0];
+    const callArgs = createMock.mock.calls[0]![0] as { messages: Array<{ role: string; content: unknown }>; system: string; tools?: unknown };
     // User message is at index 0 (getHistory returns []), history is modified by reference after call
-    const userMessage = callArgs.messages[0];
+    const userMessage = callArgs.messages[0]!;
     expect(userMessage.role).toBe('user');
     // Content should be an array (multimodal), not a string
     expect(Array.isArray(userMessage.content)).toBe(true);
@@ -81,9 +81,9 @@ describe('IO Integration', () => {
     await chat('conv-2', 'List advertisers');
 
     expect(createMock).toHaveBeenCalled();
-    const callArgs = createMock.mock.calls[0][0];
+    const callArgs = createMock.mock.calls[0]![0] as { messages: Array<{ role: string; content: unknown }>; system: string; tools?: unknown };
     // User message is at index 0 (getHistory returns [])
-    const userMessage = callArgs.messages[0];
+    const userMessage = callArgs.messages[0]!;
     // Plain text — string content, not array
     expect(typeof userMessage.content).toBe('string');
   });
@@ -101,7 +101,7 @@ describe('IO Integration', () => {
     await chat('conv-3', 'Parse this IO', undefined, undefined, attachment);
 
     expect(createMock).toHaveBeenCalled();
-    const callArgs = createMock.mock.calls[0][0];
+    const callArgs = createMock.mock.calls[0]![0] as { messages: Array<{ role: string; content: unknown }>; system: string; tools?: unknown };
     // Should use extraction prompt (contains "TraffickingPlan")
     expect(callArgs.system).toContain('TraffickingPlan');
     // Should NOT include tools for extraction
@@ -114,7 +114,7 @@ describe('IO Integration', () => {
     await chat('conv-4', 'List campaigns');
 
     expect(createMock).toHaveBeenCalled();
-    const callArgs = createMock.mock.calls[0][0];
+    const callArgs = createMock.mock.calls[0]![0] as { messages: Array<{ role: string; content: unknown }>; system: string; tools?: unknown };
     // Normal prompt should NOT contain TraffickingPlan schema
     expect(callArgs.system).not.toContain('TraffickingPlan');
     // Should include tools

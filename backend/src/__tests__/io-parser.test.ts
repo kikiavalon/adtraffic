@@ -28,7 +28,7 @@ describe('IO Parser', () => {
     const result = await prepareIOContent(attachment);
 
     expect(result.contentBlocks.length).toBeGreaterThan(0);
-    expect(result.contentBlocks[0].type).toBe('image');
+    expect(result.contentBlocks[0]!.type).toBe('image');
     expect(result.isPdf).toBe(true);
   });
 
@@ -43,7 +43,7 @@ describe('IO Parser', () => {
     const result = await prepareIOContent(attachment);
 
     expect(result.contentBlocks.length).toBe(1);
-    expect(result.contentBlocks[0].type).toBe('text');
+    expect(result.contentBlocks[0]!.type).toBe('text');
     expect(result.isPdf).toBe(false);
   });
 
@@ -57,7 +57,7 @@ describe('IO Parser', () => {
 
     const result = await prepareIOContent(attachment);
 
-    expect(result.contentBlocks[0].type).toBe('text');
+    expect(result.contentBlocks[0]!.type).toBe('text');
     expect(result.isPdf).toBe(false);
   });
 
@@ -71,7 +71,7 @@ describe('IO Parser', () => {
 
     const result = await prepareIOContent(attachment);
 
-    expect(result.contentBlocks[0].type).toBe('text');
+    expect(result.contentBlocks[0]!.type).toBe('text');
     expect(result.isPdf).toBe(false);
   });
 

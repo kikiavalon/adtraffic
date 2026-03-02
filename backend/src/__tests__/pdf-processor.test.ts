@@ -26,12 +26,14 @@ describe('PDF Processor', () => {
     const result = await processPdf('fake-base64-data');
 
     expect(result).toHaveLength(2);
-    expect(result[0].type).toBe('image');
-    expect(result[0].source.type).toBe('base64');
-    expect(result[0].source.media_type).toBe('image/png');
-    expect(typeof result[0].source.data).toBe('string');
+    const first = result[0]!;
+    expect(first.type).toBe('image');
+    const source = first.source as { type: string; media_type: string; data: string };
+    expect(source.type).toBe('base64');
+    expect(source.media_type).toBe('image/png');
+    expect(typeof source.data).toBe('string');
     // Verify it's valid base64 of our fake PNG
-    expect(Buffer.from(result[0].source.data, 'base64').toString()).toBe('fake-png-page-1');
+    expect(Buffer.from(source.data, 'base64').toString()).toBe('fake-png-page-1');
   });
 
   it('returns empty array for empty PDF', async () => {

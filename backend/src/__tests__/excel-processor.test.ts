@@ -19,7 +19,7 @@ describe('Excel/CSV Processor', () => {
       ['NYT.com', '728x90', '2026-04-15', '2026-05-31', '18', 'CPM'],
     ]);
 
-    const result = await processExcel(data, 'test.xlsx');
+    const result = processExcel(data, 'test.xlsx');
 
     expect(result).toContain('ESPN.com');
     expect(result).toContain('NYT.com');
@@ -38,7 +38,7 @@ describe('Excel/CSV Processor', () => {
     const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
     const data = Buffer.from(buffer).toString('base64');
 
-    const result = await processExcel(data, 'test.xlsx');
+    const result = processExcel(data, 'test.xlsx');
 
     expect(result).toContain('Campaign');
     expect(result).toContain('Placements');
@@ -50,7 +50,7 @@ describe('Excel/CSV Processor', () => {
     const csvContent = 'Site,Size,Rate\nESPN.com,300x250,12\n';
     const data = Buffer.from(csvContent).toString('base64');
 
-    const result = await processExcel(data, 'test.csv');
+    const result = processExcel(data, 'test.csv');
 
     expect(result).toContain('ESPN.com');
     expect(result).toContain('300x250');
@@ -58,11 +58,11 @@ describe('Excel/CSV Processor', () => {
 
   it('handles empty workbook gracefully', async () => {
     const data = await createTestWorkbook([]);
-    const result = await processExcel(data, 'empty.xlsx');
+    const result = processExcel(data, 'empty.xlsx');
     expect(typeof result).toBe('string');
   });
 
-  it('throws on invalid base64 data', async () => {
-    await expect(processExcel('not-valid-base64!!!', 'bad.xlsx')).rejects.toThrow();
+  it('throws on invalid base64 data', () => {
+    expect(() => processExcel('not-valid-base64!!!', 'bad.xlsx')).toThrow();
   });
 });

@@ -7,7 +7,7 @@ import XLSX from 'xlsx';
  * Returns a text representation with sheet names and tabular data.
  * Each sheet is rendered as a markdown-style table.
  */
-export async function processExcel(base64Data: string, filename: string): Promise<string> {
+export function processExcel(base64Data: string, filename: string): string {
   // Validate base64 encoding before processing
   if (!/^[A-Za-z0-9+/\n\r]*={0,2}$/.test(base64Data)) {
     throw new Error('Invalid base64 data');
@@ -32,11 +32,11 @@ export async function processExcel(base64Data: string, filename: string): Promis
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) continue;
 
-    const rows: string[][] = XLSX.utils.sheet_to_json(sheet, {
+    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
       header: 1,
       defval: '',
       blankrows: false,
-    }) as string[][];
+    });
 
     if (rows.length === 0) continue;
 
@@ -46,13 +46,17 @@ export async function processExcel(base64Data: string, filename: string): Promis
     lines.push('');
 
     // Header row
-    const header = rows[0].map((cell) => String(cell ?? '').trim());
+    const headerRow = rows[0];
+    if (!headerRow) continue;
+    const header = headerRow.map((cell) => String(cell ?? '').trim());
     lines.push(`| ${header.join(' | ')} |`);
     lines.push(`| ${header.map(() => '---').join(' | ')} |`);
 
     // Data rows
     for (let i = 1; i < rows.length; i++) {
-      const cells = rows[i].map((cell) => String(cell ?? '').trim());
+      const row = rows[i];
+      if (!row) continue;
+      const cells = row.map((cell) => String(cell ?? '').trim());
       // Pad to header length
       while (cells.length < header.length) cells.push('');
       lines.push(`| ${cells.join(' | ')} |`);

@@ -19,7 +19,7 @@ export const BOOLEAN_FLAGS = {
 /** Numeric feature flags — configurable limits */
 export const NUMERIC_FLAGS = {
   'limits.daily_api_requests': { default: 100, description: 'Per-user daily API request cap' },
-  'limits.max_tool_rounds': { default: 5, description: 'Max agentic loop iterations per chat' },
+  'limits.max_tool_rounds': { default: 10, description: 'Max agentic loop iterations per chat' },
   'limits.chat_rate_per_minute': { default: 20, description: 'Per-user chat rate limit' },
 } as const;
 

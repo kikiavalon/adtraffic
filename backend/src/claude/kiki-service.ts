@@ -9,6 +9,7 @@ import { getHistory, saveHistory, clearHistory, getHistoryLength, saveMessage } 
 import { checkLimit, recordUsage } from './usage-tracker.js';
 import { prepareIOContent } from '../io/io-parser.js';
 import { getExtractionPrompt } from '../io/extraction-prompt.js';
+import { logger } from '../lib/logger.js';
 
 const anthropic = new Anthropic();
 
@@ -289,6 +290,15 @@ export async function chatStream(
   const messageId = uuidv4();
   emit({ type: 'message_start', messageId, conversationId });
 
+  logger.debug({
+    conversationId,
+    maxToolRounds,
+    maxTokens: CLAUDE_MAX_TOKENS,
+    model: CLAUDE_MODEL,
+    toolCount: tools.length,
+    isLiveData,
+  }, 'chatStream starting');
+
   let toolRounds = 0;
   let accumulatedText = '';
 
@@ -352,6 +362,15 @@ export async function chatStream(
       const toolUseBlocks = finalMessage.content.filter(
         (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
       );
+
+      logger.debug({
+        toolRound: toolRounds,
+        stopReason: finalMessage.stop_reason,
+        toolUseCount: toolUseBlocks.length,
+        toolNames: toolUseBlocks.map((b: Anthropic.ToolUseBlock) => b.name),
+        outputTokens: finalMessage.usage?.output_tokens,
+        accumulatedTextLength: accumulatedText.length,
+      }, 'chatStream round completed');
 
       if (toolUseBlocks.length === 0 || finalMessage.stop_reason === 'end_turn') {
         // No tools — emit final message

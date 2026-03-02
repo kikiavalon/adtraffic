@@ -49,6 +49,7 @@ import type {
   CM360ReportFile,
   CM360ReportFileStatus,
   CM360CompatibleFields,
+  CM360CreateReportInput,
   CM360FloodlightActivity,
   CM360FloodlightActivityType,
   CM360FloodlightCountingMethod,
@@ -345,7 +346,7 @@ class MockDataStore {
     // --- Video Placements ---
     const videoPlacementDefs = [
       { advIdx: 0, campIdx: 0, siteIdx: 8, name: 'Apex_Hulu_PreRoll_640x360', w: 640, h: 360 },
-      { advIdx: 0, campIdx: 0, siteIdx: 9, name: 'Apex_Spotify_Audio_640x360', w: 640, h: 360 },
+      { advIdx: 0, campIdx: 0, siteIdx: 9, name: 'Apex_Spotify_InStream_640x360', w: 640, h: 360 },
       { advIdx: 3, campIdx: 9, siteIdx: 8, name: 'NovaTech_Hulu_PreRoll_640x360', w: 640, h: 360 },
       { advIdx: 3, campIdx: 9, siteIdx: 9, name: 'NovaTech_Spotify_InStream_640x360', w: 640, h: 360 },
     ];
@@ -385,6 +386,61 @@ class MockDataStore {
           endDate: camp.endDate,
         },
         tagFormats: ['PLACEMENT_TAG_VAST_2_0'],
+      });
+    }
+
+    // --- 1x1 Site-Served Tracking Placements ---
+    const trackingPlacementDefs = [
+      { advIdx: 0, campIdx: 0, siteIdx: 0, name: 'Apex_ESPN_SiteServed_1x1' },
+      { advIdx: 0, campIdx: 0, siteIdx: 1, name: 'Apex_CNN_SiteServed_1x1' },
+      { advIdx: 1, campIdx: 0, siteIdx: 2, name: 'Luminance_Forbes_SiteServed_1x1' },
+    ];
+    for (const tpDef of trackingPlacementDefs) {
+      const id = this.genId();
+      const advId = advertiserIds[tpDef.advIdx]!;
+      const campIds = campaignsByAdvertiser.get(advId) ?? [];
+      const campId = campIds[tpDef.campIdx]!;
+      const siteId = siteIds[tpDef.siteIdx]!;
+      const camp = this.campaigns.get(campId)!;
+      this.placements.set(id, {
+        id,
+        name: tpDef.name,
+        accountId: ACCOUNT_ID,
+        advertiserId: advId,
+        campaignId: campId,
+        siteId,
+        size: { id: 'size-1x1', width: 1, height: 1, iab: true },
+        status: 'PAYMENT_ACCEPTED',
+        activeStatus: 'ACTIVE',
+        pricingSchedule: { startDate: camp.startDate, endDate: camp.endDate },
+        tagFormats: ['PLACEMENT_TAG_TRACKING'],
+      });
+    }
+
+    // --- Audio Placements (companion ads on Spotify) ---
+    const audioPlacementDefs = [
+      { advIdx: 0, campIdx: 0, siteIdx: 9, name: 'Apex_Spotify_AudioCompanion_300x250' },
+      { advIdx: 3, campIdx: 0, siteIdx: 9, name: 'NovaTech_Spotify_AudioCompanion_300x250' },
+    ];
+    for (const apDef of audioPlacementDefs) {
+      const id = this.genId();
+      const advId = advertiserIds[apDef.advIdx]!;
+      const campIds = campaignsByAdvertiser.get(advId) ?? [];
+      const campId = apDef.advIdx === 3 ? campIds[campIds.length - 1]! : campIds[apDef.campIdx]!;
+      const siteId = siteIds[apDef.siteIdx]!;
+      const camp = this.campaigns.get(campId)!;
+      this.placements.set(id, {
+        id,
+        name: apDef.name,
+        accountId: ACCOUNT_ID,
+        advertiserId: advId,
+        campaignId: campId,
+        siteId,
+        size: { id: 'size-300x250', width: 300, height: 250, iab: true },
+        status: 'PAYMENT_ACCEPTED',
+        activeStatus: 'ACTIVE',
+        pricingSchedule: { startDate: camp.startDate, endDate: camp.endDate },
+        tagFormats: ['PLACEMENT_TAG_STANDARD'],
       });
     }
 
@@ -1558,6 +1614,27 @@ class MockDataStore {
     return this.reports.get(reportId);
   }
 
+  /** Create a new report definition */
+  createReport(input: CM360CreateReportInput, profileId: string): CM360Report {
+    const reportId = `rpt-${this.reports.size + 1}`;
+    const report: CM360Report = {
+      id: reportId,
+      name: input.name,
+      type: input.type,
+      accountId: ACCOUNT_ID,
+      ownerProfileId: profileId,
+      criteria: {
+        dateRange: { startDate: input.startDate, endDate: input.endDate },
+        dimensions: input.dimensions,
+        metricNames: input.metricNames,
+        ...(input.filters?.length ? { filters: input.filters } : {}),
+      },
+      lastModifiedTime: new Date().toISOString(),
+    };
+    this.reports.set(reportId, report);
+    return report;
+  }
+
   /** Simulate running a saved report — returns a mock fileId immediately */
   runReport(reportId: string, profileId: string): CM360ReportFile | null {
     const report = this.reports.get(reportId);
@@ -1569,6 +1646,10 @@ class MockDataStore {
       fileId,
       status: 'REPORT_AVAILABLE' as CM360ReportFileStatus,
       fileName: `${report.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.csv`,
+      dateRange: {
+        startDate: report.criteria.dateRange.startDate,
+        endDate: report.criteria.dateRange.endDate,
+      },
       totalRows: 0,
       rowsReturned: 0,
       truncated: false,
@@ -1635,32 +1716,120 @@ class MockDataStore {
     return { reportType: reportType as CM360ReportType, ...fields };
   }
 
-  /** Generate mock report rows based on report dimensions and metrics */
+  /** Generate mock report rows based on report dimensions and metrics.
+   *  Uses actual placement→site relationships from the data store so that
+   *  site names match the placements shown (e.g., Bloomberg placements appear under Bloomberg.com).
+   */
   private generateMockReportRows(report: CM360Report): Array<Record<string, string>> {
     const rows: Array<Record<string, string>> = [];
-    const campaigns = Array.from(this.campaigns.values()).slice(0, 3);
-    const placements = Array.from(this.placements.values()).slice(0, 5);
-    const sites = Array.from(this.sites.values()).slice(0, 3);
 
-    // Generate 8-15 rows with realistic-looking data
-    const rowCount = 8 + Math.floor(Math.random() * 8);
-    for (let i = 0; i < rowCount; i++) {
+    // Extract filter constraints from the report criteria.
+    // Filter values may be entity IDs or names — resolve both for matching.
+    const filters = report.criteria.filters ?? [];
+    const campaignFilterRaw = filters.find((f) => f.dimensionName === 'campaign')?.value;
+    const advertiserFilterRaw = filters.find((f) => f.dimensionName === 'advertiser')?.value;
+
+    // Resolve campaign filter to an ID set (handles both name and ID)
+    const matchingCampaignIds = new Set<string>();
+    if (campaignFilterRaw) {
+      // Try direct ID match
+      if (this.campaigns.has(campaignFilterRaw)) {
+        matchingCampaignIds.add(campaignFilterRaw);
+      }
+      // Also match by name (case-insensitive partial match)
+      const lowerFilter = campaignFilterRaw.toLowerCase();
+      for (const [id, camp] of this.campaigns.entries()) {
+        if (camp.name.toLowerCase().includes(lowerFilter) || id === campaignFilterRaw) {
+          matchingCampaignIds.add(id);
+        }
+      }
+    }
+
+    // Resolve advertiser filter to an ID set
+    const matchingAdvertiserIds = new Set<string>();
+    if (advertiserFilterRaw) {
+      if (this.advertisers.has(advertiserFilterRaw)) {
+        matchingAdvertiserIds.add(advertiserFilterRaw);
+      }
+      const lowerFilter = advertiserFilterRaw.toLowerCase();
+      for (const [id, adv] of this.advertisers.entries()) {
+        if (adv.name.toLowerCase().includes(lowerFilter) || id === advertiserFilterRaw) {
+          matchingAdvertiserIds.add(id);
+        }
+      }
+    }
+
+    // If we have a campaign filter, also resolve its advertiser for consistent scoping
+    if (matchingCampaignIds.size > 0 && matchingAdvertiserIds.size === 0) {
+      for (const campId of matchingCampaignIds) {
+        const camp = this.campaigns.get(campId);
+        if (camp) matchingAdvertiserIds.add(camp.advertiserId);
+      }
+    }
+
+    // Build a list of real placement+site+campaign combos from the store,
+    // filtered to only include placements that match the report's filters
+    type MediaType = 'display' | 'video' | 'audio' | 'tracking';
+    const combos: Array<{ placement: string; site: string; campaign: string; mediaType: MediaType }> = [];
+    for (const p of this.placements.values()) {
+      // Filter by campaign if specified
+      if (matchingCampaignIds.size > 0 && !matchingCampaignIds.has(p.campaignId)) continue;
+      // Filter by advertiser if specified (or resolved from campaign)
+      if (matchingAdvertiserIds.size > 0 && !matchingAdvertiserIds.has(p.advertiserId)) continue;
+
+      const site = this.sites.get(p.siteId);
+      const campaign = this.campaigns.get(p.campaignId);
+      if (site && campaign) {
+        let mediaType: MediaType = 'display';
+        if (p.size.width === 1 && p.size.height === 1) mediaType = 'tracking';
+        else if (p.compatibility === 'IN_STREAM_VIDEO' || (p.size.width === 640 && p.size.height === 360)) mediaType = 'video';
+        else if (p.name.toLowerCase().includes('audio')) mediaType = 'audio';
+        combos.push({
+          placement: p.name,
+          site: site.name,
+          campaign: campaign.name,
+          mediaType,
+        });
+      }
+    }
+
+    // Pick a subset of combos (10-18 rows) for the report, sorted by site for natural grouping
+    const shuffled = combos.sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, Math.min(combos.length, 10 + Math.floor(Math.random() * 9)));
+    selected.sort((a, b) => a.site.localeCompare(b.site));
+
+    for (let i = 0; i < selected.length; i++) {
+      const combo = selected[i]!;
       const row: Record<string, string> = {};
+
       for (const dim of report.criteria.dimensions) {
         switch (dim) {
-          case 'campaign': row[dim] = campaigns[i % campaigns.length]?.name ?? `Campaign ${i}`; break;
-          case 'placement': row[dim] = placements[i % placements.length]?.name ?? `Placement ${i}`; break;
-          case 'site': row[dim] = sites[i % sites.length]?.name ?? `Site ${i}`; break;
+          case 'campaign': row[dim] = combo.campaign; break;
+          case 'placement': row[dim] = combo.placement; break;
+          case 'site': row[dim] = combo.site; break;
           case 'date': row[dim] = new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10); break;
-          case 'ad': row[dim] = `Ad ${i + 1}`; break;
-          case 'creative': row[dim] = `Creative ${i + 1}`; break;
+          case 'ad': row[dim] = combo.placement.replace(/_\d+x\d+.*/, '') + ' Ad'; break;
+          case 'creative': row[dim] = combo.placement.replace(/_\d+x\d+.*/, '') + ' Creative'; break;
           default: row[dim] = `${dim}_${i}`; break;
         }
       }
+
       for (const metric of report.criteria.metricNames) {
         switch (metric) {
-          case 'impressions': row[metric] = String(10000 + Math.floor(Math.random() * 90000)); break;
-          case 'clicks': row[metric] = String(100 + Math.floor(Math.random() * 900)); break;
+          case 'impressions': {
+            // Tracking (1x1) placements have high impressions but no clicks; audio/video moderate
+            if (combo.mediaType === 'tracking') row[metric] = String(50000 + Math.floor(Math.random() * 150000));
+            else if (combo.mediaType === 'video') row[metric] = String(15000 + Math.floor(Math.random() * 60000));
+            else if (combo.mediaType === 'audio') row[metric] = String(20000 + Math.floor(Math.random() * 80000));
+            else row[metric] = String(10000 + Math.floor(Math.random() * 90000));
+            break;
+          }
+          case 'clicks': {
+            // Tracking placements typically have 0 clicks (they're impression trackers)
+            if (combo.mediaType === 'tracking') row[metric] = '0';
+            else row[metric] = String(100 + Math.floor(Math.random() * 900));
+            break;
+          }
           case 'CTR':
           case 'clickRate': row[metric] = (0.005 + Math.random() * 0.02).toFixed(4); break;
           case 'conversions':
@@ -1668,8 +1837,17 @@ class MockDataStore {
           case 'mediaCost': row[metric] = (100 + Math.random() * 5000).toFixed(2); break;
           case 'totalReach': row[metric] = String(50000 + Math.floor(Math.random() * 200000)); break;
           case 'averageFrequency': row[metric] = (1.5 + Math.random() * 3).toFixed(2); break;
-          case 'reach':
-          case 'frequency': row[metric] = (1 + Math.random() * 5).toFixed(2); break;
+          case 'richMediaVideoViews': {
+            // Video and audio placements get video/listen metrics
+            row[metric] = (combo.mediaType === 'video' || combo.mediaType === 'audio')
+              ? String(5000 + Math.floor(Math.random() * 40000)) : '0';
+            break;
+          }
+          case 'richMediaVideoCompletions': {
+            row[metric] = (combo.mediaType === 'video' || combo.mediaType === 'audio')
+              ? String(2000 + Math.floor(Math.random() * 20000)) : '0';
+            break;
+          }
           default: row[metric] = String(Math.floor(Math.random() * 1000)); break;
         }
       }
@@ -1696,6 +1874,12 @@ class MockDataStore {
     }
     if (metricNames.includes('mediaCost')) {
       summary.totalSpend = rows.reduce((sum, r) => sum + (parseFloat(r['mediaCost'] ?? '0') || 0), 0);
+    }
+    if (metricNames.includes('richMediaVideoViews')) {
+      summary.totalVideoViews = rows.reduce((sum, r) => sum + (parseInt(r['richMediaVideoViews'] ?? '0', 10) || 0), 0);
+    }
+    if (metricNames.includes('richMediaVideoCompletions')) {
+      summary.totalVideoCompletions = rows.reduce((sum, r) => sum + (parseInt(r['richMediaVideoCompletions'] ?? '0', 10) || 0), 0);
     }
     return summary;
   }

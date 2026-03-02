@@ -66,6 +66,7 @@ import {
   RunReportInputSchema,
   GetReportFileInputSchema,
   QueryCompatibleFieldsInputSchema,
+  CreateReportInputSchema,
   ListFloodlightActivitiesInputSchema,
   GetFloodlightActivityInputSchema,
   CreateFloodlightActivityInputSchema,
@@ -220,6 +221,7 @@ const VALID_TOOL_NAMES = new Set([
   // Reports
   'cm360_list_reports',
   'cm360_get_report',
+  'cm360_create_report',
   'cm360_run_report',
   'cm360_get_report_file',
   'cm360_query_compatible_fields',
@@ -797,6 +799,16 @@ async function executeToolReal(
       if (!report) {
         return { result: null, isError: true, errorMessage: `Report ${parsed.data.reportId} not found` };
       }
+      return { result: report, isError: false };
+    }
+
+    case 'cm360_create_report': {
+      const parsed = CreateReportInputSchema.safeParse(toolInput);
+      if (!parsed.success) {
+        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      const profileId = await resolveProfileId(client);
+      const report = await client.createReport(profileId, parsed.data);
       return { result: report, isError: false };
     }
 
@@ -1584,6 +1596,15 @@ function executeToolMock(
         if (!report) {
           return { result: null, isError: true, errorMessage: `Report ${parsed.data.reportId} not found` };
         }
+        return { result: report, isError: false };
+      }
+
+      case 'cm360_create_report': {
+        const parsed = CreateReportInputSchema.safeParse(toolInput);
+        if (!parsed.success) {
+          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        }
+        const report = mockStore.createReport(parsed.data, parsed.data.profileId);
         return { result: report, isError: false };
       }
 

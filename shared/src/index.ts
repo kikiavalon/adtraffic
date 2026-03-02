@@ -50,6 +50,7 @@ export type {
   CM360ReportFileStatus,
   CM360ReportFile,
   CM360CompatibleFields,
+  CM360CreateReportInput,
   CM360FloodlightActivityType,
   CM360FloodlightCountingMethod,
   CM360FloodlightTagFormat,

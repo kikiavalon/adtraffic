@@ -576,6 +576,22 @@ export type RunReportInput = z.infer<typeof RunReportInputSchema>;
 export type GetReportFileInput = z.infer<typeof GetReportFileInputSchema>;
 export type QueryCompatibleFieldsInput = z.infer<typeof QueryCompatibleFieldsInputSchema>;
 
+export const CreateReportInputSchema = z.object({
+  profileId: z.string().max(50),
+  name: z.string().min(1).max(200),
+  type: z.enum(['STANDARD', 'REACH', 'PATH_TO_CONVERSION', 'FLOODLIGHT', 'CROSS_MEDIA_REACH']),
+  dimensions: z.array(z.string().max(100)).min(1).max(20),
+  metricNames: z.array(z.string().max(100)).min(1).max(20),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format'),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format'),
+  filters: z.array(z.object({
+    dimensionName: z.string().max(100),
+    value: z.string().max(500),
+  })).max(20).optional(),
+});
+
+export type CreateReportInput = z.infer<typeof CreateReportInputSchema>;
+
 // ---------------------------------------------------------------------------
 // Helper: format Zod errors into a readable string
 // ---------------------------------------------------------------------------

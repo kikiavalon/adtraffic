@@ -486,6 +486,8 @@ export interface CM360ReportFile {
     averageCTR?: number;
     totalConversions?: number;
     totalSpend?: number;
+    totalVideoViews?: number;
+    totalVideoCompletions?: number;
   };
   cm360Link: string;
   message?: string;
@@ -498,6 +500,17 @@ export interface CM360CompatibleFields {
   metrics: string[];
   dimensionFilters: string[];
   pivotedActivityMetrics: string[];
+}
+
+/** Input for creating a new report definition */
+export interface CM360CreateReportInput {
+  name: string;
+  type: CM360ReportType;
+  dimensions: string[];
+  metricNames: string[];
+  startDate: string;
+  endDate: string;
+  filters?: Array<{ dimensionName: string; value: string }>;
 }
 
 // ---------------------------------------------------------------------------

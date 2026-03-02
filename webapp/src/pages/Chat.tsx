@@ -118,10 +118,38 @@ function CodeBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>)
   );
 }
 
+function TableWrapper({ children, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const check = () => {
+      setCanScrollRight(el.scrollWidth > el.clientWidth + el.scrollLeft + 1);
+    };
+    check();
+    el.addEventListener('scroll', check);
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener('scroll', check);
+      observer.disconnect();
+    };
+  }, []);
+
+  return (
+    <div className={`table-wrapper${canScrollRight ? ' table-wrapper--has-overflow' : ''}`} ref={wrapperRef}>
+      <table {...props}>{children}</table>
+    </div>
+  );
+}
+
 const remarkPlugins: PluggableList = [remarkGfm];
 
 const markdownComponents = {
   pre: CodeBlock,
+  table: TableWrapper,
 };
 
 /** Parse SSE events from a raw text buffer. Returns parsed events and any remaining incomplete data. */
@@ -144,16 +172,85 @@ function parseSSEBuffer(buffer: string): { parsed: StreamEvent[]; remaining: str
 
 /** Maps internal tool names to human-readable status labels */
 const TOOL_LABELS: Record<string, string> = {
+  // Core read operations
   cm360_list_profiles: 'Checking your CM360 access',
   cm360_list_advertisers: 'Looking up advertisers',
   cm360_get_advertiser: 'Getting advertiser details',
   cm360_list_campaigns: 'Searching campaigns',
-  cm360_create_campaign: 'Creating campaign',
+  cm360_get_campaign: 'Getting campaign details',
   cm360_list_sites: 'Looking up sites',
+  cm360_get_site: 'Getting site details',
   cm360_list_landing_pages: 'Loading landing pages',
+  cm360_get_landing_page: 'Getting landing page details',
   cm360_list_placements: 'Searching placements',
+  cm360_get_placement: 'Getting placement details',
+  cm360_list_ads: 'Searching ads',
+  cm360_get_ad: 'Getting ad details',
+  cm360_list_creatives: 'Searching creatives',
+  cm360_get_creative: 'Getting creative details',
+  cm360_list_sizes: 'Loading available ad sizes',
+
+  // Create operations
+  cm360_create_campaign: 'Creating campaign',
   cm360_create_placement: 'Creating placement',
+  cm360_create_landing_page: 'Creating landing page',
+  cm360_create_ad: 'Creating ad',
+  cm360_create_creative: 'Registering creative',
+
+  // Update operations
+  cm360_update_campaign: 'Updating campaign',
+  cm360_update_placement: 'Updating placement',
+  cm360_update_ad: 'Updating ad',
+  cm360_update_creative: 'Updating creative',
+  cm360_update_landing_page: 'Updating landing page',
+
+  // Tag operations
   cm360_generate_tags: 'Generating ad tags',
+
+  // Creative lifecycle
+  cm360_associate_creative_campaign: 'Associating creative with campaign',
+  cm360_list_campaign_creative_associations: 'Loading creative associations',
+  cm360_upload_creative_asset: 'Uploading creative asset',
+
+  // Event tags
+  cm360_list_event_tags: 'Loading event tags',
+  cm360_get_event_tag: 'Getting event tag details',
+  cm360_create_event_tag: 'Creating event tag',
+  cm360_update_event_tag: 'Updating event tag',
+  cm360_delete_event_tag: 'Deleting event tag',
+
+  // Placement groups
+  cm360_list_placement_groups: 'Loading placement groups',
+  cm360_get_placement_group: 'Getting placement group details',
+  cm360_create_placement_group: 'Creating placement group',
+  cm360_update_placement_group: 'Updating placement group',
+
+  // Change logs
+  cm360_list_change_logs: 'Loading change history',
+  cm360_get_change_log: 'Getting change log entry',
+
+  // Directory sites
+  cm360_list_directory_sites: 'Browsing publisher directory',
+  cm360_get_directory_site: 'Getting directory site details',
+  cm360_insert_directory_site: 'Adding directory site',
+
+  // Reporting
+  cm360_list_reports: 'Loading saved reports',
+  cm360_get_report: 'Getting report details',
+  cm360_create_report: 'Creating report',
+  cm360_run_report: 'Running report',
+  cm360_get_report_file: 'Downloading report results',
+  cm360_query_compatible_fields: 'Checking compatible report fields',
+
+  // Floodlight / Conversion tracking
+  cm360_list_floodlight_activities: 'Loading floodlight activities',
+  cm360_get_floodlight_activity: 'Getting floodlight activity details',
+  cm360_create_floodlight_activity: 'Creating floodlight activity',
+  cm360_list_floodlight_activity_groups: 'Loading floodlight groups',
+  cm360_get_floodlight_activity_group: 'Getting floodlight group details',
+  cm360_create_floodlight_activity_group: 'Creating floodlight group',
+  cm360_list_floodlight_configurations: 'Loading floodlight configuration',
+  cm360_generate_floodlight_tag: 'Generating floodlight tag',
 };
 
 function formatToolName(toolName: string): string {
@@ -166,10 +263,25 @@ const WELCOME_MESSAGE = `Hey! I'm **Kiki**, your CM360 trafficking assistant. I'
 
 Here are some things you can try:
 
+**Browse & Search**
 - **"What advertisers do we have?"** — browse the account
 - **"Show me campaigns for Apex Motors"** — drill into an advertiser
+- **"What placements are running for Luminance Beauty?"** — check active placements
+
+**Create & Manage**
 - **"Create a new campaign for Luminance Beauty"** — I'll walk you through it
+- **"Set up a 300x250 placement on CNN.com"** — create placements with details
+- **"Update the end date on that campaign to March 31"** — modify existing entities
+
+**Tags & Tracking**
 - **"Generate tags for all placements in that campaign"** — get ad serving tags
+- **"Set up a click event tag for our DoubleVerify pixel"** — create tracking pixels
+
+**Reporting & Audit**
+- **"Show me our saved reports"** — browse report definitions
+- **"Who made changes to the Apex Motors campaign?"** — check the audit trail
+
+**Upload an IO** — attach a PDF or Excel file and I'll extract the placement details
 
 What would you like to do?`;
 

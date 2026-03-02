@@ -58,6 +58,7 @@ import type {
   CM360ReportFile,
   CM360ReportFileStatus,
   CM360CompatibleFields,
+  CM360CreateReportInput,
   CM360FloodlightActivity,
   CM360FloodlightActivityType,
   CM360FloodlightCountingMethod,
@@ -945,6 +946,49 @@ export class CM360Client {
       rows,
       summary,
       cm360Link,
+    };
+  }
+
+  /** Create a new report definition */
+  async createReport(profileId: string, input: Omit<CM360CreateReportInput, 'type'> & { type: string }): Promise<CM360Report> {
+    const res = await this.api.reports.insert({
+      profileId,
+      requestBody: {
+        name: input.name,
+        type: input.type,
+        criteria: {
+          dateRange: {
+            startDate: input.startDate,
+            endDate: input.endDate,
+          },
+          dimensions: input.dimensions.map((d: string) => ({ name: d })),
+          metricNames: input.metricNames,
+          ...(input.filters?.length ? {
+            dimensionFilters: input.filters.map((f: { dimensionName: string; value: string }) => ({
+              dimensionName: f.dimensionName,
+              value: f.value,
+            })),
+          } : {}),
+        },
+      },
+    });
+    const r = res.data;
+    return {
+      id: String(r.id ?? ''),
+      name: (r.name as string) ?? '',
+      type: (r.type as CM360ReportType) ?? 'STANDARD',
+      accountId: String(r.accountId ?? ''),
+      ownerProfileId: String(r.ownerProfileId ?? profileId),
+      criteria: {
+        dateRange: {
+          startDate: input.startDate,
+          endDate: input.endDate,
+        },
+        dimensions: input.dimensions,
+        metricNames: input.metricNames,
+        ...(input.filters?.length ? { filters: input.filters } : {}),
+      },
+      lastModifiedTime: (r.lastModifiedTime as string) ?? new Date().toISOString(),
     };
   }
 

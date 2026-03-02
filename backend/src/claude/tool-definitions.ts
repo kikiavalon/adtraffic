@@ -741,6 +741,47 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'cm360_create_report',
+    description: 'Create a new report definition with the specified dimensions, metrics, date range, and optional filters. Use cm360_query_compatible_fields FIRST to verify your dimensions and metrics are valid for the report type. After creating, use cm360_run_report to execute it and cm360_get_report_file to retrieve results.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        name: { type: 'string', description: 'Human-readable name for the report' },
+        type: {
+          type: 'string',
+          description: 'Report type',
+          enum: ['STANDARD', 'REACH', 'PATH_TO_CONVERSION', 'FLOODLIGHT', 'CROSS_MEDIA_REACH'],
+        },
+        dimensions: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Dimension fields to include (e.g., campaign, site, placement, date, month)',
+        },
+        metricNames: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Metric fields to include (e.g., impressions, clicks, clickRate, totalConversions, mediaCost)',
+        },
+        startDate: { type: 'string', description: 'Report start date in YYYY-MM-DD format' },
+        endDate: { type: 'string', description: 'Report end date in YYYY-MM-DD format' },
+        filters: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              dimensionName: { type: 'string', description: 'Dimension to filter on (e.g., campaign, advertiser)' },
+              value: { type: 'string', description: 'Value to filter for' },
+            },
+            required: ['dimensionName', 'value'],
+          },
+          description: 'Optional dimension filters to narrow the report scope',
+        },
+      },
+      required: ['profileId', 'name', 'type', 'dimensions', 'metricNames', 'startDate', 'endDate'],
+    },
+  },
+  {
     name: 'cm360_run_report',
     description: 'Execute a saved report asynchronously. Returns a report file object with a fileId and initial status (usually PROCESSING). Use cm360_get_report_file to poll for completion and retrieve the results. Reports typically complete within a few seconds for small date ranges.',
     input_schema: {
@@ -973,6 +1014,7 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   // Reports (read-only report definitions and execution)
   cm360_list_reports: 'cm360.read_operations',
   cm360_get_report: 'cm360.read_operations',
+  cm360_create_report: 'cm360.read_operations',
   cm360_run_report: 'cm360.read_operations',
   cm360_get_report_file: 'cm360.read_operations',
   cm360_query_compatible_fields: 'cm360.read_operations',

@@ -391,11 +391,35 @@
   color: inherit;
 }
 
-.chat-message-assistant .chat-message-content .table-wrapper,
-.chat-message-assistant .chat-message-content table {
-  display: block;
+.chat-message-assistant .chat-message-content .table-wrapper {
   overflow-x: auto;
   margin: 8px 0;
+  border-radius: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Right-edge shadow indicator when table has horizontal overflow */
+.chat-message-assistant .chat-message-content .table-wrapper--has-overflow {
+  box-shadow: inset -16px 0 12px -12px rgba(0, 0, 0, 0.08);
+}
+
+/* Always show scrollbar on webkit browsers (macOS hides it by default) */
+.chat-message-assistant .chat-message-content .table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.chat-message-assistant .chat-message-content .table-wrapper::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+.chat-message-assistant .chat-message-content .table-wrapper::-webkit-scrollbar-thumb {
+  background: #c0c0c0;
+  border-radius: 4px;
+}
+
+.chat-message-assistant .chat-message-content .table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #999;
 }
 
 .chat-message-assistant .chat-message-content table {

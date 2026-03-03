@@ -17,6 +17,11 @@ import authRouter from './routes/auth.js';
 import usageRouter from './routes/usage.js';
 import featureFlagsRouter from './routes/feature-flags.js';
 import oauthRouter from './routes/oauth.js';
+import confirmationsRouter from './routes/confirmations.js';
+import auditRouter from './routes/audit.js';
+import sessionsRouter from './routes/sessions.js';
+import uploadRouter from './routes/upload.js';
+import approvalsRouter from './routes/approvals.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { requestLoggerMiddleware } from './middleware/request-logger.js';
@@ -71,6 +76,11 @@ app.use('/api/v1', conversationsRouter);
 app.use('/api/v1', usageRouter);
 app.use('/api/v1', featureFlagsRouter);
 app.use('/api/v1', oauthRouter);
+app.use('/api/v1', confirmationsRouter);
+app.use('/api/v1', auditRouter);
+app.use('/api/v1', sessionsRouter);
+app.use('/api/v1', uploadRouter);
+app.use('/api/v1', approvalsRouter);
 
 // Sentry error handler (captures exceptions before our custom error handler)
 Sentry.setupExpressErrorHandler(app);

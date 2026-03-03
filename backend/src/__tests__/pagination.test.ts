@@ -9,31 +9,37 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
 import { db, schema } from '../db/index.js';
+import { sql } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
+// Mock kiki-service to prevent real Claude API module initialization.
+// Conversations are created directly in the DB — these mocks only prevent import errors.
 vi.mock('../claude/kiki-service.js', () => ({
-  chat: vi.fn().mockImplementation(() => Promise.resolve({
-    id: randomUUID(),
-    role: 'assistant',
-    content: 'Mock response',
-    timestamp: Date.now() + 100,
-  })),
+  chat: vi.fn(),
   clearConversation: vi.fn(),
 }));
 
 vi.mock('../claude/usage-tracker.js', () => ({
-  checkLimit: () => ({ allowed: true }),
-  recordUsage: () => {},
-  getUsageSummary: () => ({ date: '2026-02-18', requests: 0, limit: 100, inputTokens: 0, outputTokens: 0, estimatedCost: '$0.00' }),
+  checkLimit: vi.fn().mockReturnValue({ allowed: true }),
+  recordUsage: vi.fn(),
+  getUsageSummary: vi.fn().mockReturnValue({ date: '2026-02-18', requests: 0, limit: 100, inputTokens: 0, outputTokens: 0, estimatedCost: '$0.00' }),
+}));
+
+// Mock audit-service to prevent fire-and-forget DB writes racing with test cleanup
+vi.mock('../audit/audit-service.js', () => ({
+  logAuditEvent: vi.fn().mockResolvedValue(undefined),
+  getAuditLog: vi.fn().mockResolvedValue([]),
+  hashIp: vi.fn().mockReturnValue('test-hash'),
+  VALID_EVENT_TYPES: ['message_sent', 'message_received', 'tool_executed', 'session_started', 'session_ended', 'button_clicked', 'tool_confirmed', 'tool_rejected', 'rate_limit_hit', 'daily_limit_reached', 'error', 'approval_requested', 'approval_granted'],
 }));
 
 let token: string;
 let userId: string;
 
 beforeEach(async () => {
-  await db.delete(schema.messages);
-  await db.delete(schema.conversations);
-  await db.delete(schema.users);
+  // Atomic cleanup — TRUNCATE CASCADE handles FK ordering automatically
+  // and prevents race conditions from fire-and-forget DB writes
+  await db.execute(sql`TRUNCATE TABLE users CASCADE`);
 
   const ts = Date.now();
   const res = await request(app)
@@ -45,12 +51,25 @@ beforeEach(async () => {
 
 describe('GET /api/v1/conversations — pagination', () => {
   async function createConversations(count: number) {
+    // Insert conversations directly into DB to avoid cross-file mock isolation
+    // issues with kiki-service. This test validates pagination, not the chat endpoint.
     for (let i = 0; i < count; i++) {
-      await request(app)
-        .post('/api/v1/chat')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ conversationId: `conv-${String(i).padStart(3, '0')}`, message: `Message ${i}` });
-      // Small delay to ensure distinct updatedAt timestamps for ordering
+      const convId = `conv-${String(i).padStart(3, '0')}`;
+      const now = new Date(Date.now() + i * 100); // Distinct timestamps for ordering
+      await db.insert(schema.conversations).values({
+        id: convId,
+        userId,
+        title: `Conversation ${i}`,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await db.insert(schema.messages).values({
+        id: randomUUID(),
+        conversationId: convId,
+        role: 'user',
+        content: `Message ${i}`,
+        timestamp: Date.now() + i * 100,
+      });
     }
   }
 

@@ -6,6 +6,7 @@
  */
 
 import type { ChatMessage } from './chat.js';
+import type { PendingAction } from './confirmation.js';
 
 /** Discriminated union of all SSE event types */
 export type StreamEvent =
@@ -14,6 +15,9 @@ export type StreamEvent =
   | StreamToolStart
   | StreamToolEnd
   | StreamMessageEnd
+  | StreamRetrying
+  | StreamConfirmationRequired
+  | StreamApprovalSubmitted
   | StreamError
   | StreamDone;
 
@@ -49,6 +53,26 @@ export interface StreamToolEnd {
 export interface StreamMessageEnd {
   type: 'message_end';
   message: ChatMessage;
+}
+
+/** Backend is retrying a transient error — frontend should keep loading state */
+export interface StreamRetrying {
+  type: 'retrying';
+  attempt: number;
+  maxAttempts: number;
+  delayMs: number;
+}
+
+/** Write tool requires user confirmation before execution */
+export interface StreamConfirmationRequired {
+  type: 'confirmation_required';
+  action: PendingAction;
+}
+
+/** Write tool was submitted to the approval queue (junior users) */
+export interface StreamApprovalSubmitted {
+  type: 'approval_submitted';
+  action: PendingAction;
 }
 
 /** Error during streaming */

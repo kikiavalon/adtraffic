@@ -280,6 +280,31 @@
   background: #0066ff;
 }
 
+/* Upload button states */
+.chat-upload-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chat-upload-btn:disabled:hover {
+  background: white;
+}
+
+.chat-upload-btn.uploading {
+  animation: upload-pulse 1.2s ease-in-out infinite;
+  border-color: #0066ff;
+  color: #0066ff;
+}
+
+@keyframes upload-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* New Chat button */
 .chat-new-btn {
   border: 1px solid #d0d0d0;
@@ -578,6 +603,13 @@
 .tool-status-text {
   color: #555;
   font-style: italic;
+}
+
+/* Confirmation card container within chat bubble */
+.confirmation-card-container {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
 }
 
 /* Responsive sidebar support */

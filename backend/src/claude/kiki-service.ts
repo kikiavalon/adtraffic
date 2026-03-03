@@ -1,15 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import type { ChatMessage, StreamEvent, FileAttachment } from '@adtraffic/shared';
+import type { ChatMessage, StreamEvent, FileAttachment, ActionPreview } from '@adtraffic/shared';
 import { getSystemPrompt } from './system-prompt.js';
 import { CM360_TOOLS, getEnabledTools } from './tool-definitions.js';
 import type { ResolvedFlags } from '../feature-flags/flag-registry.js';
 import { executeTool } from '../cm360/tool-executor.js';
+import { classifyTool } from '../cm360/write-classifier.js';
+import { createPendingAction } from '../cm360/pending-actions.js';
+import { analyzeImpact } from '../cm360/impact-analyzer.js';
+import { submitForApproval } from '../approval/approval-service.js';
+import { isValidRole, hasPermission } from '../auth/roles.js';
 import { getHistory, saveHistory, clearHistory, getHistoryLength, saveMessage } from '../db/conversation-store.js';
 import { checkLimit, recordUsage } from './usage-tracker.js';
 import { prepareIOContent } from '../io/io-parser.js';
 import { getExtractionPrompt } from '../io/extraction-prompt.js';
 import { logger } from '../lib/logger.js';
+import { withRetry } from './retry.js';
 
 const anthropic = new Anthropic();
 
@@ -30,6 +37,8 @@ const CLAUDE_IO_MODEL = process.env.CLAUDE_IO_MODEL ?? CLAUDE_MODEL;
  * @param flags - Optional resolved feature flags for the current user.
  *                Controls tool availability, daily limits, and max tool rounds.
  * @param attachment - Optional file attachment for IO extraction.
+ * @param userRole - The authenticated user's role (admin/senior/junior).
+ *                   Junior users have write ops routed to the approval queue.
  */
 export async function chat(
   conversationId: string,
@@ -37,6 +46,7 @@ export async function chat(
   userId?: string,
   flags?: ResolvedFlags,
   attachment?: FileAttachment,
+  userRole?: string,
 ): Promise<ChatMessage> {
   // Check if chat is enabled via feature flags
   if (flags && !flags['chat.enabled']) {
@@ -53,7 +63,7 @@ export async function chat(
   const tools = flags ? getEnabledTools(flags) : CM360_TOOLS;
 
   // Check daily usage limit before making any API call
-  const limitCheck = await checkLimit(dailyLimit);
+  const limitCheck = await checkLimit(dailyLimit, userId);
   if (!limitCheck.allowed) {
     return {
       id: uuidv4(),
@@ -101,7 +111,7 @@ export async function chat(
   try {
     while (toolRounds < maxToolRounds) {
       // Re-check limit before each API call (tool loops make multiple calls)
-      const roundLimitCheck = await checkLimit(dailyLimit);
+      const roundLimitCheck = await checkLimit(dailyLimit, userId);
       if (!roundLimitCheck.allowed) {
         return {
           id: uuidv4(),
@@ -117,17 +127,20 @@ export async function chat(
 
       let response: Anthropic.Message;
       try {
-        response = await anthropic.messages.create(
-          {
-            model: useIOModel ? CLAUDE_IO_MODEL : CLAUDE_MODEL,
-            max_tokens: useIOModel ? 4096 : CLAUDE_MAX_TOKENS,
-            system: useIOModel
-              ? getExtractionPrompt()
-              : getSystemPrompt('Demo Agency', '67890', isLiveData),
-            ...(useIOModel ? {} : { tools }),
-            messages: history,
-          },
-          { signal: controller.signal },
+        response = await withRetry(
+          () => anthropic.messages.create(
+            {
+              model: useIOModel ? CLAUDE_IO_MODEL : CLAUDE_MODEL,
+              max_tokens: useIOModel ? 4096 : CLAUDE_MAX_TOKENS,
+              system: useIOModel
+                ? getExtractionPrompt()
+                : getSystemPrompt('Demo Agency', '67890', isLiveData),
+              ...(useIOModel ? {} : { tools }),
+              messages: history,
+            },
+            { signal: controller.signal },
+          ),
+          { maxRetries: 2, baseDelayMs: 500, signal: controller.signal },
         );
       } finally {
         clearTimeout(timeoutId);
@@ -166,13 +179,81 @@ export async function chat(
         };
       }
 
-      // Execute tool calls in parallel and build tool_result blocks
+      // Execute tool calls — intercept write tools with confirmation gate or approval queue
       const toolResults = await Promise.all(
         toolUseBlocks.map(async (toolUse) => {
+          const toolInput = toolUse.input as Record<string, unknown>;
+          const riskLevel = classifyTool(toolUse.name, toolInput);
+
+          if (riskLevel !== null) {
+            // Write tool detected — check user role
+            const requiresApproval = userRole && isValidRole(userRole) && hasPermission(userRole, 'requiresApproval');
+
+            if (requiresApproval) {
+              // Junior user — route to approval queue instead of confirmation card
+              const preview = buildActionPreview(toolUse.name, toolInput);
+              const pendingActionPayload = {
+                actionId: crypto.randomUUID(),
+                toolName: toolUse.name,
+                description: `${preview.operation} ${preview.entityType}: ${preview.entityName}`,
+                preview,
+                riskLevel,
+                proposedAt: Date.now(),
+                expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24h for approval queue items
+              };
+
+              await submitForApproval(userId ?? 'anonymous', pendingActionPayload, conversationId);
+
+              return {
+                type: 'tool_result' as const,
+                tool_use_id: toolUse.id,
+                content: JSON.stringify({
+                  status: 'submitted_for_approval',
+                  message: `This ${preview.operation} operation has been submitted to the approval queue for review by a senior team member. You will be notified once it is approved or rejected.`,
+                }),
+                is_error: false,
+              };
+            }
+
+            // Senior/admin user — intercept with confirmation gate
+            const preview = buildActionPreview(toolUse.name, toolInput);
+
+            // Add downstream impact warnings for elevated/destructive operations
+            if (riskLevel === 'elevated' || riskLevel === 'destructive') {
+              const impactWarnings = await analyzeImpact(toolUse.name, toolInput, userId);
+              if (impactWarnings.length > 0) {
+                preview.warnings = [...(preview.warnings ?? []), ...impactWarnings];
+              }
+            }
+
+            const pendingAction = createPendingAction({
+              userId: userId ?? 'anonymous',
+              conversationId,
+              toolName: toolUse.name,
+              toolInput,
+              description: `${preview.operation} ${preview.entityType}: ${preview.entityName}`,
+              preview,
+              riskLevel,
+            });
+
+            return {
+              type: 'tool_result' as const,
+              tool_use_id: toolUse.id,
+              content: JSON.stringify({
+                status: 'awaiting_confirmation',
+                message: `This ${preview.operation} operation requires user confirmation before proceeding. The user has been shown a confirmation dialog. Please wait for their response before continuing.`,
+                actionId: pendingAction.actionId,
+              }),
+              is_error: false,
+            };
+          }
+
+          // Read tool — execute normally
           const result = await executeTool(
             toolUse.name,
-            toolUse.input as Record<string, unknown>,
+            toolInput,
             userId,
+            conversationId,
           );
 
           return {
@@ -216,6 +297,7 @@ export async function chatStream(
   userId?: string,
   flags?: ResolvedFlags,
   attachment?: FileAttachment,
+  userRole?: string,
 ): Promise<void> {
   // Check if chat is enabled via feature flags
   if (flags && !flags['chat.enabled']) {
@@ -239,7 +321,7 @@ export async function chatStream(
   const tools = flags ? getEnabledTools(flags) : CM360_TOOLS;
 
   // Check daily usage limit before making any API call
-  const limitCheck = await checkLimit(dailyLimit);
+  const limitCheck = await checkLimit(dailyLimit, userId);
   if (!limitCheck.allowed) {
     const messageId = uuidv4();
     emit({ type: 'message_start', messageId, conversationId });
@@ -305,7 +387,7 @@ export async function chatStream(
   try {
     while (toolRounds < maxToolRounds) {
       // Re-check limit before each API call (tool loops make multiple calls)
-      const roundLimitCheck = await checkLimit(dailyLimit);
+      const roundLimitCheck = await checkLimit(dailyLimit, userId);
       if (!roundLimitCheck.allowed) {
         const limitMsg: ChatMessage = {
           id: messageId,
@@ -317,18 +399,25 @@ export async function chatStream(
         return;
       }
 
-      // Streaming call to Claude
-      const stream = anthropic.messages.stream(
-        {
-          model: useIOModel ? CLAUDE_IO_MODEL : CLAUDE_MODEL,
-          max_tokens: useIOModel ? 4096 : CLAUDE_MAX_TOKENS,
-          system: useIOModel
-            ? getExtractionPrompt()
-            : getSystemPrompt('Demo Agency', '67890', isLiveData),
-          ...(useIOModel ? {} : { tools }),
-          messages: history,
-        },
-        { signal },
+      // Streaming call to Claude (with retry on transient connection errors).
+      // NOTE: withRetry only catches errors thrown during stream initialization.
+      // Mid-stream failures (e.g., network drop during iteration) are not retried
+      // because the stream object resolves immediately. A full streaming retry
+      // would require wrapping the entire for-await loop, which is a larger refactor.
+      const stream = await withRetry(
+        () => Promise.resolve(anthropic.messages.stream(
+          {
+            model: useIOModel ? CLAUDE_IO_MODEL : CLAUDE_MODEL,
+            max_tokens: useIOModel ? 4096 : CLAUDE_MAX_TOKENS,
+            system: useIOModel
+              ? getExtractionPrompt()
+              : getSystemPrompt('Demo Agency', '67890', isLiveData),
+            ...(useIOModel ? {} : { tools }),
+            messages: history,
+          },
+          { signal },
+        )),
+        { maxRetries: 2, baseDelayMs: 500, signal },
       );
 
       // After first extraction call, revert to normal mode for subsequent rounds
@@ -386,7 +475,7 @@ export async function chatStream(
         return;
       }
 
-      // Execute tools sequentially with status events for user visibility
+      // Execute tools sequentially — intercept write tools with confirmation gate
       const toolResults: Array<{
         type: 'tool_result';
         tool_use_id: string;
@@ -395,11 +484,88 @@ export async function chatStream(
       }> = [];
 
       for (const toolUse of toolUseBlocks) {
+        const toolInput = toolUse.input as Record<string, unknown>;
+        const riskLevel = classifyTool(toolUse.name, toolInput);
+
+        if (riskLevel !== null) {
+          // Write tool detected — check user role
+          const requiresApproval = userRole && isValidRole(userRole) && hasPermission(userRole, 'requiresApproval');
+
+          if (requiresApproval) {
+            // Junior user — route to approval queue instead of confirmation card
+            const preview = buildActionPreview(toolUse.name, toolInput);
+            const pendingActionPayload = {
+              actionId: crypto.randomUUID(),
+              toolName: toolUse.name,
+              description: `${preview.operation} ${preview.entityType}: ${preview.entityName}`,
+              preview,
+              riskLevel,
+              proposedAt: Date.now(),
+              expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24h for approval queue items
+            };
+
+            await submitForApproval(userId ?? 'anonymous', pendingActionPayload, conversationId);
+
+            // Emit an approval_submitted event for the frontend
+            emit({ type: 'approval_submitted', action: pendingActionPayload });
+
+            toolResults.push({
+              type: 'tool_result' as const,
+              tool_use_id: toolUse.id,
+              content: JSON.stringify({
+                status: 'submitted_for_approval',
+                message: `This ${preview.operation} operation has been submitted to the approval queue for review by a senior team member. You will be notified once it is approved or rejected.`,
+              }),
+              is_error: false,
+            });
+            continue; // Skip actual execution
+          }
+
+          // Senior/admin user — intercept with confirmation gate
+          const preview = buildActionPreview(toolUse.name, toolInput);
+
+          // Add downstream impact warnings for elevated/destructive operations
+          if (riskLevel === 'elevated' || riskLevel === 'destructive') {
+            const impactWarnings = await analyzeImpact(toolUse.name, toolInput, userId);
+            if (impactWarnings.length > 0) {
+              preview.warnings = [...(preview.warnings ?? []), ...impactWarnings];
+            }
+          }
+
+          const pendingAction = createPendingAction({
+            userId: userId ?? 'anonymous',
+            conversationId,
+            toolName: toolUse.name,
+            toolInput,
+            description: `${preview.operation} ${preview.entityType}: ${preview.entityName}`,
+            preview,
+            riskLevel,
+          });
+
+          // Emit confirmation_required event for the frontend
+          emit({ type: 'confirmation_required', action: pendingAction });
+
+          // Return a tool_result that tells Claude the operation is awaiting confirmation
+          toolResults.push({
+            type: 'tool_result' as const,
+            tool_use_id: toolUse.id,
+            content: JSON.stringify({
+              status: 'awaiting_confirmation',
+              message: `This ${preview.operation} operation requires user confirmation before proceeding. The user has been shown a confirmation dialog. Please wait for their response before continuing.`,
+              actionId: pendingAction.actionId,
+            }),
+            is_error: false,
+          });
+          continue; // Skip actual execution
+        }
+
+        // Read tool — execute normally
         emit({ type: 'tool_start', toolName: toolUse.name, toolUseId: toolUse.id });
         const result = await executeTool(
           toolUse.name,
-          toolUse.input as Record<string, unknown>,
+          toolInput,
           userId,
+          conversationId,
         );
         emit({
           type: 'tool_end',
@@ -438,6 +604,105 @@ export async function chatStream(
     // Always persist history — even on errors, timeouts, or early returns
     await saveHistory(conversationId, history);
   }
+}
+
+/**
+ * Build a structured preview of a proposed write operation for the confirmation card.
+ * Maps tool names to entity types and operations, extracts relevant fields,
+ * and generates warnings for destructive operations.
+ */
+export function buildActionPreview(toolName: string, input: Record<string, unknown>): ActionPreview {
+  // Map tool names to entity types
+  const entityTypeMap: Record<string, string> = {
+    cm360_create_campaign: 'Campaign',
+    cm360_create_placement: 'Placement',
+    cm360_create_landing_page: 'Landing Page',
+    cm360_create_creative: 'Creative',
+    cm360_create_ad: 'Ad',
+    cm360_associate_creative_campaign: 'Creative-Campaign Association',
+    cm360_upload_creative_asset: 'Creative Asset',
+    cm360_update_campaign: 'Campaign',
+    cm360_update_placement: 'Placement',
+    cm360_update_ad: 'Ad',
+    cm360_update_creative: 'Creative',
+    cm360_update_landing_page: 'Landing Page',
+    cm360_delete_event_tag: 'Event Tag',
+    cm360_delete_floodlight_activity: 'Floodlight Activity',
+  };
+
+  // Map verb prefixes to operation types
+  const operationMap: Record<string, ActionPreview['operation']> = {
+    create: 'create',
+    update: 'update',
+    delete: 'delete',
+    associate: 'create',
+    upload: 'create',
+  };
+
+  const entityType = entityTypeMap[toolName] ?? 'Entity';
+
+  // Determine operation from tool name: cm360_CREATE_campaign → 'create'
+  const parts = toolName.split('_');
+  const verb = parts.length >= 2 ? parts[1]! : 'update';
+  let operation: ActionPreview['operation'] = operationMap[verb] ?? 'update';
+
+  // Check for archive operations (escalate to 'archive')
+  if (
+    input.archived === true ||
+    input.activeStatus === 'ARCHIVED' ||
+    input.activeStatus === 'PERMANENTLY_ARCHIVED' ||
+    input.activeStatus === 'INACTIVE'
+  ) {
+    operation = 'archive';
+  }
+
+  // Determine entity name from input — try common field names
+  const entityName =
+    (input.name as string | undefined) ??
+    (input.campaignId as string | undefined) ??
+    (input.placementId as string | undefined) ??
+    (input.adId as string | undefined) ??
+    (input.creativeId as string | undefined) ??
+    (input.landingPageId as string | undefined) ??
+    (input.assetName as string | undefined) ??
+    'Unknown';
+
+  // Build fields for create operations
+  const fields: Array<{ field: string; value: string }> = [];
+  const changes: Array<{ field: string; from?: string; to: string }> = [];
+
+  if (operation === 'create') {
+    for (const [key, val] of Object.entries(input)) {
+      if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+        fields.push({ field: key, value: String(val) });
+      }
+    }
+  } else {
+    // For updates/archive/delete, list changed fields (exclude metadata fields)
+    for (const [key, val] of Object.entries(input)) {
+      if (key === 'profileId' || key === 'id') continue;
+      if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+        changes.push({ field: key, to: String(val) });
+      }
+    }
+  }
+
+  const warnings: string[] = [];
+  if (input.activeStatus === 'PERMANENTLY_ARCHIVED') {
+    warnings.push('This action CANNOT be undone.');
+  }
+  if (input.archived === true) {
+    warnings.push('Archiving this entity may affect associated placements and ads.');
+  }
+
+  return {
+    entityType,
+    entityName,
+    operation,
+    ...(fields.length > 0 ? { fields } : {}),
+    ...(changes.length > 0 ? { changes } : {}),
+    ...(warnings.length > 0 ? { warnings } : {}),
+  };
 }
 
 /**

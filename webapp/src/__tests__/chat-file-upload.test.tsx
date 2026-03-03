@@ -22,6 +22,28 @@ function renderChat() {
   );
 }
 
+function makeSSEResponse(content = 'Got it!') {
+  return {
+    ok: true,
+    body: {
+      getReader: () => ({
+        read: vi.fn()
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode(
+              `event: message_end\ndata: {"type":"message_end","message":{"id":"1","role":"assistant","content":"${content}","timestamp":1}}\n\n`
+            ),
+          })
+          .mockResolvedValueOnce({
+            done: false,
+            value: new TextEncoder().encode('event: done\ndata: {"type":"done"}\n\n'),
+          })
+          .mockResolvedValueOnce({ done: true, value: undefined }),
+      }),
+    },
+  };
+}
+
 describe('Chat file upload', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -40,25 +62,18 @@ describe('Chat file upload', () => {
         dispatchEvent: vi.fn(),
       })),
     });
-    // Mock successful SSE response
-    mockAuthFetch.mockResolvedValue({
-      ok: true,
-      body: {
-        getReader: () => ({
-          read: vi.fn()
-            .mockResolvedValueOnce({
-              done: false,
-              value: new TextEncoder().encode(
-                'event: message_end\ndata: {"type":"message_end","message":{"id":"1","role":"assistant","content":"Got it!","timestamp":1}}\n\n'
-              ),
-            })
-            .mockResolvedValueOnce({
-              done: false,
-              value: new TextEncoder().encode('event: done\ndata: {"type":"done"}\n\n'),
-            })
-            .mockResolvedValueOnce({ done: true, value: undefined }),
-        }),
-      },
+
+    // Mock authFetch to handle both upload and chat/stream endpoints
+    mockAuthFetch.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/upload')) {
+        // Upload endpoint returns JSON with extracted text
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ filename: 'campaign-io.pdf', extractedText: 'Extracted IO placement data' }),
+        });
+      }
+      // Chat/stream endpoint returns SSE ReadableStream
+      return Promise.resolve(makeSSEResponse());
     });
   });
 
@@ -68,25 +83,27 @@ describe('Chat file upload', () => {
     expect(uploadBtn).toBeInTheDocument();
   });
 
-  it('shows attachment chip after file selection', async () => {
+  it('uploads file to backend on selection and sends extracted text as message', async () => {
     renderChat();
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     expect(fileInput).toBeTruthy();
 
-    // Create a fake PDF file
     const file = new File(['fake-pdf-content'], 'campaign-io.pdf', {
       type: 'application/pdf',
     });
 
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    // Should show the file chip
+    // Should call the upload endpoint
     await waitFor(() => {
-      expect(screen.getByText(/campaign-io\.pdf/)).toBeInTheDocument();
+      const uploadCall = mockAuthFetch.mock.calls.find(
+        (call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('/upload'),
+      );
+      expect(uploadCall).toBeDefined();
     });
   });
 
-  it('shows remove button on attachment chip', async () => {
+  it('sends extracted text as chat message after successful upload', async () => {
     renderChat();
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
 
@@ -95,26 +112,39 @@ describe('Chat file upload', () => {
     });
     fireEvent.change(fileInput, { target: { files: [file] } });
 
+    // After upload, should send extracted text via chat/stream
     await waitFor(() => {
-      expect(screen.getByLabelText('Remove attachment')).toBeInTheDocument();
+      const chatCall = mockAuthFetch.mock.calls.find(
+        (call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('/chat/stream'),
+      );
+      expect(chatCall).toBeDefined();
+      const body = JSON.parse((chatCall![1] as { body: string }).body);
+      expect(body.message).toContain('[IO Upload:');
+      expect(body.message).toContain('Extracted IO placement data');
     });
   });
 
-  it('clears attachment when remove button clicked', async () => {
+  it('shows error message when upload fails', async () => {
+    // Override mock to return upload failure
+    mockAuthFetch.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/upload')) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({ error: 'File too large' }),
+        });
+      }
+      return Promise.resolve(makeSSEResponse());
+    });
+
     renderChat();
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
 
-    const file = new File(['content'], 'test.pdf', { type: 'application/pdf' });
+    const file = new File(['content'], 'bad-file.pdf', { type: 'application/pdf' });
     fireEvent.change(fileInput, { target: { files: [file] } });
 
     await waitFor(() => {
-      expect(screen.getByText(/test\.pdf/)).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByLabelText('Remove attachment'));
-
-    await waitFor(() => {
-      expect(screen.queryByText(/test\.pdf/)).not.toBeInTheDocument();
+      expect(screen.getByText(/couldn't process the file/)).toBeInTheDocument();
     });
   });
 
@@ -128,62 +158,54 @@ describe('Chat file upload', () => {
 
     fireEvent.change(fileInput, { target: { files: [bigFile] } });
 
-    // Should NOT show attachment chip (file rejected)
+    // Should NOT call the upload endpoint (rejected client-side)
     await waitFor(() => {
-      expect(screen.queryByText(/big\.pdf/)).not.toBeInTheDocument();
-    });
-  });
-
-  it('sends attachment in request body when message sent with file', async () => {
-    renderChat();
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-
-    // Attach a small file
-    const file = new File(['test-content'], 'io.csv', { type: 'text/csv' });
-    fireEvent.change(fileInput, { target: { files: [file] } });
-
-    await waitFor(() => {
-      expect(screen.getByText(/io\.csv/)).toBeInTheDocument();
-    });
-
-    // Type a message and send
-    const input = screen.getByPlaceholderText('Message Kiki...');
-    fireEvent.change(input, { target: { value: "Here's the IO" } });
-    fireEvent.click(screen.getByText('Send'));
-
-    await waitFor(() => {
-      // Find the chat/stream call (not the sidebar's conversation list fetch)
-      const chatCall = mockAuthFetch.mock.calls.find(
-        (call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('/chat/stream'),
+      const uploadCall = mockAuthFetch.mock.calls.find(
+        (call: unknown[]) => typeof call[0] === 'string' && (call[0] as string).includes('/upload'),
       );
-      expect(chatCall).toBeDefined();
-      const callBody = JSON.parse((chatCall![1] as { body: string }).body);
-      expect(callBody.attachment).toBeDefined();
-      expect(callBody.attachment.name).toBe('io.csv');
-      expect(callBody.attachment.type).toBe('text/csv');
-      expect(callBody.attachment.data).toBeDefined(); // base64
-      expect(callBody.attachment.sizeBytes).toBe(file.size);
+      expect(uploadCall).toBeUndefined();
     });
   });
 
-  it('clears attachment after sending', async () => {
-    renderChat();
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+  it('disables upload button while uploading', async () => {
+    // Make upload take time by returning a never-resolving promise initially
+    let resolveUpload: (value: unknown) => void;
+    mockAuthFetch.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/upload')) {
+        return new Promise((resolve) => { resolveUpload = resolve; });
+      }
+      return Promise.resolve(makeSSEResponse());
+    });
 
+    renderChat();
+    const uploadBtn = screen.getByLabelText('Upload file');
+    expect(uploadBtn).not.toBeDisabled();
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
     const file = new File(['content'], 'io.pdf', { type: 'application/pdf' });
     fireEvent.change(fileInput, { target: { files: [file] } });
 
+    // Button should be disabled while uploading
     await waitFor(() => {
-      expect(screen.getByText(/io\.pdf/)).toBeInTheDocument();
+      expect(screen.getByLabelText('Upload file')).toBeDisabled();
     });
 
-    const input = screen.getByPlaceholderText('Message Kiki...');
-    fireEvent.change(input, { target: { value: 'Parse this' } });
-    fireEvent.click(screen.getByText('Send'));
-
-    // After send, attachment chip should disappear
-    await waitFor(() => {
-      expect(screen.queryByText(/io\.pdf/)).not.toBeInTheDocument();
+    // Resolve the upload
+    resolveUpload!({
+      ok: true,
+      json: () => Promise.resolve({ filename: 'io.pdf', extractedText: 'data' }),
     });
+
+    // Button should be re-enabled after upload completes
+    await waitFor(() => {
+      expect(screen.getByLabelText('Upload file')).not.toBeDisabled();
+    });
+  });
+
+  it('accepts only PDF, Excel, and CSV files', () => {
+    renderChat();
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).toBeTruthy();
+    expect(fileInput.accept).toBe('.pdf,.xlsx,.xls,.csv');
   });
 });

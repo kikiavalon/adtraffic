@@ -9,6 +9,7 @@ import { saveMessage, getConversation } from '../db/conversation-store.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
 import { logger } from '../lib/logger.js';
 import { featureFlagsMiddleware } from '../feature-flags/flag-middleware.js';
+import { logRequestAuditEvent } from '../middleware/audit-logger.js';
 
 const router = Router();
 
@@ -62,10 +63,20 @@ router.post('/chat', chatLimiter, requireAuth, featureFlagsMiddleware, express.j
       timestamp: Date.now(),
     }, userId);
 
-    const assistantMessage = await chat(conversationId, message, userId, req.featureFlags, attachment);
+    // Audit: user sent a message
+    logRequestAuditEvent(req, 'message_sent', conversationId, {
+      messageLength: message.length,
+    });
+
+    const assistantMessage = await chat(conversationId, message, userId, req.featureFlags, attachment, req.user!.role);
 
     // Save assistant message to DB
     await saveMessage(conversationId, assistantMessage);
+
+    // Audit: Kiki responded
+    logRequestAuditEvent(req, 'message_received', conversationId, {
+      responseLength: typeof assistantMessage.content === 'string' ? assistantMessage.content.length : 0,
+    });
 
     const response: ChatResponse = {
       conversationId,
@@ -126,6 +137,12 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
       timestamp: Date.now(),
     }, userId);
 
+    // Audit: user sent a message (streaming)
+    logRequestAuditEvent(req, 'message_sent', conversationId, {
+      messageLength: message.length,
+      streaming: true,
+    });
+
     // SSE headers
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -144,7 +161,12 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
     req.on('close', () => controller.abort());
 
     try {
-      await chatStream(conversationId, message, sendEvent, controller.signal, userId, req.featureFlags, attachment);
+      await chatStream(conversationId, message, sendEvent, controller.signal, userId, req.featureFlags, attachment, req.user!.role);
+
+      // Audit: Kiki responded (streaming complete)
+      logRequestAuditEvent(req, 'message_received', conversationId, {
+        streaming: true,
+      });
     } catch (error) {
       // Don't send error events for intentional client disconnects
       if (!(error instanceof Error && error.name === 'AbortError')) {

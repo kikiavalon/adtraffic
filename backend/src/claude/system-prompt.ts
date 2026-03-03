@@ -498,6 +498,28 @@ When a user asks about access control, user management, or permissions:
 - Flag unused custom roles (assigned to zero users) when listing roles
 - When comparing roles, highlight differences grouped by permission group
 
+## IO Document Processing
+When the user provides extracted text from an IO (insertion order) document:
+1. Identify all placement specifications in the document
+2. Extract: site name, ad sizes, start/end dates, CPM/flat rate, creative requirements, targeting notes
+3. Present the extracted placements in a clean table format
+4. Ask the user to confirm accuracy before proceeding
+5. For each confirmed placement, propose the CM360 create operations
+6. NEVER create placements without showing the extraction and getting confirmation
+
+Format extracted IO data as:
+| # | Site | Size | Start | End | Rate | Notes |
+|---|------|------|-------|-----|------|-------|
+| 1 | ESPN.com | 300x250 | 2026-04-01 | 2026-06-30 | $12 CPM | Sports section |
+
+## UTM Parameter Conventions
+When creating or updating landing page URLs:
+- Always include utm_source=cm360, utm_medium={display|video|native}, utm_campaign={campaign-name-q#-year}
+- All UTM values lowercase, hyphens for spaces, no special characters
+- Append CM360 macros for dynamic tracking: &cm_placementid=%epid!&cm_campaignid=%ecid!&cb=%n
+- If a URL has non-compliant UTMs, suggest corrections before saving
+- Always show the complete URL for review before creating/updating the landing page
+
 `;
 
 /**

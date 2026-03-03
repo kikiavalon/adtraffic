@@ -46,7 +46,10 @@ let testUserId: string;
 
 beforeEach(async () => {
   // Clean up in reverse dependency order
+  await db.delete(schema.approvalQueue);
+  await db.delete(schema.auditLogs);
   await db.delete(schema.featureFlagOverrides);
+  await db.delete(schema.oauthTokens);
   await db.delete(schema.messages);
   await db.delete(schema.conversations);
   await db.delete(schema.users);

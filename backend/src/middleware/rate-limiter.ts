@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getRedis, isRedisHealthy } from '../db/redis.js';
+import { logAuditEvent } from '../audit/audit-service.js';
 
 interface RateLimitEntry {
   timestamps: number[];
@@ -85,6 +86,13 @@ export function createRateLimiter(options: RateLimiterOptions) {
         const count = results[1]?.[1] as number;
 
         if (count >= maxRequests) {
+          // Audit: rate limited (fire-and-forget)
+          void logAuditEvent({
+            userId: req.user?.userId ?? 'anonymous',
+            eventType: 'rate_limited',
+            metadata: { limiterName: name, endpoint: req.path, method: req.method },
+            ipAddress: ip,
+          });
           res.status(429).json({ error: 'Too many requests. Please try again later.' });
           return;
         }
@@ -114,6 +122,13 @@ export function createRateLimiter(options: RateLimiterOptions) {
     entry.timestamps = entry.timestamps.filter((ts) => now - ts < windowMs);
 
     if (entry.timestamps.length >= maxRequests) {
+      // Audit: rate limited (fire-and-forget)
+      void logAuditEvent({
+        userId: req.user?.userId ?? 'anonymous',
+        eventType: 'rate_limited',
+        metadata: { limiterName: name, endpoint: req.path, method: req.method },
+        ipAddress: ip,
+      });
       res.status(429).json({ error: 'Too many requests. Please try again later.' });
       return;
     }

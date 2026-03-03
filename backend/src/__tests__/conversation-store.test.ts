@@ -19,6 +19,9 @@ import {
 let testUserId: string;
 
 beforeEach(async () => {
+  await db.delete(schema.approvalQueue);
+  await db.delete(schema.auditLogs);
+  await db.delete(schema.oauthTokens);
   await db.delete(schema.messages);
   await db.delete(schema.conversations);
   await db.delete(schema.users);

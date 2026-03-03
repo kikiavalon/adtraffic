@@ -2,6 +2,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { db, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
+import type { UserRole } from './roles.js';
 
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -24,6 +25,7 @@ export interface AuthUser {
   id: string;
   email: string;
   name: string;
+  role: UserRole;
 }
 
 export interface AuthTokens {
@@ -47,6 +49,7 @@ export async function register(email: string, password: string, name: string): P
     id: schema.users.id,
     email: schema.users.email,
     name: schema.users.name,
+    role: schema.users.role,
   });
 
   const insertedUser = result[0];
@@ -54,11 +57,11 @@ export async function register(email: string, password: string, name: string): P
     throw new Error('Failed to create user');
   }
 
-  const token = jwt.sign({ userId: insertedUser.id, email: insertedUser.email }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+  const token = jwt.sign({ userId: insertedUser.id, email: insertedUser.email, role: insertedUser.role }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
 
   return {
     token,
-    user: { id: insertedUser.id, email: insertedUser.email, name: insertedUser.name },
+    user: { id: insertedUser.id, email: insertedUser.email, name: insertedUser.name, role: insertedUser.role as UserRole },
   };
 }
 
@@ -76,15 +79,15 @@ export async function login(email: string, password: string): Promise<AuthTokens
     throw new Error('Invalid email or password');
   }
 
-  const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
+  const token = jwt.sign({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
 
   return {
     token,
-    user: { id: user.id, email: user.email, name: user.name },
+    user: { id: user.id, email: user.email, name: user.name, role: user.role as UserRole },
   };
 }
 
-export function verifyToken(token: string): { userId: string; email: string } {
+export function verifyToken(token: string): { userId: string; email: string; role: string } {
   const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
   if (
     typeof decoded !== 'object' ||
@@ -94,5 +97,8 @@ export function verifyToken(token: string): { userId: string; email: string } {
   ) {
     throw new Error('Invalid token payload');
   }
-  return { userId: (decoded as Record<string, unknown>).userId as string, email: (decoded as Record<string, unknown>).email as string };
+  const role = typeof (decoded as Record<string, unknown>).role === 'string'
+    ? (decoded as Record<string, unknown>).role as string
+    : 'senior'; // Backward compat: tokens issued before role was added default to senior
+  return { userId: (decoded as Record<string, unknown>).userId as string, email: (decoded as Record<string, unknown>).email as string, role };
 }

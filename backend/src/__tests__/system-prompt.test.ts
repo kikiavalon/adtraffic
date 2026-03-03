@@ -84,6 +84,51 @@ describe('Operational instructions', () => {
   });
 });
 
+describe('IO Document Processing instructions', () => {
+  it('contains the IO Document Processing heading', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('## IO Document Processing');
+  });
+
+  it('instructs to identify placement specifications', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('placement specifications');
+  });
+
+  it('instructs to confirm accuracy before proceeding', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('confirm accuracy');
+  });
+
+  it('prohibits creating placements without confirmation', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('NEVER create placements without');
+  });
+
+  it('includes table format headers for extracted IO data', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('Site');
+    expect(KIKI_SYSTEM_PROMPT).toContain('Size');
+    expect(KIKI_SYSTEM_PROMPT).toContain('Start');
+    expect(KIKI_SYSTEM_PROMPT).toContain('End');
+    expect(KIKI_SYSTEM_PROMPT).toContain('Rate');
+    expect(KIKI_SYSTEM_PROMPT).toContain('Notes');
+  });
+});
+
+describe('UTM parameter conventions', () => {
+  it('contains the UTM Parameter Conventions heading', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('## UTM Parameter Conventions');
+  });
+
+  it('includes utm_source=cm360 convention', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('utm_source=cm360');
+  });
+
+  it('includes cache buster macro %n', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('%n');
+  });
+
+  it('includes suggest corrections guidance', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('suggest corrections');
+  });
+});
+
 describe('Personality', () => {
   it('defines professional tone', () => {
     expect(KIKI_SYSTEM_PROMPT).toMatch(/professional/i);

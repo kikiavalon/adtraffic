@@ -271,6 +271,103 @@ describe('Chat SSE streaming', () => {
     });
   });
 
+  it('keeps loading state active when retrying SSE event is received', async () => {
+    let resolveStream: () => void;
+    const encoder = new TextEncoder();
+
+    const stream = new ReadableStream({
+      start(controller) {
+        // Send content_delta, then retrying event
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'content_delta', delta: 'Starting...' })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'retrying', attempt: 1, maxAttempts: 3, delayMs: 1000 })}\n\n`));
+
+        // Wait for resolution to send remaining events
+        new Promise<void>((resolve) => { resolveStream = resolve; }).then(() => {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'content_delta', delta: ' Done!' })}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'message_end', message: { id: 'r1', role: 'assistant', content: 'Starting... Done!', timestamp: Date.now() } })}\n\n`));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done' })}\n\n`));
+          controller.close();
+        });
+      },
+    });
+
+    mockAuthFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: stream,
+      headers: new Headers({ 'Content-Type': 'text/event-stream' }),
+    });
+
+    const user = userEvent.setup();
+    renderChat();
+    await sendTestMessage(user);
+
+    // Retrying event should show "Reconnecting..." tool status
+    await waitFor(() => {
+      expect(screen.getByText(/Reconnecting/)).toBeInTheDocument();
+    });
+
+    // Input should still be disabled (isLoading is true)
+    expect(screen.getByPlaceholderText('Message Kiki...')).toBeDisabled();
+
+    // Resolve the stream to complete normally
+    await act(async () => {
+      resolveStream!();
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // Final message should render normally
+    await waitFor(() => {
+      expect(screen.getByText('Starting... Done!')).toBeInTheDocument();
+    });
+  });
+
+  it('does not show error message during retrying events', async () => {
+    const events = [
+      `data: ${JSON.stringify({ type: 'content_delta', delta: 'Partial' })}\n\n`,
+      `data: ${JSON.stringify({ type: 'retrying', attempt: 1, maxAttempts: 3, delayMs: 1000 })}\n\n`,
+      `data: ${JSON.stringify({ type: 'retrying', attempt: 2, maxAttempts: 3, delayMs: 2000 })}\n\n`,
+      `data: ${JSON.stringify({ type: 'content_delta', delta: ' content' })}\n\n`,
+      `data: ${JSON.stringify({ type: 'message_end', message: { id: 'r1', role: 'assistant', content: 'Partial content', timestamp: Date.now() } })}\n\n`,
+      `data: ${JSON.stringify({ type: 'done' })}\n\n`,
+    ];
+    mockAuthFetch.mockResolvedValue(createSSEResponse(events));
+
+    const user = userEvent.setup();
+    renderChat();
+    await sendTestMessage(user);
+
+    await waitFor(() => {
+      expect(screen.getByText('Partial content')).toBeInTheDocument();
+    });
+
+    // No error messages should be present
+    expect(screen.queryByText(/Sorry, something went wrong/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trouble connecting/)).not.toBeInTheDocument();
+  });
+
+  it('renders content normally after retrying events resolve', async () => {
+    const events = [
+      `data: ${JSON.stringify({ type: 'retrying', attempt: 1, maxAttempts: 3, delayMs: 500 })}\n\n`,
+      `data: ${JSON.stringify({ type: 'content_delta', delta: 'Response after retry' })}\n\n`,
+      `data: ${JSON.stringify({ type: 'message_end', message: { id: 'r1', role: 'assistant', content: 'Response after retry', timestamp: Date.now() } })}\n\n`,
+      `data: ${JSON.stringify({ type: 'done' })}\n\n`,
+    ];
+    mockAuthFetch.mockResolvedValue(createSSEResponse(events));
+
+    const user = userEvent.setup();
+    renderChat();
+    await sendTestMessage(user);
+
+    await waitFor(() => {
+      expect(screen.getByText('Response after retry')).toBeInTheDocument();
+    });
+
+    // Should not show any error or reconnecting status after stream completes
+    expect(screen.queryByText(/Reconnecting/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sorry/)).not.toBeInTheDocument();
+  });
+
   it('silently ignores AbortError when request is cancelled', async () => {
     // Simulate abort by having the first fetch resolve with a pending stream,
     // then the user sends another message (which aborts the first)

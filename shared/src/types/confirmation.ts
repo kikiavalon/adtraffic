@@ -39,7 +39,7 @@ export interface ActionPreview {
 export interface ConfirmationDecision {
   actionId: string;
   approved: boolean;
-  /** For destructive ops: the typed confirmation text (e.g., "DELETE") */
+  /** For destructive ops: the typed confirmation text matching the operation (e.g., "DELETE", "ARCHIVE") */
   typedConfirmation?: string;
   /** Timestamp of user's decision */
   decidedAt: number;

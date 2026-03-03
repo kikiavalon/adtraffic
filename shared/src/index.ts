@@ -94,9 +94,21 @@ export type {
   StreamToolStart,
   StreamToolEnd,
   StreamMessageEnd,
+  StreamRetrying,
+  StreamConfirmationRequired,
+  StreamApprovalSubmitted,
   StreamError,
   StreamDone,
 } from './types/streaming.js';
+
+export type {
+  PendingAction,
+  ActionPreview,
+  ConfirmationDecision,
+  OperationRiskLevel,
+  ConfirmationRequestEvent,
+  ConfirmationResultEvent,
+} from './types/confirmation.js';
 
 // Schemas
 export {

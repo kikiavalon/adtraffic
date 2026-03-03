@@ -14,6 +14,7 @@
 import { logger } from '../lib/logger.js';
 import { claudeApiRequestsTotal, claudeApiTokensTotal } from '../lib/metrics.js';
 import { getRedis, isRedisHealthy } from '../db/redis.js';
+import { logAuditEvent } from '../audit/audit-service.js';
 
 export type LimitCheck = { allowed: true } | { allowed: false; message: string };
 
@@ -85,8 +86,9 @@ function resetIfNewDay(): void {
  * Returns { allowed: true } or { allowed: false, message: string }.
  *
  * @param dailyLimit - Optional per-user limit from feature flags. Falls back to env/default.
+ * @param userId - Optional userId for audit logging when the limit is reached.
  */
-export async function checkLimit(dailyLimit?: number): Promise<LimitCheck> {
+export async function checkLimit(dailyLimit?: number, userId?: string): Promise<LimitCheck> {
   const limit = dailyLimit ?? getDailyLimit();
   const date = todayKey();
 
@@ -95,6 +97,14 @@ export async function checkLimit(dailyLimit?: number): Promise<LimitCheck> {
       const redis = getRedis()!;
       const requests = parseInt(await redis.get(`usage:${date}:requests`) ?? '0', 10);
       if (requests >= limit) {
+        // Audit: daily limit reached (fire-and-forget)
+        if (userId) {
+          void logAuditEvent({
+            userId,
+            eventType: 'daily_limit_reached',
+            metadata: { dailyLimit: limit, currentRequests: requests },
+          });
+        }
         return {
           allowed: false,
           message: `Daily API limit reached (${limit} requests). Reset tomorrow or increase DAILY_API_LIMIT in .env.`,
@@ -109,6 +119,14 @@ export async function checkLimit(dailyLimit?: number): Promise<LimitCheck> {
   // In-memory fallback
   resetIfNewDay();
   if (dailyUsage.requests >= limit) {
+    // Audit: daily limit reached (fire-and-forget)
+    if (userId) {
+      void logAuditEvent({
+        userId,
+        eventType: 'daily_limit_reached',
+        metadata: { dailyLimit: limit, currentRequests: dailyUsage.requests },
+      });
+    }
     return {
       allowed: false,
       message: `Daily API limit reached (${limit} requests). Reset tomorrow or increase DAILY_API_LIMIT in .env.`,

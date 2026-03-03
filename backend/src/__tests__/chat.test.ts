@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
-import { db, schema } from '../db/index.js';
+import { db } from '../db/index.js';
+import { sql } from 'drizzle-orm';
 
 vi.mock('../claude/kiki-service.js', () => ({
   chat: vi.fn().mockResolvedValue({
@@ -13,14 +14,21 @@ vi.mock('../claude/kiki-service.js', () => ({
   clearConversation: vi.fn(),
 }));
 
+// Mock audit-service to prevent fire-and-forget DB writes racing with test cleanup
+vi.mock('../audit/audit-service.js', () => ({
+  logAuditEvent: vi.fn().mockResolvedValue(undefined),
+  getAuditLog: vi.fn().mockResolvedValue([]),
+  hashIp: vi.fn().mockReturnValue('test-hash'),
+  VALID_EVENT_TYPES: ['message_sent', 'message_received', 'tool_executed', 'session_started', 'session_ended', 'button_clicked', 'tool_confirmed', 'tool_rejected', 'rate_limit_hit', 'daily_limit_reached', 'error', 'approval_requested', 'approval_granted'],
+}));
+
 let authToken: string;
 
 describe('POST /api/v1/chat', () => {
   beforeEach(async () => {
-    // Clear all data in correct order (messages first due to FK)
-    await db.delete(schema.messages);
-    await db.delete(schema.conversations);
-    await db.delete(schema.users);
+    // Atomic cleanup — TRUNCATE CASCADE handles FK ordering automatically
+    // and prevents race conditions from fire-and-forget DB writes
+    await db.execute(sql`TRUNCATE TABLE users CASCADE`);
 
     const email = `chat-test-${Date.now()}@agency.com`;
     const res = await request(app)

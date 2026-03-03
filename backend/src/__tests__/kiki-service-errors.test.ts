@@ -75,23 +75,26 @@ describe('Claude API timeout', () => {
 });
 
 describe('Claude API errors', () => {
-  it('throws on network error', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('ECONNREFUSED'));
+  it('throws on network error after retry exhaustion', async () => {
+    // ECONNREFUSED is retryable — must reject enough times to exhaust retries (initial + 2 retries = 3)
+    mockCreate.mockRejectedValue(new Error('ECONNREFUSED'));
 
     await expect(chat('error-test', 'Hello')).rejects.toThrow('ECONNREFUSED');
   });
 
-  it('throws on rate limit error from Anthropic', async () => {
+  it('throws on rate limit error from Anthropic after retry exhaustion', async () => {
     const rateLimitError = new Error('429 Too Many Requests');
     (rateLimitError as any).status = 429;
-    mockCreate.mockRejectedValueOnce(rateLimitError);
+    // 429 is retryable — must reject persistently to exhaust retries
+    mockCreate.mockRejectedValue(rateLimitError);
 
     await expect(chat('error-test', 'Hello')).rejects.toThrow('429');
   });
 
-  it('throws on authentication error from Anthropic', async () => {
+  it('throws on authentication error from Anthropic without retrying', async () => {
     const authError = new Error('401 Unauthorized: Invalid API key');
     (authError as any).status = 401;
+    // 401 is NOT retryable — single rejection is sufficient
     mockCreate.mockRejectedValueOnce(authError);
 
     await expect(chat('error-test', 'test')).rejects.toThrow('401');

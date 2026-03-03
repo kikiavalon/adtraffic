@@ -1,0 +1,247 @@
+/* ConfirmationCard — risk-level-aware confirmation UI for CM360 write operations */
+
+.confirmation-card {
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 8px 0;
+  max-width: 520px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Standard: neutral/blue */
+.confirmation-card--standard {
+  background: #f0f4ff;
+  border: 1px solid #c6d4f0;
+}
+
+/* Elevated: orange/amber warning */
+.confirmation-card--elevated {
+  background: #fff8f0;
+  border: 1px solid #f0d4a8;
+}
+
+/* Destructive: red danger */
+.confirmation-card--destructive {
+  background: #fff0f0;
+  border: 1px solid #f0a8a8;
+}
+
+/* Header row */
+.confirmation-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.confirmation-card__icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.confirmation-card__title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+/* Entity name */
+.confirmation-card__entity-name {
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 12px;
+  padding-left: 26px;
+  font-size: 13px;
+}
+
+/* Warnings */
+.confirmation-card__warnings {
+  list-style: none;
+  margin: 0 0 12px 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+.confirmation-card--elevated .confirmation-card__warnings {
+  background: #fff3e0;
+  border: 1px solid #ffe0b2;
+}
+
+.confirmation-card--destructive .confirmation-card__warnings {
+  background: #fce4ec;
+  border: 1px solid #f8bbd0;
+}
+
+.confirmation-card__warning-item {
+  color: #b71c1c;
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+.confirmation-card--elevated .confirmation-card__warning-item {
+  color: #e65100;
+}
+
+/* Create fields table */
+.confirmation-card__fields {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+
+.confirmation-card__fields td {
+  padding: 4px 8px;
+  font-size: 13px;
+  vertical-align: top;
+}
+
+.confirmation-card__field-name {
+  color: #666;
+  font-weight: 500;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.confirmation-card__field-value {
+  color: #1a1a1a;
+}
+
+/* Update changes table */
+.confirmation-card__changes {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+}
+
+.confirmation-card__changes td {
+  padding: 4px 6px;
+  font-size: 13px;
+  vertical-align: top;
+}
+
+.confirmation-card__change-field {
+  color: #666;
+  font-weight: 500;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.confirmation-card__change-from {
+  color: #b71c1c;
+  text-decoration: line-through;
+}
+
+.confirmation-card__change-arrow {
+  color: #999;
+  text-align: center;
+  width: 24px;
+}
+
+.confirmation-card__change-to {
+  color: #1b5e20;
+  font-weight: 500;
+}
+
+/* Typed confirmation input (destructive) */
+.confirmation-card__type-confirm {
+  margin-bottom: 12px;
+}
+
+.confirmation-card__type-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b71c1c;
+  margin-bottom: 6px;
+}
+
+.confirmation-card__type-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e57373;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.confirmation-card__type-input:focus {
+  outline: none;
+  border-color: #d32f2f;
+  box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.15);
+}
+
+.confirmation-card__type-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Action buttons row */
+.confirmation-card__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.confirmation-card__btn {
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.15s, opacity 0.15s;
+  font-family: inherit;
+}
+
+.confirmation-card__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Approve button — green */
+.confirmation-card__btn--approve {
+  background: #22c55e;
+  color: #fff;
+  border-color: #16a34a;
+}
+
+.confirmation-card__btn--approve:hover:not(:disabled) {
+  background: #16a34a;
+}
+
+/* Reject button — gray outline */
+.confirmation-card__btn--reject {
+  background: transparent;
+  color: #666;
+  border-color: #ccc;
+}
+
+.confirmation-card__btn--reject:hover:not(:disabled) {
+  background: #f5f5f5;
+  color: #333;
+}
+
+/* Destructive Delete button — red */
+.confirmation-card__btn--destructive {
+  background: #ef4444;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+.confirmation-card__btn--destructive:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+/* Cancel button — gray outline */
+.confirmation-card__btn--cancel {
+  background: transparent;
+  color: #666;
+  border-color: #ccc;
+}
+
+.confirmation-card__btn--cancel:hover:not(:disabled) {
+  background: #f5f5f5;
+  color: #333;
+}

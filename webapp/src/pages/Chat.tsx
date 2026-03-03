@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { ChatMessage, StreamEvent } from '@adtraffic/shared';
+import type { ChatMessage, StreamEvent, PendingAction } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { PluggableList } from 'unified';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
 import ConversationSidebar from '../components/ConversationSidebar.js';
+import ConfirmationCard from '../components/ConfirmationCard.js';
 import { parseQuickReplies, generateConversationId } from '../utils/chat-utils.js';
 import type { QuickReplyOption } from '../utils/chat-utils.js';
+import { trackInteraction, setAuthFetch, startAutoFlush, flushInteractions } from '../utils/interaction-tracker.js';
 import './Chat.css';
 
 function QuickReplyButtons({
@@ -68,6 +70,7 @@ function QuickReplyButtons({
             key={opt.label}
             className={`quick-reply-btn${opt.isOpenEnded ? ' quick-reply-btn-open' : ''}`}
             onClick={() => {
+              trackInteraction('button_clicked', { buttonLabel: opt.label, isOpenEnded: opt.isOpenEnded });
               if (opt.isOpenEnded) {
                 setOpenEndedActive(true);
               } else {
@@ -251,13 +254,16 @@ const TOOL_LABELS: Record<string, string> = {
   cm360_create_floodlight_activity_group: 'Creating floodlight group',
   cm360_list_floodlight_configurations: 'Loading floodlight configuration',
   cm360_generate_floodlight_tag: 'Generating floodlight tag',
+
+  // Retry / reconnection
+  reconnecting: 'Reconnecting...',
 };
 
 function formatToolName(toolName: string): string {
   return TOOL_LABELS[toolName] ?? toolName.replace(/^cm360_/, '').replace(/_/g, ' ');
 }
 
-const API_URL = import.meta.env.VITE_API_URL ?? '';
+const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 const WELCOME_MESSAGE = `Hey! I'm **Kiki**, your CM360 trafficking assistant. I'm connected to the Demo Agency account and ready to help.
 
@@ -310,8 +316,11 @@ function Chat() {
     sizeBytes: number;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [toolStatus, setToolStatus] = useState<{ toolName: string; status: 'running' } | null>(null);
+  const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [processingActionId, setProcessingActionId] = useState<string | null>(null);
   const { user, logout, authFetch } = useAuth();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -333,7 +342,7 @@ function Chat() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, pendingActions]);
 
   // Refocus input after loading finishes
   useEffect(() => {
@@ -347,6 +356,43 @@ function Chat() {
     return () => {
       abortControllerRef.current?.abort();
     };
+  }, []);
+
+  // Keep a ref to conversationId so the visibility handler always reads the current value
+  const conversationIdRef = useRef(conversationId);
+  useEffect(() => {
+    conversationIdRef.current = conversationId;
+  }, [conversationId]);
+
+  // Register authFetch with the interaction tracker
+  useEffect(() => {
+    setAuthFetch(authFetch);
+  }, [authFetch]);
+
+  // Start auto-flush and track session lifecycle
+  useEffect(() => {
+    trackInteraction('session_started', { conversationId: conversationIdRef.current });
+    const cleanupAutoFlush = startAutoFlush();
+
+    // Guard: only fire session_ended once per hide/show cycle
+    let sessionActive = true;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && sessionActive) {
+        sessionActive = false;
+        trackInteraction('session_ended', { conversationId: conversationIdRef.current });
+        flushInteractions();
+      } else if (document.visibilityState === 'visible') {
+        sessionActive = true;
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cleanupAutoFlush();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+    // Run once on mount — conversationIdRef ensures current ID is always read
   }, []);
 
   /** Batch delta text into the streaming message at ~60fps */
@@ -373,6 +419,8 @@ function Chat() {
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
+
+    trackInteraction('message_sent', { conversationId, messageLength: text.length });
 
     // Abort any previous in-flight request
     abortControllerRef.current?.abort();
@@ -470,6 +518,11 @@ function Chat() {
               setSidebarRefresh((n) => n + 1);
               break;
 
+            case 'retrying':
+              // Backend is retrying a transient error — keep loading animation going
+              setToolStatus({ toolName: 'reconnecting', status: 'running' });
+              break;
+
             case 'error':
               setMessages((prev) => {
                 const errMsg: ChatMessage = {
@@ -480,6 +533,16 @@ function Chat() {
                 };
                 return [...prev.slice(0, -1), errMsg];
               });
+              break;
+
+            case 'confirmation_required':
+              // Flush any pending delta before showing confirmation card
+              if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+                flushDelta();
+              }
+              setPendingActions((prev) => [...prev, event.action]);
               break;
 
             case 'done':
@@ -552,6 +615,7 @@ function Chat() {
     // Clear client-side state
     sessionStorage.removeItem(`adtraffic-messages-${conversationId}`);
     const newId = generateConversationId();
+    trackInteraction('session_started', { conversationId: newId });
     setConversationId(newId);
     setMessages([{
       id: 'welcome',
@@ -560,8 +624,110 @@ function Chat() {
       timestamp: Date.now(),
     }]);
     setInput('');
+    setPendingActions([]);
+    setProcessingActionId(null);
     setSidebarRefresh((n) => n + 1);
   }, [conversationId, authFetch]);
+
+  const handleApprove = useCallback(async (actionId: string, typedConfirmation?: string) => {
+    trackInteraction('confirmation_approved', { actionId, hasTypedConfirmation: !!typedConfirmation });
+    setProcessingActionId(actionId);
+    try {
+      const response = await authFetch(`${API_URL}/api/v1/confirmations/${actionId}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(typedConfirmation ? { typedConfirmation } : {}),
+      });
+
+      const data = await response.json();
+
+      // Remove from pending actions
+      setPendingActions((prev) => prev.filter((a) => a.actionId !== actionId));
+
+      if (response.ok && !data.isError) {
+        // Add success result as assistant message
+        const resultContent = typeof data.result === 'string'
+          ? data.result
+          : JSON.stringify(data.result, null, 2);
+        const resultMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: resultContent,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, resultMessage]);
+      } else {
+        // Add error as assistant message
+        const errorText = data.errorMessage || data.error || 'Failed to execute action';
+        const errorMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `Sorry, the action could not be completed: ${errorText}`,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      }
+    } catch (error) {
+      // Remove from pending actions even on network error
+      setPendingActions((prev) => prev.filter((a) => a.actionId !== actionId));
+      const errorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `Sorry, I had trouble completing that action. ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setProcessingActionId(null);
+    }
+  }, [authFetch]);
+
+  const handleReject = useCallback(async (actionId: string) => {
+    trackInteraction('confirmation_rejected', { actionId });
+    setProcessingActionId(actionId);
+    try {
+      const response = await authFetch(`${API_URL}/api/v1/confirmations/${actionId}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      // Remove from pending actions
+      setPendingActions((prev) => prev.filter((a) => a.actionId !== actionId));
+
+      if (response.ok) {
+        // Add cancellation message
+        const cancelMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: 'Got it, I cancelled that action. Let me know if you want to try something else.',
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, cancelMessage]);
+      } else {
+        const data = await response.json().catch(() => ({ error: 'Action not found or expired' }));
+        const errorText = data.error || 'Failed to cancel action';
+        const errorMessage: ChatMessage = {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `Sorry, the action could not be cancelled: ${errorText}`,
+          timestamp: Date.now(),
+        };
+        setMessages((prev) => [...prev, errorMessage]);
+      }
+    } catch (error) {
+      // Remove from pending on error too
+      setPendingActions((prev) => prev.filter((a) => a.actionId !== actionId));
+      const errorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `Sorry, I had trouble cancelling that action. ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setProcessingActionId(null);
+    }
+  }, [authFetch]);
 
   const handleSelectConversation = useCallback((convId: string, msgs: Array<{ id: string; role: string; content: string; timestamp: number }>) => {
     setConversationId(convId);
@@ -590,7 +756,7 @@ function Chat() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -600,20 +766,45 @@ function Chat() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1] ?? ''; // strip data:... prefix
-      setPendingAttachment({
-        name: file.name,
-        type: file.type,
-        data: base64,
-        sizeBytes: file.size,
-      });
-    };
-    reader.readAsDataURL(file);
-
+    // Reset the file input so the same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
-  };
+
+    trackInteraction('file_upload_started', { filename: file.name, size: file.size });
+    setIsUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await authFetch(`${API_URL}/api/v1/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' })) as { error?: string };
+        throw new Error(errorData.error ?? `Upload failed (${response.status})`);
+      }
+
+      const data = await response.json() as { filename: string; extractedText: string };
+      trackInteraction('file_upload_success', { filename: data.filename });
+
+      // Send extracted text as a message to trigger Kiki's IO parsing
+      const messageText = `[IO Upload: ${data.filename}]\n\n${data.extractedText}`;
+      setIsUploading(false);
+      await sendMessage(messageText);
+    } catch (error) {
+      trackInteraction('file_upload_error', { filename: file.name, error: error instanceof Error ? error.message : 'Unknown error' });
+      const errorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `Sorry, I couldn't process the file "${file.name}". ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: Date.now(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      setIsUploading(false);
+    }
+  }, [authFetch, sendMessage]);
 
   return (
     <div className="chat-page">
@@ -683,6 +874,21 @@ function Chat() {
             </div>
           );
         })}
+        {pendingActions.map((action) => (
+          <div key={action.actionId} className="chat-message chat-message-assistant">
+            <div className="chat-message-row">
+              <div className="kiki-avatar">K</div>
+              <div className="chat-message-bubble confirmation-card-container">
+                <ConfirmationCard
+                  action={action}
+                  onApprove={handleApprove}
+                  onReject={handleReject}
+                  disabled={processingActionId === action.actionId}
+                />
+              </div>
+            </div>
+          </div>
+        ))}
         {isLoading && toolStatus && (
           <div className="chat-message chat-message-assistant">
             <div className="chat-message-row">
@@ -732,7 +938,13 @@ function Chat() {
           hidden
         />
         <div className="chat-input-row">
-        <button className="chat-upload-btn" onClick={handleFileUpload} title="Upload IO" aria-label="Upload file">
+        <button
+          className={`chat-upload-btn${isUploading ? ' uploading' : ''}`}
+          onClick={handleFileUpload}
+          title="Upload IO"
+          aria-label="Upload file"
+          disabled={isUploading || isLoading}
+        >
           +
         </button>
         <textarea
@@ -743,12 +955,12 @@ function Chat() {
           onKeyDown={handleKeyDown}
           placeholder="Message Kiki..."
           rows={1}
-          disabled={isLoading}
+          disabled={isLoading || isUploading}
         />
         <button
           className="chat-send-btn"
           onClick={() => sendMessage(input)}
-          disabled={!input.trim() || isLoading}
+          disabled={!input.trim() || isLoading || isUploading}
         >
           Send
         </button>

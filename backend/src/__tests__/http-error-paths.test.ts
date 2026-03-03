@@ -35,9 +35,20 @@ vi.mock('../claude/usage-tracker.js', () => ({
   }),
 }));
 
+// Mock audit-service to prevent fire-and-forget DB writes racing with test cleanup
+vi.mock('../audit/audit-service.js', () => ({
+  logAuditEvent: vi.fn().mockResolvedValue(undefined),
+  getAuditLog: vi.fn().mockResolvedValue([]),
+  hashIp: vi.fn().mockReturnValue('test-hash'),
+  VALID_EVENT_TYPES: ['message_sent', 'message_received', 'tool_executed', 'session_started', 'session_ended', 'button_clicked', 'tool_confirmed', 'tool_rejected', 'rate_limit_hit', 'daily_limit_reached', 'error', 'approval_requested', 'approval_granted'],
+}));
+
 let token: string;
 
 beforeEach(async () => {
+  await db.delete(schema.approvalQueue);
+  await db.delete(schema.auditLogs);
+  await db.delete(schema.oauthTokens);
   await db.delete(schema.messages);
   await db.delete(schema.conversations);
   await db.delete(schema.users);

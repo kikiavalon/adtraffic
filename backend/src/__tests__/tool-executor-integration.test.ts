@@ -10,6 +10,24 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Mock session cache — disable caching so tests exercise API routing directly
+vi.mock('../cm360/session-cache.js', () => ({
+  getCached: vi.fn().mockResolvedValue(null),
+  setCached: vi.fn().mockResolvedValue(undefined),
+  invalidateEntity: vi.fn().mockResolvedValue(undefined),
+  clearSessionCache: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock audit service
+vi.mock('../audit/audit-service.js', () => ({
+  logAuditEvent: vi.fn(),
+}));
+
+// Mock logger
+vi.mock('../lib/logger.js', () => ({
+  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() },
+}));
+
 // Mock getCM360Client and hasOAuthTokens
 const mockGetCM360Client = vi.fn();
 const mockHasOAuthTokens = vi.fn();

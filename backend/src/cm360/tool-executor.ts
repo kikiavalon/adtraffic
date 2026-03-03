@@ -9,6 +9,7 @@
  * existing tests (875+) that call executeTool(name, input) without a userId.
  */
 
+import type { PendingAction } from '@adtraffic/shared';
 import { mockStore } from './mock-data-store.js';
 // Real CM360 modules (token-manager, cm360-client) are dynamically imported
 // to avoid DB initialization when only the mock path is used.
@@ -16,6 +17,9 @@ import { mockStore } from './mock-data-store.js';
 import type { CM360Client } from './cm360-client.js';
 import { CM360NotConnectedError, CM360TokenRevokedError, CM360APIError } from './errors.js';
 import { checkCM360RateLimit, recordCM360Request } from './api-rate-limiter.js';
+import { logAuditEvent } from '../audit/audit-service.js';
+import { getCached, setCached, invalidateEntity } from './session-cache.js';
+import { isWriteTool } from './write-classifier.js';
 import {
   ListProfilesInputSchema,
   ListAdvertisersInputSchema,
@@ -95,6 +99,151 @@ export interface ToolResult {
   result: unknown;
   isError: boolean;
   errorMessage?: string;
+  /** Set when a write tool requires user confirmation before execution */
+  requiresConfirmation?: boolean;
+  /** The pending action details for the confirmation card */
+  pendingAction?: PendingAction;
+}
+
+/**
+ * Map tool names to the cache entity type they operate on.
+ * Tools not in this map are not cached (e.g., cm360_generate_tags).
+ *
+ * NOTE: Cache keys are scoped per userId + entityType + filter params.
+ * profileId is intentionally NOT part of the cache key because most users
+ * operate within a single CM360 profile. Multi-profile cache isolation
+ * can be added later by including profileId in getCacheFilter() if needed.
+ */
+export const TOOL_ENTITY_MAP: Record<string, string> = {
+  // Profiles
+  cm360_list_profiles: 'profiles',
+
+  // Advertisers
+  cm360_list_advertisers: 'advertisers',
+  cm360_get_advertiser: 'advertisers',
+
+  // Campaigns
+  cm360_list_campaigns: 'campaigns',
+  cm360_get_campaign: 'campaigns',
+  cm360_create_campaign: 'campaigns',
+  cm360_update_campaign: 'campaigns',
+
+  // Sites
+  cm360_list_sites: 'sites',
+  cm360_get_site: 'sites',
+
+  // Landing pages
+  cm360_list_landing_pages: 'landingPages',
+  cm360_get_landing_page: 'landingPages',
+  cm360_create_landing_page: 'landingPages',
+  cm360_update_landing_page: 'landingPages',
+
+  // Placements
+  cm360_list_placements: 'placements',
+  cm360_get_placement: 'placements',
+  cm360_create_placement: 'placements',
+  cm360_update_placement: 'placements',
+
+  // Creatives
+  cm360_list_creatives: 'creatives',
+  cm360_get_creative: 'creatives',
+  cm360_create_creative: 'creatives',
+  cm360_update_creative: 'creatives',
+  cm360_upload_creative_asset: 'creatives',
+
+  // Ads
+  cm360_list_ads: 'ads',
+  cm360_get_ad: 'ads',
+  cm360_create_ad: 'ads',
+  cm360_update_ad: 'ads',
+
+  // Sizes (read-only, immutable)
+  cm360_list_sizes: 'sizes',
+
+  // Campaign-Creative Associations
+  cm360_associate_creative_campaign: 'campaignCreativeAssociations',
+  cm360_list_campaign_creative_associations: 'campaignCreativeAssociations',
+};
+
+/**
+ * Build a filter key from tool input for list tools with filtering.
+ * Different filter combinations get separate cache entries.
+ *
+ * Returns undefined for tools with no meaningful filter parameters
+ * (e.g., cm360_list_profiles, cm360_get_* with just an ID).
+ */
+export function getCacheFilter(toolName: string, toolInput: Record<string, unknown>): string | undefined {
+  const parts: string[] = [];
+
+  // For "get by ID" tools, include the entity ID so each entity is cached separately
+  const idFields: Record<string, string> = {
+    cm360_get_advertiser: 'advertiserId',
+    cm360_get_campaign: 'campaignId',
+    cm360_get_placement: 'placementId',
+    cm360_get_ad: 'adId',
+    cm360_get_creative: 'creativeId',
+    cm360_get_landing_page: 'landingPageId',
+    cm360_get_site: 'siteId',
+  };
+
+  const idField = idFields[toolName];
+  if (idField && toolInput[idField] !== undefined) {
+    const val = toolInput[idField];
+    return `${idField}=${typeof val === 'object' ? JSON.stringify(val) : String(val as string | number | boolean)}`;
+  }
+
+  // For list tools, include the filter parameters that vary the result set
+  const filterFields = [
+    'advertiserId', 'campaignId', 'searchString', 'maxResults',
+    'width', 'height', 'iabStandard',
+  ];
+
+  for (const field of filterFields) {
+    if (toolInput[field] !== undefined && toolInput[field] !== null) {
+      const val = toolInput[field];
+      parts.push(`${field}=${typeof val === 'object' ? JSON.stringify(val) : String(val as string | number | boolean)}`);
+    }
+  }
+
+  return parts.length > 0 ? parts.join('&') : undefined;
+}
+
+/**
+ * Check whether a tool is a write/mutate operation for cache purposes.
+ * Uses the write-classifier's isWriteTool as the primary check,
+ * but also catches create tools not yet in the write classifier
+ * (e.g., cm360_create_ad) by checking the tool name prefix.
+ */
+function isMutatingTool(toolName: string): boolean {
+  if (isWriteTool(toolName)) return true;
+  // Catch any create/update/delete/upload/associate tools not in the classifier
+  return /^cm360_(create|update|delete|upload|associate)_/.test(toolName);
+}
+
+/**
+ * Extract safe metadata from tool input for audit logging.
+ * NEVER includes raw campaign data, URLs, or creative content.
+ * Only includes entity IDs and the tool name.
+ *
+ * Entity names (campaign name, creative name, etc.) are intentionally
+ * excluded — they may contain confidential client information such as
+ * brand names, product codenames, or internal project identifiers.
+ */
+function extractSafeToolMetadata(toolName: string, toolInput: Record<string, unknown>): Record<string, unknown> {
+  const meta: Record<string, unknown> = { toolName };
+
+  // Extract only entity IDs — safe for audit logs
+  const idFields = [
+    'advertiserId', 'campaignId', 'placementId', 'adId', 'creativeId',
+    'siteId', 'landingPageId', 'placementIds',
+  ];
+  for (const field of idFields) {
+    if (field in toolInput) {
+      meta[field] = toolInput[field];
+    }
+  }
+
+  return meta;
 }
 
 /**
@@ -110,15 +259,51 @@ export async function executeTool(
   toolName: string,
   toolInput: Record<string, unknown>,
   userId?: string,
+  conversationId?: string,
 ): Promise<ToolResult> {
+  const startTime = Date.now();
+
   // No userId → always mock (backward compat for tests)
   if (!userId) {
-    return executeToolMock(toolName, toolInput);
+    const result = executeToolMock(toolName, toolInput);
+    // No audit log for anonymous/test calls (no userId to attribute)
+    return result;
   }
 
   // Validate the tool name first (before attempting real API)
   if (!isValidToolName(toolName)) {
     return { result: null, isError: true, errorMessage: `Unknown tool: ${toolName}` };
+  }
+
+  let toolResult: ToolResult;
+  let dataSource: 'live' | 'mock' | 'rate_limited' | 'cache' = 'live';
+
+  const entityType = TOOL_ENTITY_MAP[toolName];
+  const isWrite = isMutatingTool(toolName);
+  const cacheFilter = (!isWrite && entityType) ? getCacheFilter(toolName, toolInput) : undefined;
+
+  // --- Session cache: check for cached data on read tools ---
+  if (!isWrite && entityType) {
+    const cached = await getCached<ToolResult>(userId, entityType, cacheFilter);
+    if (cached !== null) {
+      dataSource = 'cache';
+
+      // Audit log for cache hit (fire-and-forget)
+      const durationMs = Date.now() - startTime;
+      void logAuditEvent({
+        userId,
+        conversationId,
+        eventType: 'tool_executed',
+        metadata: {
+          ...extractSafeToolMetadata(toolName, toolInput),
+          success: true,
+          durationMs,
+          dataSource,
+        },
+      });
+
+      return cached;
+    }
   }
 
   // Dynamically import modules with DB dependencies (avoids DB init on mock path)
@@ -138,48 +323,80 @@ export async function executeTool(
     const rateCheck = checkCM360RateLimit(userId);
     if (!rateCheck.allowed) {
       const retrySeconds = Math.ceil((rateCheck.retryAfterMs ?? 5000) / 1000);
-      return {
+      dataSource = 'rate_limited';
+      toolResult = {
         result: null,
         isError: true,
         errorMessage: `CM360 API rate limit reached. Please wait ${retrySeconds} seconds before trying again.`,
       };
+    } else {
+      const client = new CM360ClientClass(api);
+      toolResult = await executeToolReal(toolName, toolInput, client, userId);
+      recordCM360Request(userId);
     }
-
-    const client = new CM360ClientClass(api);
-    const result = await executeToolReal(toolName, toolInput, client, userId);
-    recordCM360Request(userId);
-    return result;
   } catch (err) {
     // Not connected → fall back to mock
     if (err instanceof CM360NotConnectedError) {
-      return executeToolMock(toolName, toolInput);
-    }
-
-    // Token revoked → user must reconnect
-    if (err instanceof CM360TokenRevokedError) {
-      return {
+      dataSource = 'mock';
+      toolResult = executeToolMock(toolName, toolInput);
+    } else if (err instanceof CM360TokenRevokedError) {
+      // Token revoked → user must reconnect
+      toolResult = {
         result: null,
         isError: true,
         errorMessage: err.message,
       };
-    }
-
-    // Google API error → surface to user
-    if (err instanceof CM360APIError) {
-      return {
+    } else if (err instanceof CM360APIError) {
+      // Google API error → surface to user
+      toolResult = {
         result: null,
         isError: true,
         errorMessage: err.message,
       };
+    } else {
+      // Unexpected error
+      toolResult = {
+        result: null,
+        isError: true,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+      };
     }
-
-    // Unexpected error
-    return {
-      result: null,
-      isError: true,
-      errorMessage: err instanceof Error ? err.message : 'Unknown error',
-    };
   }
+
+  // --- Session cache: store successful read results / invalidate on writes ---
+  // NOTE: Invalidation is single-entity only. Creating a campaign invalidates 'campaigns'
+  // but not related entity caches ('placements', 'ads', etc.). This is an accepted trade-off:
+  // cross-entity invalidation would require a dependency graph, and stale related data
+  // will naturally expire via TTL (default: 1 hour). If needed, clearSessionCache()
+  // can be called to flush all cached data for a user.
+  if (entityType && !toolResult.isError && dataSource === 'live') {
+    if (isWrite) {
+      // Write succeeded → invalidate the entity type cache
+      await invalidateEntity(userId, entityType);
+    } else {
+      // Read succeeded → store in cache for future calls
+      await setCached(userId, entityType, toolResult, cacheFilter);
+    }
+  }
+
+  // Audit log: tool_executed (fire-and-forget, never throws)
+  const durationMs = Date.now() - startTime;
+  void logAuditEvent({
+    userId,
+    conversationId,
+    eventType: 'tool_executed',
+    metadata: {
+      ...extractSafeToolMetadata(toolName, toolInput),
+      success: !toolResult.isError,
+      durationMs,
+      dataSource,
+      ...(toolResult.isError && toolResult.errorMessage
+        ? { errorMessage: toolResult.errorMessage.substring(0, 200) }
+        : {}),
+    },
+  });
+
+  return toolResult;
 }
 
 const VALID_TOOL_NAMES = new Set([

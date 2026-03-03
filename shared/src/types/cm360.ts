@@ -150,6 +150,7 @@ export interface CM360Placement {
     }>;
   };
   tagFormats: CM360TagFormat[];
+  paymentSource?: 'PLACEMENT_AGENCY_PAID' | 'PLACEMENT_PUBLISHER_PAID';
   archived?: boolean;
 }
 

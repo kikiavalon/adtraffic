@@ -10,7 +10,7 @@ beforeEach(() => {
 
 describe('cm360_generate_tags — video format support', () => {
   it('generates VAST tags for IN_STREAM_VIDEO placements', async () => {
-    const placements = mockStore.listPlacements();
+    const placements = mockStore.listPlacements({ maxResults: 500 });
     const videoPl = placements.find(p => p.compatibility === 'IN_STREAM_VIDEO');
     expect(videoPl).toBeDefined();
 
@@ -27,7 +27,7 @@ describe('cm360_generate_tags — video format support', () => {
   });
 
   it('generates standard tags for DISPLAY placements', async () => {
-    const placements = mockStore.listPlacements();
+    const placements = mockStore.listPlacements({ maxResults: 500 });
     const displayPl = placements.find(p => p.compatibility !== 'IN_STREAM_VIDEO' && p.compatibility !== 'IN_STREAM_AUDIO');
     expect(displayPl).toBeDefined();
 
@@ -42,7 +42,7 @@ describe('cm360_generate_tags — video format support', () => {
   });
 
   it('accepts optional tagFormats override', async () => {
-    const placements = mockStore.listPlacements();
+    const placements = mockStore.listPlacements({ maxResults: 500 });
     const displayPl = placements.find(p => p.compatibility !== 'IN_STREAM_VIDEO' && p.compatibility !== 'IN_STREAM_AUDIO');
 
     const result = await executeTool('cm360_generate_tags', {

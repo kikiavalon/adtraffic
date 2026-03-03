@@ -3,7 +3,7 @@ import type { BooleanFlagName, ResolvedFlags } from '../feature-flags/flag-regis
 
 /**
  * CM360 tool definitions for Claude's tool use.
- * 59 CM360 tools: 14 read + 6 create + 5 update + 1 tag gen + 3 search/detail + 1 upload + 5 event tags + 4 placement groups + 3 directory sites + 2 change logs + 6 reports + 2 floodlight configs + 1 pacing analysis.
+ * 59 CM360 tools: 16 read + 5 create + 5 update + 1 tag gen + 3 creative assoc/upload + 5 event tags + 4 placement groups + 3 directory sites + 2 change logs + 6 reports + 8 floodlight + 1 pacing analysis.
  *
  * Note: Tools are defined but not executed yet.
  * When Claude returns a tool_use block, the chat service will

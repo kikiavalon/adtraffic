@@ -962,10 +962,27 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      // Pacing analysis is always computed from mock data for now.
-      // In real mode, we would fetch placements + delivery data from the CM360 API
-      // and compute pacing server-side. For MVP, mock data provides realistic results.
-      const analysis = mockStore.getPacingAnalysis(parsed.data.campaignId);
+      const paProfileId = await resolveProfileId(client);
+      // Fetch real placements for the campaign from CM360 API
+      const realPlacements = await client.listPlacements(paProfileId, {
+        campaignId: parsed.data.campaignId,
+        maxResults: 500,
+      });
+      if (realPlacements.length === 0) {
+        return {
+          result: {
+            error: `No placements found for campaign ${parsed.data.campaignId}. Pacing analysis requires placements with pricing schedules.`,
+          },
+          isError: true,
+        };
+      }
+      // Also fetch the campaign for its name
+      const paCampaign = await client.getCampaign(paProfileId, parsed.data.campaignId);
+      if (!paCampaign) {
+        return { result: { error: `Campaign ${parsed.data.campaignId} not found` }, isError: true };
+      }
+      // Compute time-based pacing from real placement metadata
+      const analysis = computePacingFromPlacements(paCampaign.name, realPlacements);
       return { result: analysis, isError: false };
     }
 
@@ -992,6 +1009,100 @@ async function resolveProfileId(client: CM360Client): Promise<string> {
   const profileId = profiles[0]!.profileId;
   profileCache.set(client, profileId);
   return profileId;
+}
+
+/**
+ * Compute pacing analysis from real CM360 placement data.
+ * Uses placement flight dates and pricing schedules to compute time-based pacing.
+ * Note: Actual impression delivery data requires running a CM360 report.
+ * This provides time-based pacing from metadata only.
+ */
+function computePacingFromPlacements(campaignName: string, placements: import('@adtraffic/shared').CM360Placement[]) {
+  const today = new Date();
+  const analysisDate = today.toISOString().slice(0, 10);
+
+  const pacingPlacements = placements
+    .filter(p => p.pricingSchedule.pricingPeriods && p.pricingSchedule.pricingPeriods.length > 0)
+    .map(p => {
+      const period = p.pricingSchedule.pricingPeriods![0]!;
+      const flightStart = new Date(p.pricingSchedule.startDate);
+      const flightEnd = new Date(p.pricingSchedule.endDate);
+      const totalFlightMs = flightEnd.getTime() - flightStart.getTime();
+      const totalFlightDays = Math.max(1, Math.ceil(totalFlightMs / (1000 * 60 * 60 * 24)));
+
+      let daysElapsed: number;
+      let daysRemaining: number;
+      let status: 'ahead' | 'behind' | 'on_track' | 'completed' | 'not_started';
+
+      if (today < flightStart) {
+        daysElapsed = 0;
+        daysRemaining = totalFlightDays;
+        status = 'not_started';
+      } else if (today > flightEnd) {
+        daysElapsed = totalFlightDays;
+        daysRemaining = 0;
+        status = 'completed';
+      } else {
+        const elapsedMs = today.getTime() - flightStart.getTime();
+        daysElapsed = Math.ceil(elapsedMs / (1000 * 60 * 60 * 24));
+        daysRemaining = totalFlightDays - daysElapsed;
+        status = 'on_track';
+      }
+
+      const percentTimeElapsed = Math.round((daysElapsed / totalFlightDays) * 1000) / 10;
+      const impressionsGoal = period.units;
+      const impressionsExpected = Math.round(impressionsGoal * (daysElapsed / totalFlightDays));
+
+      // Compute spend from pricing (time-based estimate since we don't have delivery data)
+      const ratePerThousand = period.rateOrCostNanos / 1_000_000_000;
+      const budget = Math.round((impressionsGoal / 1000) * ratePerThousand * 100) / 100;
+      const spendExpected = Math.round((impressionsExpected / 1000) * ratePerThousand * 100) / 100;
+
+      return {
+        placementId: p.id,
+        placementName: p.name,
+        compatibility: p.compatibility,
+        size: `${p.size.width}x${p.size.height}`,
+        flightStart: p.pricingSchedule.startDate,
+        flightEnd: p.pricingSchedule.endDate,
+        daysElapsed,
+        daysRemaining,
+        percentTimeElapsed,
+        impressionsGoal,
+        impressionsExpected,
+        impressionsDelivered: null as number | null,
+        impressionsPacingPercent: null as number | null,
+        impressionsStatus: status,
+        budget,
+        spendExpected,
+        spend: null as number | null,
+        spendPacingPercent: null as number | null,
+        note: 'Delivery data (impressions/spend) requires running a CM360 report. Time-based pacing shown.',
+      };
+    });
+
+  // Overall status: worst-case across placements
+  const statusPriority: Record<string, number> = { behind: 0, on_track: 1, ahead: 2, not_started: 3, completed: 4 };
+  const overallStatus = pacingPlacements.length === 0
+    ? 'not_started' as const
+    : pacingPlacements.reduce((worst, p) =>
+        statusPriority[p.impressionsStatus]! < statusPriority[worst]!
+          ? p.impressionsStatus
+          : worst,
+      'completed' as 'ahead' | 'behind' | 'on_track' | 'completed' | 'not_started');
+
+  const summary = `Campaign "${campaignName}" pacing analysis as of ${analysisDate}: `
+    + `${pacingPlacements.length} placements analyzed. `
+    + `Note: Impression delivery data requires running a CM360 report (cm360_run_report). `
+    + `Time-based flight pacing shown.`;
+
+  return {
+    campaignName,
+    analysisDate,
+    overallStatus,
+    placements: pacingPlacements,
+    summary,
+  };
 }
 
 /**

@@ -112,8 +112,8 @@ describe('maxResults edge cases', () => {
   it('default maxResults is 100 for all list methods', () => {
     // With 7 advertisers, all should be returned without explicit maxResults
     expect(mockStore.listAdvertisers().length).toBe(7);
-    // Sites: 10
-    expect(mockStore.listSites().length).toBe(10);
+    // Sites: 16
+    expect(mockStore.listSites().length).toBe(16);
   });
 });
 
@@ -272,16 +272,17 @@ describe('Seed data naming conventions', () => {
     }
   });
 
-  it('creative names follow pattern: AdvName_WIDTHxHEIGHT_version', () => {
+  it('creative names follow pattern: AdvName_WIDTHxHEIGHT_version or Audio/Tracking variant', () => {
     const creatives = mockStore.listCreatives();
     for (const cr of creatives) {
-      expect(cr.name).toMatch(/\d+x\d+_v\d+/);
+      // Display/video: WIDTHxHEIGHT_v1, Audio: Audio_30s_v1, Tracking: Tracking_1x1
+      expect(cr.name).toMatch(/(\d+x\d+_v\d+|Audio_\d+s_v\d+|Tracking_1x1)/);
     }
   });
 
   it('all placements have a valid tag format', () => {
-    const placements = mockStore.listPlacements();
-    const validFormats = ['PLACEMENT_TAG_STANDARD', 'PLACEMENT_TAG_VAST_2_0', 'PLACEMENT_TAG_TRACKING'];
+    const placements = mockStore.listPlacements({ maxResults: 500 });
+    const validFormats = ['PLACEMENT_TAG_STANDARD', 'PLACEMENT_TAG_VAST_2_0', 'PLACEMENT_TAG_INSTREAM_VIDEO_PREFETCH_VAST_3', 'PLACEMENT_TAG_TRACKING'];
     for (const p of placements) {
       expect(p.tagFormats.length).toBeGreaterThanOrEqual(1);
       for (const fmt of p.tagFormats) {

@@ -21,9 +21,9 @@ describe('MockDataStore', () => {
       expect(names).toContain('Harvest Organics');
     });
 
-    it('generates 10 sites', () => {
+    it('generates 16 sites', () => {
       const sites = mockStore.listSites();
-      expect(sites).toHaveLength(10);
+      expect(sites).toHaveLength(16);
       const names = sites.map((s) => s.name);
       expect(names).toContain('ESPN.com');
       expect(names).toContain('Bloomberg.com');
@@ -41,9 +41,9 @@ describe('MockDataStore', () => {
       expect(campaigns.length).toBeLessThanOrEqual(28); // 7 * 4 max
     });
 
-    it('generates creatives (2 display per advertiser + 3 video)', () => {
+    it('generates creatives (2 display per advertiser + 8 video + 5 audio + 4 tracking)', () => {
       const creatives = mockStore.listCreatives();
-      expect(creatives).toHaveLength(17); // 7 advertisers * 2 display + 3 video
+      expect(creatives).toHaveLength(31); // 7*2 display + 8 video + 5 audio + 4 tracking
     });
 
     it('generates placements across campaigns', () => {
@@ -139,7 +139,7 @@ describe('MockDataStore', () => {
       const advertisers = mockStore.listAdvertisers();
       const advId = advertisers[0]!.id;
       const creatives = mockStore.listCreatives({ advertiserId: advId });
-      expect(creatives).toHaveLength(4); // 2 display + 2 video for Apex Motors
+      expect(creatives).toHaveLength(7); // 2 display + 3 video + 1 audio + 1 tracking for Apex Motors
       for (const c of creatives) {
         expect(c.advertiserId).toBe(advId);
       }

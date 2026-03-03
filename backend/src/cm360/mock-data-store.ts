@@ -70,6 +70,12 @@ const IAB_SIZES = [
   { width: 160, height: 600 },
   { width: 320, height: 50 },
   { width: 300, height: 600 },
+  { width: 336, height: 280 },  // Large Rectangle
+  { width: 970, height: 90 },   // Super Leaderboard
+  { width: 320, height: 480 },  // Mobile Interstitial
+  { width: 300, height: 50 },   // Mobile Banner Small
+  { width: 468, height: 60 },   // Full Banner
+  { width: 250, height: 250 },  // Square
 ];
 
 interface ListFilter {
@@ -152,10 +158,11 @@ class MockDataStore {
       });
     }
 
-    // --- Sites (10 real publisher names) ---
+    // --- Sites (16 real publisher names — display, video, and audio) ---
     const siteDefs = [
       'ESPN.com', 'CNN.com', 'Forbes.com', 'Bloomberg.com', 'NYTimes.com',
       'WashingtonPost.com', 'TheVerge.com', 'TechCrunch.com', 'Hulu.com', 'Spotify.com',
+      'Pandora.com', 'SiriusXM.com', 'YouTube.com', 'Peacock.com', 'CNET.com', 'Wired.com',
     ];
     const siteIds: string[] = [];
     for (const siteName of siteDefs) {
@@ -268,11 +275,16 @@ class MockDataStore {
       creativesByAdvertiser.set(advId, crIds);
     }
 
-    // --- Video Creatives ---
+    // --- Video Creatives (8 total — VAST and VPAID across advertisers) ---
     const videoCreativeDefs = [
-      { advIdx: 0, name: 'Apex_PreRoll_640x360_v1', width: 640, height: 360 },
-      { advIdx: 0, name: 'Apex_PreRoll_1920x1080_v1', width: 1920, height: 1080 },
-      { advIdx: 3, name: 'NovaTech_InStream_640x360_v1', width: 640, height: 360 },
+      { advIdx: 0, name: 'Apex_PreRoll_640x360_v1', width: 640, height: 360, type: 'VAST_REDIRECT' as CM360CreativeType },
+      { advIdx: 0, name: 'Apex_PreRoll_1920x1080_v1', width: 1920, height: 1080, type: 'VAST_REDIRECT' as CM360CreativeType },
+      { advIdx: 0, name: 'Apex_VPAID_Interactive_640x360_v1', width: 640, height: 360, type: 'VPAID_LINEAR' as CM360CreativeType },
+      { advIdx: 1, name: 'Luminance_PreRoll_640x360_v1', width: 640, height: 360, type: 'VAST_REDIRECT' as CM360CreativeType },
+      { advIdx: 1, name: 'Luminance_PreRoll_1920x1080_v1', width: 1920, height: 1080, type: 'VAST_REDIRECT' as CM360CreativeType },
+      { advIdx: 3, name: 'NovaTech_InStream_640x360_v1', width: 640, height: 360, type: 'VAST_REDIRECT' as CM360CreativeType },
+      { advIdx: 3, name: 'NovaTech_VPAID_Interactive_1920x1080_v1', width: 1920, height: 1080, type: 'VPAID_LINEAR' as CM360CreativeType },
+      { advIdx: 4, name: 'Vanguard_PreRoll_640x360_v1', width: 640, height: 360, type: 'VAST_REDIRECT' as CM360CreativeType },
     ];
     const videoCreativeIds: string[] = [];
     for (const vcDef of videoCreativeDefs) {
@@ -286,7 +298,7 @@ class MockDataStore {
         id,
         name: vcDef.name,
         advertiserId: advId,
-        type: 'VAST_REDIRECT',
+        type: vcDef.type,
         size: {
           id: `size-${vcDef.width}x${vcDef.height}`,
           width: vcDef.width,
@@ -298,8 +310,57 @@ class MockDataStore {
       });
     }
 
-    // --- Placements (~80 total, spread across campaigns and sites) ---
-    const placementTypes = ['Standard', 'Roadblock', 'Interstitial'];
+    // --- Audio Creatives (VAST redirects for audio ads) ---
+    const audioCreativeDefs = [
+      { advIdx: 0, name: 'Apex_Audio_30s_v1' },
+      { advIdx: 1, name: 'Luminance_Audio_30s_v1' },
+      { advIdx: 3, name: 'NovaTech_Audio_30s_v1' },
+      { advIdx: 4, name: 'Vanguard_Audio_15s_v1' },
+      { advIdx: 5, name: 'Crestview_Audio_30s_v1' },
+    ];
+    for (const acDef of audioCreativeDefs) {
+      const id = this.genId();
+      const advId = advertiserIds[acDef.advIdx]!;
+      const existingCrIds = creativesByAdvertiser.get(advId) ?? [];
+      existingCrIds.push(id);
+      creativesByAdvertiser.set(advId, existingCrIds);
+      this.creatives.set(id, {
+        id,
+        name: acDef.name,
+        advertiserId: advId,
+        type: 'VAST_REDIRECT',
+        size: { id: 'size-1x1', width: 1, height: 1, iab: true },
+        active: true,
+        archived: false,
+      });
+    }
+
+    // --- 1x1 Tracking Creatives (for site-served placements) ---
+    const trackingCreativeDefs = [
+      { advIdx: 0, name: 'Apex_Tracking_1x1' },
+      { advIdx: 1, name: 'Luminance_Tracking_1x1' },
+      { advIdx: 3, name: 'NovaTech_Tracking_1x1' },
+      { advIdx: 4, name: 'Vanguard_Tracking_1x1' },
+    ];
+    for (const tcDef of trackingCreativeDefs) {
+      const id = this.genId();
+      const advId = advertiserIds[tcDef.advIdx]!;
+      const existingCrIds = creativesByAdvertiser.get(advId) ?? [];
+      existingCrIds.push(id);
+      creativesByAdvertiser.set(advId, existingCrIds);
+      this.creatives.set(id, {
+        id,
+        name: tcDef.name,
+        advertiserId: advId,
+        type: 'TRACKING',
+        size: { id: 'size-1x1', width: 1, height: 1, iab: true },
+        active: true,
+        archived: false,
+      });
+    }
+
+    // --- Placements (~160+ total, spread across campaigns and sites) ---
+    const placementTypes = ['Standard', 'Roadblock', 'Interstitial', 'Native', 'HighImpact'];
     for (let ai = 0; ai < advertiserIds.length; ai++) {
       const advId = advertiserIds[ai]!;
       const advName = advertiserDefs[ai]!.name.split(' ')[0]!;
@@ -307,7 +368,7 @@ class MockDataStore {
 
       for (const campId of campIds) {
         const camp = this.campaigns.get(campId)!;
-        const placementCount = faker.number.int({ min: 2, max: 4 });
+        const placementCount = faker.number.int({ min: 4, max: 7 });
 
         for (let p = 0; p < placementCount; p++) {
           const id = this.genId();
@@ -344,18 +405,32 @@ class MockDataStore {
               }],
             },
             activeStatus: 'ACTIVE',
+            compatibility: 'DISPLAY',
             tagFormats: ['PLACEMENT_TAG_STANDARD'],
           });
         }
       }
     }
 
-    // --- Video Placements ---
+    // --- Video Placements (12 total across 4 advertisers, multiple sites and sizes) ---
     const videoPlacementDefs = [
-      { advIdx: 0, campIdx: 0, siteIdx: 8, name: 'Apex_Hulu_PreRoll_640x360', w: 640, h: 360 },
-      { advIdx: 0, campIdx: 0, siteIdx: 9, name: 'Apex_Spotify_InStream_640x360', w: 640, h: 360 },
-      { advIdx: 3, campIdx: 9, siteIdx: 8, name: 'NovaTech_Hulu_PreRoll_640x360', w: 640, h: 360 },
-      { advIdx: 3, campIdx: 9, siteIdx: 9, name: 'NovaTech_Spotify_InStream_640x360', w: 640, h: 360 },
+      // Apex Motors — Q1 campaign (campIdx 0)
+      { advIdx: 0, campRelIdx: 0, siteIdx: 8, name: 'Apex_Hulu_PreRoll_640x360', w: 640, h: 360 },
+      { advIdx: 0, campRelIdx: 0, siteIdx: 9, name: 'Apex_Spotify_InStream_640x360', w: 640, h: 360 },
+      { advIdx: 0, campRelIdx: 0, siteIdx: 12, name: 'Apex_YouTube_PreRoll_1920x1080', w: 1920, h: 1080 },
+      { advIdx: 0, campRelIdx: 0, siteIdx: 13, name: 'Apex_Peacock_MidRoll_640x360', w: 640, h: 360 },
+      // NovaTech Solutions — last campaign
+      { advIdx: 3, campRelIdx: -1, siteIdx: 8, name: 'NovaTech_Hulu_PreRoll_640x360', w: 640, h: 360 },
+      { advIdx: 3, campRelIdx: -1, siteIdx: 9, name: 'NovaTech_Spotify_InStream_640x360', w: 640, h: 360 },
+      { advIdx: 3, campRelIdx: -1, siteIdx: 12, name: 'NovaTech_YouTube_MidRoll_1920x1080', w: 1920, h: 1080 },
+      // Luminance Beauty — Q1 campaign
+      { advIdx: 1, campRelIdx: 0, siteIdx: 8, name: 'Luminance_Hulu_PreRoll_640x360', w: 640, h: 360 },
+      { advIdx: 1, campRelIdx: 0, siteIdx: 13, name: 'Luminance_Peacock_PreRoll_1920x1080', w: 1920, h: 1080 },
+      // Vanguard Athletics — Q1 campaign
+      { advIdx: 4, campRelIdx: 0, siteIdx: 12, name: 'Vanguard_YouTube_PreRoll_640x360', w: 640, h: 360 },
+      { advIdx: 4, campRelIdx: 0, siteIdx: 8, name: 'Vanguard_Hulu_MidRoll_1920x1080', w: 1920, h: 1080 },
+      // Crestview Hotels — Q1 campaign
+      { advIdx: 5, campRelIdx: 0, siteIdx: 13, name: 'Crestview_Peacock_PreRoll_640x360', w: 640, h: 360 },
     ];
     const videoPlacementIds: string[] = [];
     for (const vpDef of videoPlacementDefs) {
@@ -363,12 +438,9 @@ class MockDataStore {
       videoPlacementIds.push(id);
       const advId = advertiserIds[vpDef.advIdx]!;
       const campIds = campaignsByAdvertiser.get(advId) ?? [];
-      // campIdx is absolute index into the allCampaigns array for this advertiser
-      // For advIdx 0: campIdx 0 = first campaign
-      // For advIdx 3: campIdx 9 is relative — use last campaign for that advertiser
-      const campId = vpDef.advIdx === 0
-        ? campIds[vpDef.campIdx]!
-        : campIds[campIds.length - 1]!;
+      const campId = vpDef.campRelIdx === -1
+        ? campIds[campIds.length - 1]!
+        : campIds[vpDef.campRelIdx]!;
       const siteId = siteIds[vpDef.siteIdx]!;
       const camp = this.campaigns.get(campId)!;
 
@@ -395,25 +467,34 @@ class MockDataStore {
           pricingPeriods: [{
             startDate: camp.startDate,
             endDate: camp.endDate,
-            rateOrCostNanos: faker.number.int({ min: 8, max: 25 }) * 1_000_000_000,
+            rateOrCostNanos: faker.number.int({ min: 10, max: 30 }) * 1_000_000_000,
             units: faker.number.int({ min: 50_000, max: 500_000 }),
           }],
         },
-        tagFormats: ['PLACEMENT_TAG_VAST_2_0'],
+        tagFormats: [vpDef.w >= 1920 ? 'PLACEMENT_TAG_INSTREAM_VIDEO_PREFETCH_VAST_3' : 'PLACEMENT_TAG_VAST_2_0'],
       });
     }
 
-    // --- 1x1 Site-Served Tracking Placements ---
+    // --- 1x1 Site-Served Tracking Placements (8 total, publisher-paid) ---
     const trackingPlacementDefs = [
-      { advIdx: 0, campIdx: 0, siteIdx: 0, name: 'Apex_ESPN_SiteServed_1x1' },
-      { advIdx: 0, campIdx: 0, siteIdx: 1, name: 'Apex_CNN_SiteServed_1x1' },
-      { advIdx: 1, campIdx: 0, siteIdx: 2, name: 'Luminance_Forbes_SiteServed_1x1' },
+      // Apex Motors — Q1 campaign, site-served on major publishers
+      { advIdx: 0, campRelIdx: 0, siteIdx: 0, name: 'Apex_ESPN_SiteServed_1x1' },
+      { advIdx: 0, campRelIdx: 0, siteIdx: 1, name: 'Apex_CNN_SiteServed_1x1' },
+      { advIdx: 0, campRelIdx: 0, siteIdx: 3, name: 'Apex_Bloomberg_SiteServed_1x1' },
+      // Luminance Beauty
+      { advIdx: 1, campRelIdx: 0, siteIdx: 2, name: 'Luminance_Forbes_SiteServed_1x1' },
+      { advIdx: 1, campRelIdx: 0, siteIdx: 4, name: 'Luminance_NYTimes_SiteServed_1x1' },
+      // NovaTech Solutions
+      { advIdx: 3, campRelIdx: 0, siteIdx: 6, name: 'NovaTech_TheVerge_SiteServed_1x1' },
+      { advIdx: 3, campRelIdx: 0, siteIdx: 7, name: 'NovaTech_TechCrunch_SiteServed_1x1' },
+      // Vanguard Athletics
+      { advIdx: 4, campRelIdx: 0, siteIdx: 0, name: 'Vanguard_ESPN_SiteServed_1x1' },
     ];
     for (const tpDef of trackingPlacementDefs) {
       const id = this.genId();
       const advId = advertiserIds[tpDef.advIdx]!;
       const campIds = campaignsByAdvertiser.get(advId) ?? [];
-      const campId = campIds[tpDef.campIdx]!;
+      const campId = campIds[tpDef.campRelIdx]!;
       const siteId = siteIds[tpDef.siteIdx]!;
       const camp = this.campaigns.get(campId)!;
       this.placements.set(id, {
@@ -426,6 +507,8 @@ class MockDataStore {
         size: { id: 'size-1x1', width: 1, height: 1, iab: true },
         status: 'PAYMENT_ACCEPTED',
         activeStatus: 'ACTIVE',
+        compatibility: 'DISPLAY',
+        paymentSource: 'PLACEMENT_PUBLISHER_PAID',
         pricingSchedule: {
           startDate: camp.startDate,
           endDate: camp.endDate,
@@ -441,16 +524,30 @@ class MockDataStore {
       });
     }
 
-    // --- Audio Placements (companion ads on Spotify) ---
+    // --- Audio Placements (IN_STREAM_AUDIO — Spotify, Pandora, SiriusXM) ---
     const audioPlacementDefs = [
-      { advIdx: 0, campIdx: 0, siteIdx: 9, name: 'Apex_Spotify_AudioCompanion_300x250' },
-      { advIdx: 3, campIdx: 0, siteIdx: 9, name: 'NovaTech_Spotify_AudioCompanion_300x250' },
+      // Apex Motors — Q1 campaign
+      { advIdx: 0, campRelIdx: 0, siteIdx: 9, name: 'Apex_Spotify_Audio_30s' },
+      { advIdx: 0, campRelIdx: 0, siteIdx: 10, name: 'Apex_Pandora_Audio_30s' },
+      { advIdx: 0, campRelIdx: 0, siteIdx: 11, name: 'Apex_SiriusXM_Audio_15s' },
+      // Luminance Beauty — Q1 campaign
+      { advIdx: 1, campRelIdx: 0, siteIdx: 9, name: 'Luminance_Spotify_Audio_30s' },
+      { advIdx: 1, campRelIdx: 0, siteIdx: 10, name: 'Luminance_Pandora_Audio_15s' },
+      // NovaTech Solutions — last campaign
+      { advIdx: 3, campRelIdx: -1, siteIdx: 9, name: 'NovaTech_Spotify_Audio_30s' },
+      { advIdx: 3, campRelIdx: -1, siteIdx: 11, name: 'NovaTech_SiriusXM_Audio_30s' },
+      // Vanguard Athletics — Q1 campaign
+      { advIdx: 4, campRelIdx: 0, siteIdx: 9, name: 'Vanguard_Spotify_Audio_15s' },
+      // Crestview Hotels — Q1 campaign
+      { advIdx: 5, campRelIdx: 0, siteIdx: 10, name: 'Crestview_Pandora_Audio_30s' },
     ];
     for (const apDef of audioPlacementDefs) {
       const id = this.genId();
       const advId = advertiserIds[apDef.advIdx]!;
       const campIds = campaignsByAdvertiser.get(advId) ?? [];
-      const campId = apDef.advIdx === 3 ? campIds[campIds.length - 1]! : campIds[apDef.campIdx]!;
+      const campId = apDef.campRelIdx === -1
+        ? campIds[campIds.length - 1]!
+        : campIds[apDef.campRelIdx]!;
       const siteId = siteIds[apDef.siteIdx]!;
       const camp = this.campaigns.get(campId)!;
       this.placements.set(id, {
@@ -460,9 +557,10 @@ class MockDataStore {
         advertiserId: advId,
         campaignId: campId,
         siteId,
-        size: { id: 'size-300x250', width: 300, height: 250, iab: true },
+        size: { id: 'size-1x1', width: 1, height: 1, iab: true },
         status: 'PAYMENT_ACCEPTED',
         activeStatus: 'ACTIVE',
+        compatibility: 'IN_STREAM_AUDIO',
         pricingSchedule: {
           startDate: camp.startDate,
           endDate: camp.endDate,
@@ -470,11 +568,11 @@ class MockDataStore {
           pricingPeriods: [{
             startDate: camp.startDate,
             endDate: camp.endDate,
-            rateOrCostNanos: faker.number.int({ min: 5, max: 20 }) * 1_000_000_000,
-            units: faker.number.int({ min: 50_000, max: 300_000 }),
+            rateOrCostNanos: faker.number.int({ min: 8, max: 20 }) * 1_000_000_000,
+            units: faker.number.int({ min: 100_000, max: 500_000 }),
           }],
         },
-        tagFormats: ['PLACEMENT_TAG_STANDARD'],
+        tagFormats: ['PLACEMENT_TAG_VAST_2_0'],
       });
     }
 
@@ -516,7 +614,7 @@ class MockDataStore {
     }
 
     // --- Video Ads (linking video creatives to video placements) ---
-    // Video ad 1: Apex Motors - Hulu PreRoll
+    // Video ad 1: Apex Motors - Hulu PreRoll (videoPlacementIds[0])
     {
       const id = this.genId();
       const advId = advertiserIds[0]!;
@@ -537,7 +635,28 @@ class MockDataStore {
         },
       });
     }
-    // Video ad 2: NovaTech - Hulu PreRoll
+    // Video ad 2: Apex Motors - YouTube PreRoll (videoPlacementIds[2])
+    {
+      const id = this.genId();
+      const advId = advertiserIds[0]!;
+      const campIds = campaignsByAdvertiser.get(advId) ?? [];
+      const campId = campIds[0]!;
+      this.ads.set(id, {
+        id,
+        name: 'Apex_VideoAd_YouTube_PreRoll_1',
+        campaignId: campId,
+        advertiserId: advId,
+        type: 'AD_SERVING_DEFAULT_AD' as CM360AdType,
+        active: true,
+        archived: false,
+        placementAssignments: [{ placementId: videoPlacementIds[2]! }],
+        creativeRotation: {
+          type: 'CREATIVE_ROTATION_TYPE_RANDOM' as CM360CreativeRotationType,
+          creativeAssignments: [{ creativeId: videoCreativeIds[1]! }],
+        },
+      });
+    }
+    // Video ad 3: NovaTech - Hulu PreRoll (videoPlacementIds[4])
     {
       const id = this.genId();
       const advId = advertiserIds[3]!;
@@ -551,10 +670,31 @@ class MockDataStore {
         type: 'AD_SERVING_DEFAULT_AD' as CM360AdType,
         active: true,
         archived: false,
-        placementAssignments: [{ placementId: videoPlacementIds[2]! }],
+        placementAssignments: [{ placementId: videoPlacementIds[4]! }],
         creativeRotation: {
           type: 'CREATIVE_ROTATION_TYPE_RANDOM' as CM360CreativeRotationType,
-          creativeAssignments: [{ creativeId: videoCreativeIds[2]! }],
+          creativeAssignments: [{ creativeId: videoCreativeIds[5]! }],
+        },
+      });
+    }
+    // Video ad 4: Luminance - Hulu PreRoll (videoPlacementIds[7])
+    {
+      const id = this.genId();
+      const advId = advertiserIds[1]!;
+      const campIds = campaignsByAdvertiser.get(advId) ?? [];
+      const campId = campIds[0]!;
+      this.ads.set(id, {
+        id,
+        name: 'Luminance_VideoAd_Hulu_PreRoll_1',
+        campaignId: campId,
+        advertiserId: advId,
+        type: 'AD_SERVING_DEFAULT_AD' as CM360AdType,
+        active: true,
+        archived: false,
+        placementAssignments: [{ placementId: videoPlacementIds[7]! }],
+        creativeRotation: {
+          type: 'CREATIVE_ROTATION_TYPE_RANDOM' as CM360CreativeRotationType,
+          creativeAssignments: [{ creativeId: videoCreativeIds[3]! }],
         },
       });
     }
@@ -2049,6 +2189,8 @@ class MockDataStore {
       placementId: string;
       placementName: string;
       siteName: string;
+      compatibility?: string;
+      size: string;
       flightStart: string;
       flightEnd: string;
       daysElapsed: number;
@@ -2107,7 +2249,12 @@ class MockDataStore {
         const impressionsExpected = Math.round(impressionsGoal * (daysElapsed / totalFlightDays));
 
         // Generate synthetic delivery data with ±20% variance using seeded random
-        const seed = parseInt(p.id, 10) || 42;
+        // Hash the placement ID (UUID) to get a numeric seed
+        let seed = 0;
+        for (let i = 0; i < p.id.length; i++) {
+          seed = ((seed << 5) - seed + p.id.charCodeAt(i)) | 0;
+        }
+        seed = Math.abs(seed) || 1;
         const variance = ((seed * 7 + 13) % 41 - 20) / 100;
         const impressionsDelivered = status === 'not_started' ? 0
           : status === 'completed' ? Math.round(impressionsGoal * (1 + variance * 0.5))
@@ -2148,6 +2295,8 @@ class MockDataStore {
           placementId: p.id,
           placementName: p.name,
           siteName: site?.name ?? 'Unknown',
+          compatibility: p.compatibility,
+          size: `${p.size.width}x${p.size.height}`,
           flightStart: p.pricingSchedule.startDate,
           flightEnd: p.pricingSchedule.endDate,
           daysElapsed,

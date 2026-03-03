@@ -76,6 +76,18 @@ import {
   CreateFloodlightActivityGroupInputSchema,
   ListFloodlightConfigurationsInputSchema,
   PacingAnalysisInputSchema,
+  ListAccountUserProfilesInputSchema,
+  GetAccountUserProfileInputSchema,
+  CreateAccountUserProfileInputSchema,
+  ListUserRolesInputSchema,
+  GetUserRoleInputSchema,
+  CreateUserRoleInputSchema,
+  ListUserRolePermissionsInputSchema,
+  GetUserRolePermissionInputSchema,
+  ListUserRolePermissionGroupsInputSchema,
+  GetUserRolePermissionGroupInputSchema,
+  ListSubaccountsInputSchema,
+  GetSubaccountInputSchema,
   formatZodErrors,
 } from './tool-input-schemas.js';
 
@@ -237,6 +249,19 @@ const VALID_TOOL_NAMES = new Set([
   'cm360_list_floodlight_configurations',
   // Pacing analysis
   'cm360_pacing_analysis',
+  // User & Role Management
+  'cm360_list_account_user_profiles',
+  'cm360_get_account_user_profile',
+  'cm360_create_account_user_profile',
+  'cm360_list_user_roles',
+  'cm360_get_user_role',
+  'cm360_create_user_role',
+  'cm360_list_user_role_permissions',
+  'cm360_get_user_role_permission',
+  'cm360_list_user_role_permission_groups',
+  'cm360_get_user_role_permission_group',
+  'cm360_list_subaccounts',
+  'cm360_get_subaccount',
 ]);
 
 function isValidToolName(name: string): boolean {
@@ -984,6 +1009,102 @@ async function executeToolReal(
       // Compute time-based pacing from real placement metadata
       const analysis = computePacingFromPlacements(paCampaign.name, realPlacements);
       return { result: analysis, isError: false };
+    }
+
+    // ── User & Role Management ────────────────────────────────────
+    case 'cm360_list_account_user_profiles': {
+      const parsed = ListAccountUserProfilesInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const { profileId: _, ...filter } = parsed.data;
+      const data = await client.listAccountUserProfiles(profileId, filter);
+      return { result: { accountUserProfiles: data, totalResults: data.length }, isError: false };
+    }
+    case 'cm360_get_account_user_profile': {
+      const parsed = GetAccountUserProfileInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const user = await client.getAccountUserProfile(profileId, parsed.data.accountUserProfileId);
+      if (!user) return { result: null, isError: true, errorMessage: `Account user profile ${parsed.data.accountUserProfileId} not found` };
+      return { result: user, isError: false };
+    }
+    case 'cm360_create_account_user_profile': {
+      const parsed = CreateAccountUserProfileInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const { profileId: _, ...input } = parsed.data;
+      const created = await client.createAccountUserProfile(profileId, input);
+      return { result: created, isError: false };
+    }
+    case 'cm360_list_user_roles': {
+      const parsed = ListUserRolesInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const { profileId: _, ...filter } = parsed.data;
+      const data = await client.listUserRoles(profileId, filter);
+      return { result: { userRoles: data, totalResults: data.length }, isError: false };
+    }
+    case 'cm360_get_user_role': {
+      const parsed = GetUserRoleInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const role = await client.getUserRole(profileId, parsed.data.userRoleId);
+      if (!role) return { result: null, isError: true, errorMessage: `User role ${parsed.data.userRoleId} not found` };
+      return { result: role, isError: false };
+    }
+    case 'cm360_create_user_role': {
+      const parsed = CreateUserRoleInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const { profileId: _, ...input } = parsed.data;
+      const created = await client.createUserRole(profileId, input);
+      return { result: created, isError: false };
+    }
+    case 'cm360_list_user_role_permissions': {
+      const parsed = ListUserRolePermissionsInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const data = await client.listUserRolePermissions(profileId);
+      return { result: { userRolePermissions: data, totalResults: data.length }, isError: false };
+    }
+    case 'cm360_get_user_role_permission': {
+      const parsed = GetUserRolePermissionInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const perm = await client.getUserRolePermission(profileId, parsed.data.permissionId);
+      if (!perm) return { result: null, isError: true, errorMessage: `User role permission ${parsed.data.permissionId} not found` };
+      return { result: perm, isError: false };
+    }
+    case 'cm360_list_user_role_permission_groups': {
+      const parsed = ListUserRolePermissionGroupsInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const data = await client.listUserRolePermissionGroups(profileId);
+      return { result: { userRolePermissionGroups: data, totalResults: data.length }, isError: false };
+    }
+    case 'cm360_get_user_role_permission_group': {
+      const parsed = GetUserRolePermissionGroupInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const group = await client.getUserRolePermissionGroup(profileId, parsed.data.permissionGroupId);
+      if (!group) return { result: null, isError: true, errorMessage: `User role permission group ${parsed.data.permissionGroupId} not found` };
+      return { result: group, isError: false };
+    }
+    case 'cm360_list_subaccounts': {
+      const parsed = ListSubaccountsInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const { profileId: _, ...filter } = parsed.data;
+      const data = await client.listSubaccounts(profileId, filter);
+      return { result: { subaccounts: data, totalResults: data.length }, isError: false };
+    }
+    case 'cm360_get_subaccount': {
+      const parsed = GetSubaccountInputSchema.safeParse(toolInput);
+      if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      const profileId = await resolveProfileId(client);
+      const sub = await client.getSubaccount(profileId, parsed.data.subaccountId);
+      if (!sub) return { result: null, isError: true, errorMessage: `Subaccount ${parsed.data.subaccountId} not found` };
+      return { result: sub, isError: false };
     }
 
     default:
@@ -1887,6 +2008,88 @@ function executeToolMock(
         }
         const analysis = mockStore.getPacingAnalysis(parsed.data.campaignId);
         return { result: analysis, isError: false };
+      }
+
+      // ── User & Role Management (mock) ────────────────────────────
+      case 'cm360_list_account_user_profiles': {
+        const parsed = ListAccountUserProfilesInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const data = mockStore.listAccountUserProfiles(parsed.data);
+        return { result: { accountUserProfiles: data, totalResults: data.length }, isError: false };
+      }
+      case 'cm360_get_account_user_profile': {
+        const parsed = GetAccountUserProfileInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const user = mockStore.getAccountUserProfile(parsed.data.accountUserProfileId);
+        if (!user) return { result: null, isError: true, errorMessage: `Account user profile ${parsed.data.accountUserProfileId} not found` };
+        return { result: user, isError: false };
+      }
+      case 'cm360_create_account_user_profile': {
+        const parsed = CreateAccountUserProfileInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const { profileId: _, ...input } = parsed.data;
+        const created = mockStore.createAccountUserProfile(input);
+        return { result: created, isError: false };
+      }
+      case 'cm360_list_user_roles': {
+        const parsed = ListUserRolesInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const data = mockStore.listUserRoles(parsed.data);
+        return { result: { userRoles: data, totalResults: data.length }, isError: false };
+      }
+      case 'cm360_get_user_role': {
+        const parsed = GetUserRoleInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const role = mockStore.getUserRole(parsed.data.userRoleId);
+        if (!role) return { result: null, isError: true, errorMessage: `User role ${parsed.data.userRoleId} not found` };
+        return { result: role, isError: false };
+      }
+      case 'cm360_create_user_role': {
+        const parsed = CreateUserRoleInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const { profileId: _, ...input } = parsed.data;
+        const created = mockStore.createUserRole(input);
+        if (!created) return { result: null, isError: true, errorMessage: `Parent role ${input.parentUserRoleId} not found` };
+        return { result: created, isError: false };
+      }
+      case 'cm360_list_user_role_permissions': {
+        const parsed = ListUserRolePermissionsInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const data = mockStore.listUserRolePermissions();
+        return { result: { userRolePermissions: data, totalResults: data.length }, isError: false };
+      }
+      case 'cm360_get_user_role_permission': {
+        const parsed = GetUserRolePermissionInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const perm = mockStore.getUserRolePermission(parsed.data.permissionId);
+        if (!perm) return { result: null, isError: true, errorMessage: `User role permission ${parsed.data.permissionId} not found` };
+        return { result: perm, isError: false };
+      }
+      case 'cm360_list_user_role_permission_groups': {
+        const parsed = ListUserRolePermissionGroupsInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const data = mockStore.listUserRolePermissionGroups();
+        return { result: { userRolePermissionGroups: data, totalResults: data.length }, isError: false };
+      }
+      case 'cm360_get_user_role_permission_group': {
+        const parsed = GetUserRolePermissionGroupInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const group = mockStore.getUserRolePermissionGroup(parsed.data.permissionGroupId);
+        if (!group) return { result: null, isError: true, errorMessage: `User role permission group ${parsed.data.permissionGroupId} not found` };
+        return { result: group, isError: false };
+      }
+      case 'cm360_list_subaccounts': {
+        const parsed = ListSubaccountsInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const data = mockStore.listSubaccounts(parsed.data);
+        return { result: { subaccounts: data, totalResults: data.length }, isError: false };
+      }
+      case 'cm360_get_subaccount': {
+        const parsed = GetSubaccountInputSchema.safeParse(toolInput);
+        if (!parsed.success) return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+        const sub = mockStore.getSubaccount(parsed.data.subaccountId);
+        if (!sub) return { result: null, isError: true, errorMessage: `Subaccount ${parsed.data.subaccountId} not found` };
+        return { result: sub, isError: false };
       }
 
       default:

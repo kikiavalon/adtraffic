@@ -631,6 +631,101 @@ export interface CM360FloodlightTag {
   imageTag?: string;
 }
 
+// ---------------------------------------------------------------------------
+// User & Role Management
+// ---------------------------------------------------------------------------
+
+/** ObjectFilter status — controls user access to entities */
+export type CM360ObjectFilterStatus = 'NONE' | 'ALL' | 'ASSIGNED';
+
+/** An ObjectFilter controlling user access to a category of entities */
+export interface CM360ObjectFilter {
+  status: CM360ObjectFilterStatus;
+  objectIds: string[];
+}
+
+/** Locale for user profile (subset of supported locales) */
+export type CM360UserLocale =
+  | 'en' | 'en-GB' | 'fr' | 'de' | 'es' | 'it' | 'ja' | 'ko'
+  | 'pt-BR' | 'ru' | 'zh-CN' | 'zh-TW' | 'nl' | 'pl' | 'sv' | 'tr';
+
+/** A CM360 account user profile */
+export interface CM360AccountUserProfile {
+  id: string;
+  accountId: string;
+  subaccountId?: string;
+  email: string;
+  name: string;
+  userRoleId: string;
+  userRoleName?: string;
+  active: boolean;
+  locale: CM360UserLocale;
+  /** Read-only — set by Google based on account relationship */
+  userAccessType?: string;
+  /** Read-only — set by Google based on account relationship */
+  traffickerType?: string;
+  siteFilter: CM360ObjectFilter;
+  campaignFilter: CM360ObjectFilter;
+  advertiserFilter: CM360ObjectFilter;
+  userRoleFilter: CM360ObjectFilter;
+}
+
+/** Input for creating a new account user profile */
+export interface CM360CreateAccountUserProfileInput {
+  email: string;
+  name: string;
+  userRoleId: string;
+  subaccountId?: string;
+  locale?: CM360UserLocale;
+  active?: boolean;
+  siteFilter?: CM360ObjectFilter;
+  campaignFilter?: CM360ObjectFilter;
+  advertiserFilter?: CM360ObjectFilter;
+  userRoleFilter?: CM360ObjectFilter;
+}
+
+/** A CM360 user role */
+export interface CM360UserRole {
+  id: string;
+  accountId: string;
+  subaccountId?: string;
+  name: string;
+  defaultUserRole: boolean;
+  parentUserRoleId?: string;
+  parentUserRoleName?: string;
+  permissionIds: string[];
+}
+
+/** Input for creating a new user role */
+export interface CM360CreateUserRoleInput {
+  name: string;
+  parentUserRoleId: string;
+  subaccountId?: string;
+  permissionIds?: string[];
+}
+
+/** A CM360 user role permission */
+export interface CM360UserRolePermission {
+  id: string;
+  name: string;
+  permissionGroupId: string;
+  availability: 'ACCOUNT_ALWAYS' | 'ACCOUNT_BY_DEFAULT' | 'SUBACCOUNT_AND_ACCOUNT';
+}
+
+/** A CM360 user role permission group */
+export interface CM360UserRolePermissionGroup {
+  id: string;
+  name: string;
+}
+
+/** A CM360 subaccount */
+export interface CM360Subaccount {
+  id: string;
+  accountId: string;
+  name: string;
+  availablePermissionIds: string[];
+}
+
 /** Generic list response wrapper */
 export interface CM360ListResponse<T> {
   items: T[];

@@ -3,7 +3,7 @@ import type { BooleanFlagName, ResolvedFlags } from '../feature-flags/flag-regis
 
 /**
  * CM360 tool definitions for Claude's tool use.
- * 59 CM360 tools: 16 read + 5 create + 5 update + 1 tag gen + 3 creative assoc/upload + 5 event tags + 4 placement groups + 3 directory sites + 2 change logs + 6 reports + 8 floodlight + 1 pacing analysis.
+ * 71 CM360 tools: reporting + floodlight + pacing + user & role management.
  *
  * Note: Tools are defined but not executed yet.
  * When Claude returns a tool_use block, the chat service will
@@ -966,6 +966,168 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
       required: ['profileId', 'campaignId'],
     },
   },
+
+  // ── User & Role Management ──────────────────────────────────────
+  {
+    name: 'cm360_list_account_user_profiles',
+    description: 'List account user profiles (users) with optional filters. Returns email, role, active status, and access filters for each user. Use this to audit who has access to the CM360 account.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        searchString: { type: 'string', description: 'Filter by name or email (case-insensitive)' },
+        userRoleId: { type: 'string', description: 'Filter by user role ID' },
+        subaccountId: { type: 'string', description: 'Filter by subaccount ID' },
+        active: { type: 'boolean', description: 'Filter by active status (true = active users only, false = inactive only)' },
+        maxResults: { type: 'number', description: 'Maximum results to return (default 1000)' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_get_account_user_profile',
+    description: 'Get detailed information about a specific account user profile, including email, role, all 4 access filters (site, campaign, advertiser, user role), subaccount, and active status.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        accountUserProfileId: { type: 'string', description: 'ID of the account user profile to retrieve' },
+      },
+      required: ['profileId', 'accountUserProfileId'],
+    },
+  },
+  {
+    name: 'cm360_create_account_user_profile',
+    description: '[WRITE] Create a new account user profile (add a user to the CM360 account). Requires email (immutable after creation), name, and user role. Optionally set subaccount, locale, and all 4 access filters. IMPORTANT: Always preview the full access breakdown and confirm with the user before creating. Email cannot be changed after creation.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        email: { type: 'string', description: 'Email address (must be linked to a Google Account, immutable after creation)' },
+        name: { type: 'string', description: 'Display name (max 64 chars, no special characters)' },
+        userRoleId: { type: 'string', description: 'User role ID to assign' },
+        subaccountId: { type: 'string', description: 'Subaccount ID (optional)' },
+        locale: { type: 'string', description: 'Locale code (default: en)', enum: ['en', 'en-GB', 'fr', 'de', 'es', 'it', 'ja', 'ko', 'pt-BR', 'ru', 'zh-CN', 'zh-TW', 'nl', 'pl', 'sv', 'tr'] },
+        active: { type: 'boolean', description: 'Whether the user is active (default: true)' },
+        siteFilter: { type: 'object', description: 'Site access filter: { status: "NONE"|"ALL"|"ASSIGNED", objectIds: ["siteId1"] }', properties: { status: { type: 'string', enum: ['NONE', 'ALL', 'ASSIGNED'] }, objectIds: { type: 'array', items: { type: 'string' } } } },
+        campaignFilter: { type: 'object', description: 'Campaign access filter', properties: { status: { type: 'string', enum: ['NONE', 'ALL', 'ASSIGNED'] }, objectIds: { type: 'array', items: { type: 'string' } } } },
+        advertiserFilter: { type: 'object', description: 'Advertiser access filter', properties: { status: { type: 'string', enum: ['NONE', 'ALL', 'ASSIGNED'] }, objectIds: { type: 'array', items: { type: 'string' } } } },
+        userRoleFilter: { type: 'object', description: 'User role management filter', properties: { status: { type: 'string', enum: ['NONE', 'ALL', 'ASSIGNED'] }, objectIds: { type: 'array', items: { type: 'string' } } } },
+      },
+      required: ['profileId', 'email', 'name', 'userRoleId'],
+    },
+  },
+  {
+    name: 'cm360_list_user_roles',
+    description: 'List available user roles (both default system roles and custom roles). Returns role name, whether it is a default role, parent role, and assigned permissions.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        searchString: { type: 'string', description: 'Filter by role name (case-insensitive)' },
+        subaccountId: { type: 'string', description: 'Filter by subaccount ID' },
+        accountUserRoleOnly: { type: 'boolean', description: 'If true, only return account-level roles (not subaccount-specific)' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_get_user_role',
+    description: 'Get detailed information about a specific user role, including all permission IDs, parent role, default status, and subaccount assignment.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        userRoleId: { type: 'string', description: 'ID of the user role to retrieve' },
+      },
+      required: ['profileId', 'userRoleId'],
+    },
+  },
+  {
+    name: 'cm360_create_user_role',
+    description: '[WRITE] Create a custom user role. Requires a parent role (permissions cannot exceed the parent). Use cm360_list_user_roles to find a suitable parent, and cm360_list_user_role_permissions to browse available permissions. IMPORTANT: Preview the role configuration, validate all permission IDs exist in the parent role, and confirm with the user before creating.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        name: { type: 'string', description: 'Role name (max 256 chars)' },
+        parentUserRoleId: { type: 'string', description: 'Parent user role ID (child cannot exceed parent permissions)' },
+        subaccountId: { type: 'string', description: 'Subaccount ID (optional — constrains available permissions)' },
+        permissionIds: { type: 'array', items: { type: 'string' }, description: 'Array of permission IDs for this role (must be subset of parent)' },
+      },
+      required: ['profileId', 'name', 'parentUserRoleId'],
+    },
+  },
+  {
+    name: 'cm360_list_user_role_permissions',
+    description: 'List all available user role permissions (~90 permissions). Returns permission name, group, and availability level. Use this catalog to browse permissions when creating custom roles.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_get_user_role_permission',
+    description: 'Get details of a specific user role permission by ID. Returns permission name, group, and availability.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        permissionId: { type: 'string', description: 'Permission ID to retrieve' },
+      },
+      required: ['profileId', 'permissionId'],
+    },
+  },
+  {
+    name: 'cm360_list_user_role_permission_groups',
+    description: 'List all permission groups (~15 groups like Campaigns, Placements, Floodlight, Reporting). Use these groups to present permissions in an organized way when creating custom roles.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_get_user_role_permission_group',
+    description: 'Get details of a specific permission group by ID. Returns group name.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        permissionGroupId: { type: 'string', description: 'Permission group ID to retrieve' },
+      },
+      required: ['profileId', 'permissionGroupId'],
+    },
+  },
+  {
+    name: 'cm360_list_subaccounts',
+    description: 'List subaccounts in the CM360 account. Subaccounts partition the account for different clients or business units. Each subaccount has its own available permissions.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        searchString: { type: 'string', description: 'Filter by subaccount name (case-insensitive)' },
+      },
+      required: ['profileId'],
+    },
+  },
+  {
+    name: 'cm360_get_subaccount',
+    description: 'Get details of a specific subaccount, including its name and available permission IDs. Use this to check what permissions are available when creating roles in a subaccount.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        profileId: { type: 'string', description: 'CM360 user profile ID' },
+        subaccountId: { type: 'string', description: 'Subaccount ID to retrieve' },
+      },
+      required: ['profileId', 'subaccountId'],
+    },
+  },
 ];
 
 /**
@@ -1042,6 +1204,20 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   // Floodlight (write)
   cm360_create_floodlight_activity: 'cm360.write_operations',
   cm360_create_floodlight_activity_group: 'cm360.write_operations',
+  // User & Role Management (read)
+  cm360_list_account_user_profiles: 'cm360.read_operations',
+  cm360_get_account_user_profile: 'cm360.read_operations',
+  cm360_list_user_roles: 'cm360.read_operations',
+  cm360_get_user_role: 'cm360.read_operations',
+  cm360_list_user_role_permissions: 'cm360.read_operations',
+  cm360_get_user_role_permission: 'cm360.read_operations',
+  cm360_list_user_role_permission_groups: 'cm360.read_operations',
+  cm360_get_user_role_permission_group: 'cm360.read_operations',
+  cm360_list_subaccounts: 'cm360.read_operations',
+  cm360_get_subaccount: 'cm360.read_operations',
+  // User & Role Management (write)
+  cm360_create_account_user_profile: 'cm360.write_operations',
+  cm360_create_user_role: 'cm360.write_operations',
   // Tag generation
   cm360_generate_tags: 'cm360.tag_generation',
   // Pacing analysis (read-only computed data)

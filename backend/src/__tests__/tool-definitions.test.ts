@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { CM360_TOOLS } from '../claude/tool-definitions.js';
 
-// All 59 expected tools
+// All 71 expected tools (59 from HEAD + 12 user/role management)
 const EXPECTED_TOOLS = [
   'cm360_list_profiles',
   'cm360_list_advertisers',
@@ -74,6 +74,19 @@ const EXPECTED_TOOLS = [
   'cm360_generate_floodlight_tag',
   // Pacing analysis
   'cm360_pacing_analysis',
+  // User & Role Management
+  'cm360_list_account_user_profiles',
+  'cm360_get_account_user_profile',
+  'cm360_create_account_user_profile',
+  'cm360_list_user_roles',
+  'cm360_get_user_role',
+  'cm360_create_user_role',
+  'cm360_list_user_role_permissions',
+  'cm360_get_user_role_permission',
+  'cm360_list_user_role_permission_groups',
+  'cm360_get_user_role_permission_group',
+  'cm360_list_subaccounts',
+  'cm360_get_subaccount',
 ];
 
 const WRITE_TOOLS = [
@@ -103,11 +116,14 @@ const WRITE_TOOLS = [
   'cm360_create_floodlight_activity_group',
   // Reports (write)
   'cm360_create_report',
+  // User & Role Management (write)
+  'cm360_create_account_user_profile',
+  'cm360_create_user_role',
 ];
 
 describe('Tool inventory', () => {
-  it('defines exactly 59 tools', () => {
-    expect(CM360_TOOLS).toHaveLength(59);
+  it('defines exactly 71 tools', () => {
+    expect(CM360_TOOLS).toHaveLength(71);
   });
 
   it('includes all expected tool names', () => {

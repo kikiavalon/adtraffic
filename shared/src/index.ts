@@ -61,6 +61,16 @@ export type {
   CM360CreateFloodlightActivityGroupInput,
   CM360FloodlightConfiguration,
   CM360FloodlightTag,
+  CM360ObjectFilterStatus,
+  CM360ObjectFilter,
+  CM360UserLocale,
+  CM360AccountUserProfile,
+  CM360CreateAccountUserProfileInput,
+  CM360UserRole,
+  CM360CreateUserRoleInput,
+  CM360UserRolePermission,
+  CM360UserRolePermissionGroup,
+  CM360Subaccount,
 } from './types/cm360.js';
 
 export type {

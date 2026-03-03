@@ -58,6 +58,16 @@ import type {
   CM360CreateFloodlightActivityInput,
   CM360CreateFloodlightActivityGroupInput,
   CM360FloodlightTag,
+  CM360AccountUserProfile,
+  CM360CreateAccountUserProfileInput,
+  CM360UserRole,
+  CM360CreateUserRoleInput,
+  CM360UserRolePermission,
+  CM360UserRolePermissionGroup,
+  CM360Subaccount,
+  CM360ObjectFilter,
+  CM360ObjectFilterStatus,
+  CM360UserLocale,
 } from '@adtraffic/shared';
 import { randomUUID } from 'crypto';
 
@@ -113,6 +123,11 @@ class MockDataStore {
     interstitialTagFormats: string[];
     inpageTagFormats: string[];
   }>();
+  private accountUserProfiles = new Map<string, CM360AccountUserProfile>();
+  private userRoles = new Map<string, CM360UserRole>();
+  private userRolePermissions: CM360UserRolePermission[] = [];
+  private userRolePermissionGroups: CM360UserRolePermissionGroup[] = [];
+  private subaccounts = new Map<string, CM360Subaccount>();
   private nextId = 90000;
 
   constructor() {
@@ -1078,6 +1093,279 @@ class MockDataStore {
         notes: aDef.notes,
         status: 'ACTIVE',
         sslRequired: true,
+      });
+    }
+
+    // ── User Role Permission Groups (15 groups) ──────────────────────────
+    const permissionGroupDefs: Array<{ id: string; name: string }> = [
+      { id: 'pg-1', name: 'Campaigns' },
+      { id: 'pg-2', name: 'Placements' },
+      { id: 'pg-3', name: 'Ads' },
+      { id: 'pg-4', name: 'Creatives' },
+      { id: 'pg-5', name: 'Sites' },
+      { id: 'pg-6', name: 'Floodlight' },
+      { id: 'pg-7', name: 'Reporting' },
+      { id: 'pg-8', name: 'Trafficking' },
+      { id: 'pg-9', name: 'User Administration' },
+      { id: 'pg-10', name: 'Account Administration' },
+      { id: 'pg-11', name: 'Subaccounts' },
+      { id: 'pg-12', name: 'Landing Pages' },
+      { id: 'pg-13', name: 'Tags' },
+      { id: 'pg-14', name: 'Event Tags' },
+      { id: 'pg-15', name: 'Billing' },
+    ];
+
+    this.userRolePermissionGroups = permissionGroupDefs.map(pg => ({
+      id: pg.id,
+      name: pg.name,
+    }));
+
+    // ── User Role Permissions (~42 representative permissions) ──────────
+    const permissionDefs: Array<{ name: string; groupId: string; availability: CM360UserRolePermission['availability'] }> = [
+      // Campaigns
+      { name: 'View campaigns', groupId: 'pg-1', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Create campaigns', groupId: 'pg-1', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Edit campaigns', groupId: 'pg-1', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Placements
+      { name: 'View placements', groupId: 'pg-2', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Create placements', groupId: 'pg-2', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Edit placements', groupId: 'pg-2', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Ads
+      { name: 'View ads', groupId: 'pg-3', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Create ads', groupId: 'pg-3', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Edit ads', groupId: 'pg-3', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Creatives
+      { name: 'View creatives', groupId: 'pg-4', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Create creatives', groupId: 'pg-4', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Edit creatives', groupId: 'pg-4', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Sites
+      { name: 'View sites', groupId: 'pg-5', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Create sites', groupId: 'pg-5', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Edit sites', groupId: 'pg-5', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Floodlight
+      { name: 'View floodlight activities', groupId: 'pg-6', availability: 'SUBACCOUNT_AND_ACCOUNT' },
+      { name: 'Create floodlight activities', groupId: 'pg-6', availability: 'SUBACCOUNT_AND_ACCOUNT' },
+      { name: 'Edit floodlight activities', groupId: 'pg-6', availability: 'SUBACCOUNT_AND_ACCOUNT' },
+      // Reporting
+      { name: 'View reports', groupId: 'pg-7', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Create reports', groupId: 'pg-7', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Run reports', groupId: 'pg-7', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Trafficking
+      { name: 'View trafficking', groupId: 'pg-8', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Edit trafficking', groupId: 'pg-8', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Generate tags', groupId: 'pg-8', availability: 'ACCOUNT_BY_DEFAULT' },
+      // User Administration
+      { name: 'View user profiles', groupId: 'pg-9', availability: 'SUBACCOUNT_AND_ACCOUNT' },
+      { name: 'Create user profiles', groupId: 'pg-9', availability: 'SUBACCOUNT_AND_ACCOUNT' },
+      { name: 'Edit user profiles', groupId: 'pg-9', availability: 'SUBACCOUNT_AND_ACCOUNT' },
+      // Account Administration
+      { name: 'View account settings', groupId: 'pg-10', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Edit account settings', groupId: 'pg-10', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Subaccounts
+      { name: 'View subaccounts', groupId: 'pg-11', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Create subaccounts', groupId: 'pg-11', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Landing Pages
+      { name: 'View landing pages', groupId: 'pg-12', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Create landing pages', groupId: 'pg-12', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Edit landing pages', groupId: 'pg-12', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Tags
+      { name: 'View tags', groupId: 'pg-13', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Generate placement tags', groupId: 'pg-13', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Event Tags
+      { name: 'View event tags', groupId: 'pg-14', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Create event tags', groupId: 'pg-14', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Edit event tags', groupId: 'pg-14', availability: 'ACCOUNT_BY_DEFAULT' },
+      { name: 'Delete event tags', groupId: 'pg-14', availability: 'ACCOUNT_BY_DEFAULT' },
+      // Billing
+      { name: 'View billing', groupId: 'pg-15', availability: 'ACCOUNT_ALWAYS' },
+      { name: 'Edit billing', groupId: 'pg-15', availability: 'ACCOUNT_BY_DEFAULT' },
+    ];
+
+    this.userRolePermissions = permissionDefs.map((p, i) => ({
+      id: `perm-${i + 1}`,
+      name: p.name,
+      permissionGroupId: p.groupId,
+      availability: p.availability,
+    }));
+
+    const allPermissionIds = this.userRolePermissions.map(p => p.id);
+    // Trafficking subset: view/create/edit campaigns, placements, ads, creatives, sites, landing pages, tags, event tags + view reports + view trafficking
+    const traffickerPermissionIds = this.userRolePermissions
+      .filter(p => ['pg-1', 'pg-2', 'pg-3', 'pg-4', 'pg-5', 'pg-8', 'pg-12', 'pg-13', 'pg-14'].includes(p.permissionGroupId) || p.name === 'View reports')
+      .map(p => p.id);
+    // Planner subset: view-only campaigns, placements, sites + create/run reports
+    const plannerPermissionIds = this.userRolePermissions
+      .filter(p => p.name.startsWith('View ') && ['pg-1', 'pg-2', 'pg-5'].includes(p.permissionGroupId) || ['pg-7'].includes(p.permissionGroupId))
+      .map(p => p.id);
+    // Site Trafficker subset: view/edit placements, ads, creatives, sites, tags for their assigned sites
+    const siteTraffickerPermissionIds = this.userRolePermissions
+      .filter(p => ['pg-2', 'pg-3', 'pg-4', 'pg-5', 'pg-8', 'pg-13'].includes(p.permissionGroupId))
+      .map(p => p.id);
+
+    // ── Subaccounts (2) ──────────────────────────────────────────────────
+    const subaccountDefs = [
+      { name: 'Internal Operations', permissionIds: allPermissionIds },
+      { name: 'Publisher Partners', permissionIds: siteTraffickerPermissionIds },
+    ];
+
+    for (const sa of subaccountDefs) {
+      const id = this.genId();
+      this.subaccounts.set(id, {
+        id,
+        accountId: ACCOUNT_ID,
+        name: sa.name,
+        availablePermissionIds: sa.permissionIds,
+      });
+    }
+
+    // ── Default User Roles (5 system roles) ──────────────────────────────
+    const defaultRoleDefs = [
+      { name: 'Agency Admin', permissionIds: allPermissionIds },
+      { name: 'Agency Media Planner', permissionIds: plannerPermissionIds },
+      { name: 'Agency Trafficker', permissionIds: traffickerPermissionIds },
+      { name: 'Advanced Agency Trafficker', permissionIds: [...traffickerPermissionIds, ...this.userRolePermissions.filter(p => ['pg-6', 'pg-9'].includes(p.permissionGroupId)).map(p => p.id)] },
+      { name: 'Site Trafficker', permissionIds: siteTraffickerPermissionIds },
+    ];
+
+    const defaultRoleIds: string[] = [];
+    for (const role of defaultRoleDefs) {
+      const id = this.genId();
+      defaultRoleIds.push(id);
+      this.userRoles.set(id, {
+        id,
+        accountId: ACCOUNT_ID,
+        name: role.name,
+        defaultUserRole: true,
+        permissionIds: [...new Set(role.permissionIds)],
+      });
+    }
+
+    // ── Custom User Roles (2) ────────────────────────────────────────────
+    const siteTraffickerRoleId = defaultRoleIds[4]!;
+    const customRoleDefs = [
+      { name: 'Forbes Read Only', parentId: siteTraffickerRoleId, permissionIds: siteTraffickerPermissionIds.filter(id => this.userRolePermissions.find(p => p.id === id)?.name.startsWith('View ')) },
+      { name: 'Publisher Trafficking', parentId: siteTraffickerRoleId, permissionIds: siteTraffickerPermissionIds },
+    ];
+
+    const customRoleIds: string[] = [];
+    for (const role of customRoleDefs) {
+      const id = this.genId();
+      customRoleIds.push(id);
+      const seedSubaccts = Array.from(this.subaccounts.values());
+      const publisherSa = seedSubaccts.find(s => s.name === 'Publisher Partners');
+      this.userRoles.set(id, {
+        id,
+        accountId: ACCOUNT_ID,
+        subaccountId: publisherSa?.id,
+        name: role.name,
+        defaultUserRole: false,
+        parentUserRoleId: role.parentId,
+        parentUserRoleName: 'Site Trafficker',
+        permissionIds: [...new Set(role.permissionIds)],
+      });
+    }
+
+    // ── Account User Profiles (8 users) ──────────────────────────────────
+    const allSiteIds = Array.from(this.sites.values()).map(s => s.id);
+    const allAdvertiserIds = Array.from(this.advertisers.values()).map(a => a.id);
+    const userSeedCampaignIds = Array.from(this.campaigns.values()).map(c => c.id);
+    const allSubaccts = Array.from(this.subaccounts.values());
+    const internalSubaccount = allSubaccts.find(s => s.name === 'Internal Operations');
+    const publisherSubaccount = allSubaccts.find(s => s.name === 'Publisher Partners');
+
+    const userDefs: Array<{
+      email: string; name: string; roleId: string; active: boolean;
+      subaccountId?: string;
+      siteFilter: CM360ObjectFilter; campaignFilter: CM360ObjectFilter;
+      advertiserFilter: CM360ObjectFilter; userRoleFilter: CM360ObjectFilter;
+    }> = [
+      // Internal staff — Agency Admin
+      {
+        email: 'admin@agency.com', name: 'AgencyAdmin', roleId: defaultRoleIds[0]!,
+        active: true, subaccountId: internalSubaccount?.id,
+        siteFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        campaignFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        advertiserFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        userRoleFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+      },
+      // Internal staff — Agency Trafficker (3)
+      {
+        email: 'trafficker1@agency.com', name: 'Trafficker1', roleId: defaultRoleIds[2]!,
+        active: true, subaccountId: internalSubaccount?.id,
+        siteFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        campaignFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        advertiserFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        userRoleFilter: { status: 'NONE' as CM360ObjectFilterStatus, objectIds: [] },
+      },
+      {
+        email: 'trafficker2@agency.com', name: 'Trafficker2', roleId: defaultRoleIds[2]!,
+        active: true, subaccountId: internalSubaccount?.id,
+        siteFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        campaignFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        advertiserFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        userRoleFilter: { status: 'NONE' as CM360ObjectFilterStatus, objectIds: [] },
+      },
+      {
+        email: 'trafficker3@agency.com', name: 'Trafficker3', roleId: defaultRoleIds[2]!,
+        active: true, subaccountId: internalSubaccount?.id,
+        siteFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        campaignFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        advertiserFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        userRoleFilter: { status: 'NONE' as CM360ObjectFilterStatus, objectIds: [] },
+      },
+      // Publisher reps — Site Trafficker (2)
+      {
+        email: 'rep@forbes.com', name: 'ForbesRep', roleId: customRoleIds[0]!,
+        active: true, subaccountId: publisherSubaccount?.id,
+        siteFilter: { status: 'ASSIGNED' as CM360ObjectFilterStatus, objectIds: allSiteIds.slice(0, 1) },
+        campaignFilter: { status: 'NONE' as CM360ObjectFilterStatus, objectIds: [] },
+        advertiserFilter: { status: 'ASSIGNED' as CM360ObjectFilterStatus, objectIds: allAdvertiserIds.slice(0, 1) },
+        userRoleFilter: { status: 'NONE' as CM360ObjectFilterStatus, objectIds: [] },
+      },
+      {
+        email: 'rep@cnn.com', name: 'CNNRep', roleId: customRoleIds[1]!,
+        active: true, subaccountId: publisherSubaccount?.id,
+        siteFilter: { status: 'ASSIGNED' as CM360ObjectFilterStatus, objectIds: allSiteIds.slice(1, 2) },
+        campaignFilter: { status: 'ASSIGNED' as CM360ObjectFilterStatus, objectIds: userSeedCampaignIds.slice(0, 2) },
+        advertiserFilter: { status: 'ASSIGNED' as CM360ObjectFilterStatus, objectIds: allAdvertiserIds.slice(0, 2) },
+        userRoleFilter: { status: 'NONE' as CM360ObjectFilterStatus, objectIds: [] },
+      },
+      // Custom role users
+      {
+        email: 'planner@agency.com', name: 'Planner1', roleId: defaultRoleIds[1]!,
+        active: true, subaccountId: internalSubaccount?.id,
+        siteFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        campaignFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        advertiserFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        userRoleFilter: { status: 'NONE' as CM360ObjectFilterStatus, objectIds: [] },
+      },
+      // Inactive user
+      {
+        email: 'jane@oldagency.com', name: 'JaneOld', roleId: defaultRoleIds[2]!,
+        active: false, subaccountId: internalSubaccount?.id,
+        siteFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        campaignFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        advertiserFilter: { status: 'ALL' as CM360ObjectFilterStatus, objectIds: [] },
+        userRoleFilter: { status: 'NONE' as CM360ObjectFilterStatus, objectIds: [] },
+      },
+    ];
+
+    for (const u of userDefs) {
+      const id = this.genId();
+      this.accountUserProfiles.set(id, {
+        id,
+        accountId: ACCOUNT_ID,
+        subaccountId: u.subaccountId,
+        email: u.email,
+        name: u.name,
+        userRoleId: u.roleId,
+        userRoleName: this.userRoles.get(u.roleId)?.name,
+        active: u.active,
+        locale: 'en' as CM360UserLocale,
+        siteFilter: u.siteFilter,
+        campaignFilter: u.campaignFilter,
+        advertiserFilter: u.advertiserFilter,
+        userRoleFilter: u.userRoleFilter,
       });
     }
   }
@@ -2346,6 +2634,131 @@ class MockDataStore {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // Account User Profiles
+  // ---------------------------------------------------------------------------
+
+  listAccountUserProfiles(filter?: {
+    searchString?: string; userRoleId?: string; subaccountId?: string; active?: boolean; maxResults?: number;
+  }): CM360AccountUserProfile[] {
+    let profiles = Array.from(this.accountUserProfiles.values());
+    if (filter?.searchString) {
+      const s = filter.searchString.toLowerCase();
+      profiles = profiles.filter(p => p.name.toLowerCase().includes(s) || p.email.toLowerCase().includes(s));
+    }
+    if (filter?.userRoleId) profiles = profiles.filter(p => p.userRoleId === filter.userRoleId);
+    if (filter?.subaccountId) profiles = profiles.filter(p => p.subaccountId === filter.subaccountId);
+    if (filter?.active !== undefined) profiles = profiles.filter(p => p.active === filter.active);
+    if (filter?.maxResults) profiles = profiles.slice(0, filter.maxResults);
+    return profiles;
+  }
+
+  getAccountUserProfile(id: string): CM360AccountUserProfile | undefined {
+    return this.accountUserProfiles.get(id);
+  }
+
+  createAccountUserProfile(input: CM360CreateAccountUserProfileInput): CM360AccountUserProfile {
+    const id = this.genId();
+    const role = this.userRoles.get(input.userRoleId);
+    const profile: CM360AccountUserProfile = {
+      id,
+      accountId: ACCOUNT_ID,
+      subaccountId: input.subaccountId,
+      email: input.email,
+      name: input.name,
+      userRoleId: input.userRoleId,
+      userRoleName: role?.name,
+      active: input.active ?? true,
+      locale: input.locale ?? 'en',
+      siteFilter: input.siteFilter ?? { status: 'NONE', objectIds: [] },
+      campaignFilter: input.campaignFilter ?? { status: 'NONE', objectIds: [] },
+      advertiserFilter: input.advertiserFilter ?? { status: 'NONE', objectIds: [] },
+      userRoleFilter: input.userRoleFilter ?? { status: 'NONE', objectIds: [] },
+    };
+    this.accountUserProfiles.set(id, profile);
+    return profile;
+  }
+
+  // ---------------------------------------------------------------------------
+  // User Roles
+  // ---------------------------------------------------------------------------
+
+  listUserRoles(filter?: {
+    searchString?: string; subaccountId?: string; accountUserRoleOnly?: boolean;
+  }): CM360UserRole[] {
+    let roles = Array.from(this.userRoles.values());
+    if (filter?.searchString) {
+      const s = filter.searchString.toLowerCase();
+      roles = roles.filter(r => r.name.toLowerCase().includes(s));
+    }
+    if (filter?.subaccountId) roles = roles.filter(r => r.subaccountId === filter.subaccountId || !r.subaccountId);
+    if (filter?.accountUserRoleOnly) roles = roles.filter(r => !r.subaccountId);
+    return roles;
+  }
+
+  getUserRole(id: string): CM360UserRole | undefined {
+    return this.userRoles.get(id);
+  }
+
+  createUserRole(input: CM360CreateUserRoleInput): CM360UserRole | null {
+    const parent = this.userRoles.get(input.parentUserRoleId);
+    if (!parent) return null;
+    const id = this.genId();
+    const role: CM360UserRole = {
+      id,
+      accountId: ACCOUNT_ID,
+      subaccountId: input.subaccountId,
+      name: input.name,
+      defaultUserRole: false,
+      parentUserRoleId: input.parentUserRoleId,
+      parentUserRoleName: parent.name,
+      permissionIds: input.permissionIds ?? [],
+    };
+    this.userRoles.set(id, role);
+    return role;
+  }
+
+  // ---------------------------------------------------------------------------
+  // User Role Permissions (read-only catalog)
+  // ---------------------------------------------------------------------------
+
+  listUserRolePermissions(): CM360UserRolePermission[] {
+    return [...this.userRolePermissions];
+  }
+
+  getUserRolePermission(id: string): CM360UserRolePermission | undefined {
+    return this.userRolePermissions.find(p => p.id === id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // User Role Permission Groups (read-only catalog)
+  // ---------------------------------------------------------------------------
+
+  listUserRolePermissionGroups(): CM360UserRolePermissionGroup[] {
+    return [...this.userRolePermissionGroups];
+  }
+
+  getUserRolePermissionGroup(id: string): CM360UserRolePermissionGroup | undefined {
+    return this.userRolePermissionGroups.find(pg => pg.id === id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Subaccounts (read-only)
+  // ---------------------------------------------------------------------------
+
+  listSubaccounts(filter?: { searchString?: string }): CM360Subaccount[] {
+    let subs = Array.from(this.subaccounts.values());
+    if (filter?.searchString) {
+      const s = filter.searchString.toLowerCase();
+      subs = subs.filter(sa => sa.name.toLowerCase().includes(s));
+    }
+    return subs;
+  }
+
+  getSubaccount(id: string): CM360Subaccount | undefined {
+    return this.subaccounts.get(id);
+  }
+
   reset(): void {
     this.profiles = [];
     this.advertisers.clear();
@@ -2366,6 +2779,11 @@ class MockDataStore {
     this.floodlightActivities.clear();
     this.floodlightActivityGroups.clear();
     this.floodlightConfigurations.clear();
+    this.accountUserProfiles.clear();
+    this.userRoles.clear();
+    this.userRolePermissions = [];
+    this.userRolePermissionGroups = [];
+    this.subaccounts.clear();
     this.nextId = 90000;
     this.seed();
   }

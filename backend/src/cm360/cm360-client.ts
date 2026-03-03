@@ -69,6 +69,16 @@ import type {
   CM360FloodlightTag,
   CM360CreateFloodlightActivityInput,
   CM360CreateFloodlightActivityGroupInput,
+  CM360AccountUserProfile,
+  CM360CreateAccountUserProfileInput,
+  CM360UserRole,
+  CM360CreateUserRoleInput,
+  CM360UserRolePermission,
+  CM360UserRolePermissionGroup,
+  CM360Subaccount,
+  CM360ObjectFilter,
+  CM360ObjectFilterStatus,
+  CM360UserLocale,
 } from '@adtraffic/shared';
 import { isGoogleAPIError } from './errors.js';
 import { Readable } from 'node:stream';
@@ -1197,6 +1207,157 @@ export class CM360Client {
 
     return summary;
   }
+
+  // ---------------------------------------------------------------------------
+  // Account User Profiles
+  // ---------------------------------------------------------------------------
+
+  async listAccountUserProfiles(profileId: string, filter?: {
+    searchString?: string; userRoleId?: string; subaccountId?: string; active?: boolean; maxResults?: number;
+  }): Promise<CM360AccountUserProfile[]> {
+    const res = await this.api.accountUserProfiles.list({
+      profileId,
+      ...(filter?.searchString && { searchString: filter.searchString }),
+      ...(filter?.userRoleId && { userRoleId: filter.userRoleId }),
+      ...(filter?.subaccountId && { subaccountId: filter.subaccountId }),
+      ...(filter?.active !== undefined && { active: filter.active }),
+      ...(filter?.maxResults && { maxResults: filter.maxResults }),
+    });
+    return (res.data.accountUserProfiles ?? []).map(mapAccountUserProfile);
+  }
+
+  async getAccountUserProfile(profileId: string, accountUserProfileId: string): Promise<CM360AccountUserProfile | null> {
+    try {
+      const res = await this.api.accountUserProfiles.get({ profileId, id: accountUserProfileId });
+      return res.data ? mapAccountUserProfile(res.data) : null;
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async createAccountUserProfile(profileId: string, input: CM360CreateAccountUserProfileInput): Promise<CM360AccountUserProfile> {
+    const makeFilter = (f?: CM360ObjectFilter) => f ? {
+      status: f.status,
+      ...(f.objectIds.length > 0 && { objectIds: f.objectIds }),
+    } : undefined;
+
+    const res = await this.api.accountUserProfiles.insert({
+      profileId,
+      requestBody: {
+        email: input.email,
+        name: input.name,
+        userRoleId: input.userRoleId,
+        ...(input.subaccountId && { subaccountId: input.subaccountId }),
+        locale: input.locale ?? 'en',
+        active: input.active ?? true,
+        ...(input.siteFilter && { siteFilter: makeFilter(input.siteFilter) }),
+        ...(input.campaignFilter && { campaignFilter: makeFilter(input.campaignFilter) }),
+        ...(input.advertiserFilter && { advertiserFilter: makeFilter(input.advertiserFilter) }),
+        ...(input.userRoleFilter && { userRoleFilter: makeFilter(input.userRoleFilter) }),
+      },
+    });
+    return mapAccountUserProfile(res.data);
+  }
+
+  // ---------------------------------------------------------------------------
+  // User Roles
+  // ---------------------------------------------------------------------------
+
+  async listUserRoles(profileId: string, filter?: {
+    searchString?: string; subaccountId?: string; accountUserRoleOnly?: boolean;
+  }): Promise<CM360UserRole[]> {
+    const res = await this.api.userRoles.list({
+      profileId,
+      ...(filter?.searchString && { searchString: filter.searchString }),
+      ...(filter?.subaccountId && { subaccountId: filter.subaccountId }),
+      ...(filter?.accountUserRoleOnly && { accountUserRoleOnly: filter.accountUserRoleOnly }),
+    });
+    return (res.data.userRoles ?? []).map(mapUserRole);
+  }
+
+  async getUserRole(profileId: string, userRoleId: string): Promise<CM360UserRole | null> {
+    try {
+      const res = await this.api.userRoles.get({ profileId, id: userRoleId });
+      return res.data ? mapUserRole(res.data) : null;
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  async createUserRole(profileId: string, input: CM360CreateUserRoleInput): Promise<CM360UserRole> {
+    const res = await this.api.userRoles.insert({
+      profileId,
+      requestBody: {
+        name: input.name,
+        parentUserRoleId: input.parentUserRoleId,
+        ...(input.subaccountId && { subaccountId: input.subaccountId }),
+        ...(input.permissionIds && { permissions: input.permissionIds.map(id => ({ id })) }),
+      },
+    });
+    return mapUserRole(res.data);
+  }
+
+  // ---------------------------------------------------------------------------
+  // User Role Permissions (read-only catalog)
+  // ---------------------------------------------------------------------------
+
+  async listUserRolePermissions(profileId: string): Promise<CM360UserRolePermission[]> {
+    const res = await this.api.userRolePermissions.list({ profileId });
+    return (res.data.userRolePermissions ?? []).map(mapUserRolePermission);
+  }
+
+  async getUserRolePermission(profileId: string, permissionId: string): Promise<CM360UserRolePermission | null> {
+    try {
+      const res = await this.api.userRolePermissions.get({ profileId, id: permissionId });
+      return res.data ? mapUserRolePermission(res.data) : null;
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // User Role Permission Groups (read-only catalog)
+  // ---------------------------------------------------------------------------
+
+  async listUserRolePermissionGroups(profileId: string): Promise<CM360UserRolePermissionGroup[]> {
+    const res = await this.api.userRolePermissionGroups.list({ profileId });
+    return (res.data.userRolePermissionGroups ?? []).map(mapUserRolePermissionGroup);
+  }
+
+  async getUserRolePermissionGroup(profileId: string, permissionGroupId: string): Promise<CM360UserRolePermissionGroup | null> {
+    try {
+      const res = await this.api.userRolePermissionGroups.get({ profileId, id: permissionGroupId });
+      return res.data ? mapUserRolePermissionGroup(res.data) : null;
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Subaccounts (read-only)
+  // ---------------------------------------------------------------------------
+
+  async listSubaccounts(profileId: string, filter?: { searchString?: string }): Promise<CM360Subaccount[]> {
+    const res = await this.api.subaccounts.list({
+      profileId,
+      ...(filter?.searchString && { searchString: filter.searchString }),
+    });
+    return (res.data.subaccounts ?? []).map(mapSubaccount);
+  }
+
+  async getSubaccount(profileId: string, subaccountId: string): Promise<CM360Subaccount | null> {
+    try {
+      const res = await this.api.subaccounts.get({ profileId, id: subaccountId });
+      return res.data ? mapSubaccount(res.data) : null;
+    } catch (err: unknown) {
+      if (isGoogleAPIError(err) && err.code === 404) return null;
+      throw err;
+    }
+  }
 }
 
 // ---------- Mapping Helpers ----------
@@ -1430,6 +1591,67 @@ function mapFloodlightConfiguration(c: any): CM360FloodlightConfiguration {
   };
 }
 
+function mapAccountUserProfile(u: any): CM360AccountUserProfile {
+  const mapFilter = (f: any): CM360ObjectFilter => ({
+    status: ((f?.status as string) ?? 'NONE') as CM360ObjectFilterStatus,
+    objectIds: ((f?.objectIds as string[]) ?? []).map(String),
+  });
+  return {
+    id: String(u.id ?? ''),
+    accountId: String(u.accountId ?? ''),
+    ...(u.subaccountId && { subaccountId: String(u.subaccountId) }),
+    email: (u.email as string) ?? '',
+    name: (u.name as string) ?? '',
+    userRoleId: String(u.userRoleId ?? ''),
+    ...(u.userRole && { userRoleName: (u.userRole.name as string) ?? undefined }),
+    active: (u.active as boolean) ?? false,
+    locale: ((u.locale as string) ?? 'en') as CM360UserLocale,
+    ...(u.userAccessType && { userAccessType: u.userAccessType as string }),
+    ...(u.traffickerType && { traffickerType: u.traffickerType as string }),
+    siteFilter: mapFilter(u.siteFilter),
+    campaignFilter: mapFilter(u.campaignFilter),
+    advertiserFilter: mapFilter(u.advertiserFilter),
+    userRoleFilter: mapFilter(u.userRoleFilter),
+  };
+}
+
+function mapUserRole(r: any): CM360UserRole {
+  return {
+    id: String(r.id ?? ''),
+    accountId: String(r.accountId ?? ''),
+    ...(r.subaccountId && { subaccountId: String(r.subaccountId) }),
+    name: (r.name as string) ?? '',
+    defaultUserRole: (r.defaultUserRole as boolean) ?? false,
+    ...(r.parentUserRoleId && { parentUserRoleId: String(r.parentUserRoleId) }),
+    ...(r.parentUserRole && { parentUserRoleName: (r.parentUserRole.name as string) ?? undefined }),
+    permissionIds: ((r.permissions as any[]) ?? []).map((p: any) => String(p.id ?? '')).filter(Boolean),
+  };
+}
+
+function mapUserRolePermission(p: any): CM360UserRolePermission {
+  return {
+    id: String(p.id ?? ''),
+    name: (p.name as string) ?? '',
+    permissionGroupId: String(p.permissionGroupId ?? ''),
+    availability: ((p.availability as string) ?? 'ACCOUNT_ALWAYS') as CM360UserRolePermission['availability'],
+  };
+}
+
+function mapUserRolePermissionGroup(pg: any): CM360UserRolePermissionGroup {
+  return {
+    id: String(pg.id ?? ''),
+    name: (pg.name as string) ?? '',
+  };
+}
+
+function mapSubaccount(s: any): CM360Subaccount {
+  return {
+    id: String(s.id ?? ''),
+    accountId: String(s.accountId ?? ''),
+    name: (s.name as string) ?? '',
+    availablePermissionIds: ((s.availablePermissionIds as any[]) ?? []).map(String),
+  };
+}
 /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-base-to-string */
 
 /** Determine MIME type for creative asset upload based on filename extension and asset type */

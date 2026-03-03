@@ -605,6 +605,111 @@ export const PacingAnalysisInputSchema = z.object({
 export type PacingAnalysisInput = z.infer<typeof PacingAnalysisInputSchema>;
 
 // ---------------------------------------------------------------------------
+// User & Role Management
+// ---------------------------------------------------------------------------
+
+export const ListAccountUserProfilesInputSchema = z.object({
+  profileId: z.string().max(50),
+  searchString: z.string().max(200).optional(),
+  userRoleId: z.string().max(50).optional(),
+  subaccountId: z.string().max(50).optional(),
+  active: z.boolean().optional(),
+  maxResults: z.number().min(1).max(1000).optional(),
+});
+
+export const GetAccountUserProfileInputSchema = z.object({
+  profileId: z.string().max(50),
+  accountUserProfileId: z.string().max(50),
+});
+
+export const CreateAccountUserProfileInputSchema = z.object({
+  profileId: z.string().max(50),
+  email: z.string().email().max(200),
+  name: z.string().min(1).max(64).regex(/^[^&;<>"#%,\s]+$/, 'Name must not contain &, ;, <, >, ", #, %, comma, or whitespace'),
+  userRoleId: z.string().max(50),
+  subaccountId: z.string().max(50).optional(),
+  locale: z.enum(['en', 'en-GB', 'fr', 'de', 'es', 'it', 'ja', 'ko', 'pt-BR', 'ru', 'zh-CN', 'zh-TW', 'nl', 'pl', 'sv', 'tr']).optional(),
+  active: z.boolean().optional(),
+  siteFilter: z.object({
+    status: z.enum(['NONE', 'ALL', 'ASSIGNED']),
+    objectIds: z.array(z.string().max(50)).default([]),
+  }).optional(),
+  campaignFilter: z.object({
+    status: z.enum(['NONE', 'ALL', 'ASSIGNED']),
+    objectIds: z.array(z.string().max(50)).default([]),
+  }).optional(),
+  advertiserFilter: z.object({
+    status: z.enum(['NONE', 'ALL', 'ASSIGNED']),
+    objectIds: z.array(z.string().max(50)).default([]),
+  }).optional(),
+  userRoleFilter: z.object({
+    status: z.enum(['NONE', 'ALL', 'ASSIGNED']),
+    objectIds: z.array(z.string().max(50)).default([]),
+  }).optional(),
+});
+
+export const ListUserRolesInputSchema = z.object({
+  profileId: z.string().max(50),
+  searchString: z.string().max(200).optional(),
+  subaccountId: z.string().max(50).optional(),
+  accountUserRoleOnly: z.boolean().optional(),
+});
+
+export const GetUserRoleInputSchema = z.object({
+  profileId: z.string().max(50),
+  userRoleId: z.string().max(50),
+});
+
+export const CreateUserRoleInputSchema = z.object({
+  profileId: z.string().max(50),
+  name: z.string().min(1).max(256),
+  parentUserRoleId: z.string().max(50),
+  subaccountId: z.string().max(50).optional(),
+  permissionIds: z.array(z.string().max(50)).optional(),
+});
+
+export const ListUserRolePermissionsInputSchema = z.object({
+  profileId: z.string().max(50),
+});
+
+export const GetUserRolePermissionInputSchema = z.object({
+  profileId: z.string().max(50),
+  permissionId: z.string().max(50),
+});
+
+export const ListUserRolePermissionGroupsInputSchema = z.object({
+  profileId: z.string().max(50),
+});
+
+export const GetUserRolePermissionGroupInputSchema = z.object({
+  profileId: z.string().max(50),
+  permissionGroupId: z.string().max(50),
+});
+
+export const ListSubaccountsInputSchema = z.object({
+  profileId: z.string().max(50),
+  searchString: z.string().max(200).optional(),
+});
+
+export const GetSubaccountInputSchema = z.object({
+  profileId: z.string().max(50),
+  subaccountId: z.string().max(50),
+});
+
+export type ListAccountUserProfilesInput = z.infer<typeof ListAccountUserProfilesInputSchema>;
+export type GetAccountUserProfileInput = z.infer<typeof GetAccountUserProfileInputSchema>;
+export type CreateAccountUserProfileInput = z.infer<typeof CreateAccountUserProfileInputSchema>;
+export type ListUserRolesInput = z.infer<typeof ListUserRolesInputSchema>;
+export type GetUserRoleInput = z.infer<typeof GetUserRoleInputSchema>;
+export type CreateUserRoleInput = z.infer<typeof CreateUserRoleInputSchema>;
+export type ListUserRolePermissionsInput = z.infer<typeof ListUserRolePermissionsInputSchema>;
+export type GetUserRolePermissionInput = z.infer<typeof GetUserRolePermissionInputSchema>;
+export type ListUserRolePermissionGroupsInput = z.infer<typeof ListUserRolePermissionGroupsInputSchema>;
+export type GetUserRolePermissionGroupInput = z.infer<typeof GetUserRolePermissionGroupInputSchema>;
+export type ListSubaccountsInput = z.infer<typeof ListSubaccountsInputSchema>;
+export type GetSubaccountInput = z.infer<typeof GetSubaccountInputSchema>;
+
+// ---------------------------------------------------------------------------
 // Helper: format Zod errors into a readable string
 // ---------------------------------------------------------------------------
 

@@ -3,8 +3,12 @@ import { clearConversation } from '../claude/kiki-service.js';
 import { requireAuth } from '../auth/middleware.js';
 import { getConversations, getMessages, getConversation } from '../db/conversation-store.js';
 import { logger } from '../lib/logger.js';
+import { createRateLimiter } from '../middleware/rate-limiter.js';
+import { featureFlagsMiddleware } from '../feature-flags/flag-middleware.js';
 
 const router = Router();
+
+const deleteConversationLimiter = createRateLimiter({ name: 'delete-conversation', windowMs: 60_000, maxRequests: 10 });
 
 /**
  * GET /conversations
@@ -12,7 +16,7 @@ const router = Router();
  * List conversations for the authenticated user with pagination.
  * Query params: ?limit=50&offset=0
  */
-router.get('/conversations', requireAuth, async (req, res) => {
+router.get('/conversations', requireAuth, featureFlagsMiddleware, async (req, res) => {
   try {
     const userId = req.user!.userId;
     const limit = Math.max(1, Math.min(200, parseInt(req.query['limit'] as string, 10) || 50));
@@ -31,7 +35,7 @@ router.get('/conversations', requireAuth, async (req, res) => {
  * Load all messages for a specific conversation.
  * Verifies the conversation belongs to the authenticated user.
  */
-router.get('/conversations/:id/messages', requireAuth, async (req, res) => {
+router.get('/conversations/:id/messages', requireAuth, featureFlagsMiddleware, async (req, res) => {
   try {
     const userId = req.user!.userId;
     const id = req.params['id'] as string;
@@ -62,7 +66,7 @@ router.get('/conversations/:id/messages', requireAuth, async (req, res) => {
  * Clears conversation history. Useful for "New Chat" functionality.
  * Verifies the conversation belongs to the authenticated user.
  */
-router.delete('/conversations/:id', requireAuth, async (req, res) => {
+router.delete('/conversations/:id', deleteConversationLimiter, requireAuth, featureFlagsMiddleware, async (req, res) => {
   try {
     const userId = req.user!.userId;
     const id = req.params['id'] as string;

@@ -1,6 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
+import { randomBytes } from 'crypto';
 import { getRedis, isRedisHealthy } from '../db/redis.js';
 import { logAuditEvent } from '../audit/audit-service.js';
+import { logger } from '../lib/logger.js';
 
 interface RateLimitEntry {
   timestamps: number[];
@@ -86,6 +88,7 @@ export function createRateLimiter(options: RateLimiterOptions) {
         const count = results[1]?.[1] as number;
 
         if (count >= maxRequests) {
+          logger.warn({ ip, path: req.path, limiterName: name }, 'Rate limit exceeded');
           // Audit: rate limited (fire-and-forget)
           void logAuditEvent({
             userId: req.user?.userId ?? 'anonymous',
@@ -98,7 +101,7 @@ export function createRateLimiter(options: RateLimiterOptions) {
         }
 
         // Add this request with a unique member to avoid collisions
-        const member = `${now}-${Math.random().toString(36).slice(2, 8)}`;
+        const member = `${now}-${randomBytes(4).toString('hex')}`;
         await redis.pipeline()
           .zadd(key, now, member)
           .expire(key, windowSeconds)
@@ -122,6 +125,7 @@ export function createRateLimiter(options: RateLimiterOptions) {
     entry.timestamps = entry.timestamps.filter((ts) => now - ts < windowMs);
 
     if (entry.timestamps.length >= maxRequests) {
+      logger.warn({ ip, path: req.path, limiterName: name }, 'Rate limit exceeded');
       // Audit: rate limited (fire-and-forget)
       void logAuditEvent({
         userId: req.user?.userId ?? 'anonymous',

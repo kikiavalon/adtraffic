@@ -33,14 +33,14 @@ services:
           memory: 256M
           cpus: "0.5"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s
       retries: 3
     read_only: true
     tmpfs:
       - /data
-    command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --save ""
+    command: redis-server --maxmemory 200mb --maxmemory-policy volatile-lru --save "" --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
 
   migrate:
     build:
@@ -70,7 +70,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_ENVIRONMENT=production
-      - REDIS_URL=redis://redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
       - WEBAPP_URL=${WEBAPP_URL:-}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
@@ -106,6 +106,8 @@ services:
       dockerfile: webapp/Dockerfile
     ports:
       - "80:80"
+      # Uncomment when TLS certificates are provisioned in nginx
+      # - "443:443"
     depends_on:
       backend:
         condition: service_healthy

@@ -1205,24 +1205,45 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   cm360_create_floodlight_activity: 'cm360.write_operations',
   cm360_create_floodlight_activity_group: 'cm360.write_operations',
   // User & Role Management (read)
-  cm360_list_account_user_profiles: 'cm360.read_operations',
-  cm360_get_account_user_profile: 'cm360.read_operations',
-  cm360_list_user_roles: 'cm360.read_operations',
-  cm360_get_user_role: 'cm360.read_operations',
-  cm360_list_user_role_permissions: 'cm360.read_operations',
-  cm360_get_user_role_permission: 'cm360.read_operations',
-  cm360_list_user_role_permission_groups: 'cm360.read_operations',
-  cm360_get_user_role_permission_group: 'cm360.read_operations',
-  cm360_list_subaccounts: 'cm360.read_operations',
-  cm360_get_subaccount: 'cm360.read_operations',
+  cm360_list_account_user_profiles: 'cm360.user_management',
+  cm360_get_account_user_profile: 'cm360.user_management',
+  cm360_list_user_roles: 'cm360.user_management',
+  cm360_get_user_role: 'cm360.user_management',
+  cm360_list_user_role_permissions: 'cm360.user_management',
+  cm360_get_user_role_permission: 'cm360.user_management',
+  cm360_list_user_role_permission_groups: 'cm360.user_management',
+  cm360_get_user_role_permission_group: 'cm360.user_management',
+  cm360_list_subaccounts: 'cm360.user_management',
+  cm360_get_subaccount: 'cm360.user_management',
   // User & Role Management (write)
-  cm360_create_account_user_profile: 'cm360.write_operations',
-  cm360_create_user_role: 'cm360.write_operations',
+  cm360_create_account_user_profile: 'cm360.user_management',
+  cm360_create_user_role: 'cm360.user_management',
   // Tag generation
   cm360_generate_tags: 'cm360.tag_generation',
   // Pacing analysis (read-only computed data)
   cm360_pacing_analysis: 'cm360.read_operations',
 };
+
+/**
+ * Tools that only work in demo mode (stubbed implementation).
+ * These should NOT be presented to Claude when the user has a live CM360 connection.
+ */
+export const STUBBED_TOOLS = new Set([
+  'cm360_list_event_tags',
+  'cm360_get_event_tag',
+  'cm360_create_event_tag',
+  'cm360_update_event_tag',
+  'cm360_delete_event_tag',
+  'cm360_list_placement_groups',
+  'cm360_get_placement_group',
+  'cm360_create_placement_group',
+  'cm360_update_placement_group',
+  'cm360_list_directory_sites',
+  'cm360_get_directory_site',
+  'cm360_insert_directory_site',
+  'cm360_list_change_logs',
+  'cm360_get_change_log',
+]);
 
 /**
  * Filter CM360_TOOLS based on the user's resolved feature flags.

@@ -14,6 +14,7 @@ export const BOOLEAN_FLAGS = {
   'chat.file_upload': { default: true, description: 'Gate file upload in chat' },
   'beta.advanced_trafficking': { default: false, description: 'Advanced trafficking features (macros, Adobe/Demandbase)' },
   'beta.video_trafficking': { default: false, description: 'Video trafficking features (VAST/VPAID)' },
+  'cm360.user_management': { default: true, description: 'Enable CM360 user & role management tools' },
 } as const;
 
 /** Numeric feature flags — configurable limits */

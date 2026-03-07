@@ -34,10 +34,31 @@ export function initSentry(): void {
         }
         if (event.request.data && typeof event.request.data === 'object') {
           const data = event.request.data as Record<string, unknown>;
-          if ('password' in data) {
-            data['password'] = '[REDACTED]';
+          const sensitiveKeys = ['password', 'email', 'token', 'accessToken', 'refreshToken', 'apiKey', 'secret', 'jwt'];
+          for (const key of sensitiveKeys) {
+            if (key in data) {
+              data[key] = '[REDACTED]';
+            }
           }
         }
+      }
+      // Redact sensitive data from exception values
+      if (event.exception?.values) {
+        for (const exc of event.exception.values) {
+          if (exc.value) {
+            exc.value = exc.value
+              .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]')
+              .replace(/eyJ[A-Za-z0-9\-._]+/g, '[REDACTED_JWT]')
+              .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z]{2,}\b/gi, '[REDACTED_EMAIL]');
+          }
+        }
+      }
+      // Redact from event message
+      if (event.message) {
+        event.message = event.message
+          .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, 'Bearer [REDACTED]')
+          .replace(/eyJ[A-Za-z0-9\-._]+/g, '[REDACTED_JWT]')
+          .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z]{2,}\b/gi, '[REDACTED_EMAIL]');
       }
       return event;
     },

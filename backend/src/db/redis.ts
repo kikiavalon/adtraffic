@@ -4,6 +4,18 @@ import { logger } from '../lib/logger.js';
 let redis: Redis | null = null;
 let healthy = false;
 
+/** Redact credentials from Redis URL for safe logging */
+function redactRedisUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.password) parsed.password = '***';
+    if (parsed.username) parsed.username = '***';
+    return parsed.toString();
+  } catch {
+    return '[invalid-url]';
+  }
+}
+
 /**
  * Initialize the Redis client.
  * No-op if NODE_ENV=test (tests use in-memory fallback).
@@ -15,16 +27,21 @@ export function initRedis(): void {
 
   const url = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
+  // In production, require authenticated Redis URL
+  if (process.env.NODE_ENV === 'production' && url && !url.includes('@')) {
+    logger.warn({ url: redactRedisUrl(url) }, 'REDIS_URL has no credentials — Redis should use requirepass in production');
+  }
+
   redis = new Redis(url, {
     lazyConnect: false,
     maxRetriesPerRequest: 3,
     retryStrategy(times: number) {
-      if (times > 10) {
-        logger.error('[redis] Max reconnection attempts reached, giving up');
+      if (times > 3) {
+        logger.error({ attempt: times }, 'Redis max retries exceeded — giving up');
         return null; // Stop retrying
       }
-      const delay = Math.min(times * 200, 5000);
-      logger.info({ delay, attempt: times }, '[redis] Reconnecting');
+      const delay = Math.min(times * 1000, 5000);
+      logger.warn({ attempt: times, delayMs: delay }, 'Redis reconnecting...');
       return delay;
     },
   });

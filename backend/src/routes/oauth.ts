@@ -19,6 +19,7 @@ import { requireAuth } from '../auth/middleware.js';
 import { encrypt, decrypt } from '../auth/crypto.js';
 import { db, schema } from '../db/index.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
+import { featureFlagsMiddleware } from '../feature-flags/flag-middleware.js';
 import { logger } from '../lib/logger.js';
 
 const router = Router();
@@ -31,10 +32,10 @@ const CM360_SCOPES = [
 // Rate limit OAuth routes: 5 requests per minute per IP
 const oauthLimiter = createRateLimiter({ name: 'oauth', windowMs: 60_000, maxRequests: 5 });
 
-/** Get the HMAC secret for state signing. */
+/** Get the HMAC secret for state signing. Prefers dedicated OAUTH_STATE_SECRET, falls back to JWT_SECRET. */
 function getHmacSecret(): string {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error('JWT_SECRET is required for OAuth state signing');
+  const secret = process.env.OAUTH_STATE_SECRET ?? process.env.JWT_SECRET;
+  if (!secret) throw new Error('OAUTH_STATE_SECRET or JWT_SECRET is required for OAuth state signing');
   return secret;
 }
 
@@ -87,7 +88,7 @@ function verifyState(state: string): { userId: string } | null {
  * Generate a Google OAuth authorization URL and return it.
  * The frontend redirects the user's browser to this URL.
  */
-router.get('/api/auth/google/connect', oauthLimiter, requireAuth, (req, res) => {
+router.get('/api/auth/google/connect', oauthLimiter, requireAuth, featureFlagsMiddleware, (req, res) => {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
@@ -149,7 +150,7 @@ router.get('/api/auth/google/callback', async (req, res) => {
 
     if (!tokens.access_token || !tokens.refresh_token) {
       const webappUrl = process.env.WEBAPP_URL ?? 'http://localhost:5173';
-      res.redirect(`${webappUrl}/settings?cm360=error&reason=missing_tokens`);
+      res.redirect(`${webappUrl}/settings?cm360=error`);
       return;
     }
 
@@ -158,7 +159,7 @@ router.get('/api/auth/google/callback', async (req, res) => {
     const missingScopes = CM360_SCOPES.filter(s => !grantedScopes.includes(s));
     if (missingScopes.length > 0) {
       const webappUrl = process.env.WEBAPP_URL ?? 'http://localhost:5173';
-      res.redirect(`${webappUrl}/settings?cm360=error&reason=missing_scopes`);
+      res.redirect(`${webappUrl}/settings?cm360=error`);
       return;
     }
 
@@ -213,7 +214,7 @@ router.get('/api/auth/google/callback', async (req, res) => {
  *
  * Returns the current CM360 connection status for the authenticated user.
  */
-router.get('/api/auth/google/status', requireAuth, async (req, res) => {
+router.get('/api/auth/google/status', requireAuth, featureFlagsMiddleware, async (req, res) => {
   const rows = await db
     .select()
     .from(schema.oauthTokens)
@@ -237,7 +238,7 @@ router.get('/api/auth/google/status', requireAuth, async (req, res) => {
  *
  * Revoke CM360 tokens at Google and delete them from our database.
  */
-router.post('/api/auth/google/disconnect', oauthLimiter, requireAuth, async (req, res) => {
+router.post('/api/auth/google/disconnect', oauthLimiter, requireAuth, featureFlagsMiddleware, async (req, res) => {
   const rows = await db
     .select()
     .from(schema.oauthTokens)

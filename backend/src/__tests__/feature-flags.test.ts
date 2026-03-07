@@ -365,7 +365,6 @@ describe('tool gating', () => {
       'cm360_insert_directory_site',
       'cm360_create_floodlight_activity', 'cm360_create_floodlight_activity_group',
       'cm360_create_report',
-      'cm360_create_account_user_profile', 'cm360_create_user_role',
     ];
     for (const tool of tools) {
       expect(writeToolNames).not.toContain(tool.name);
@@ -402,6 +401,7 @@ describe('tool gating', () => {
     flags['cm360.write_operations'] = false;
     flags['cm360.tag_generation'] = false;
     flags['cm360.read_operations'] = false;
+    flags['cm360.user_management'] = false;
     const tools = getEnabledTools(flags);
     expect(tools).toHaveLength(0);
   });

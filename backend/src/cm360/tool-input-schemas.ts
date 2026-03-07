@@ -18,56 +18,56 @@ const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM
 export const ListProfilesInputSchema = z.object({});
 
 export const ListAdvertisersInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  searchString: z.string().optional(),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  searchString: z.string().max(256).optional(),
   maxResults: z.number().int().min(1).max(1000).optional(),
 });
 
 export const GetAdvertiserInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
 });
 
 export const ListCampaignsInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().optional(),
-  searchString: z.string().optional(),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().max(50).optional(),
+  searchString: z.string().max(256).optional(),
   maxResults: z.number().int().min(1).max(1000).optional(),
 });
 
 export const ListSitesInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  searchString: z.string().optional(),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  searchString: z.string().max(256).optional(),
   maxResults: z.number().int().min(1).max(1000).optional(),
 });
 
 export const ListLandingPagesInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
-  searchString: z.string().optional(),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
+  searchString: z.string().max(256).optional(),
   maxResults: z.number().int().min(1).max(1000).optional(),
 });
 
 export const ListPlacementsInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().optional(),
-  advertiserId: z.string().optional(),
-  searchString: z.string().optional(),
+  advertiserId: z.string().max(50).optional(),
+  searchString: z.string().max(256).optional(),
   maxResults: z.number().int().min(1).max(1000).optional(),
 });
 
 export const ListCreativesInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
-  searchString: z.string().optional(),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
+  searchString: z.string().max(256).optional(),
   maxResults: z.number().int().min(1).max(1000).optional(),
 });
 
 export const ListAdsInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().optional(),
-  advertiserId: z.string().optional(),
-  searchString: z.string().optional(),
+  advertiserId: z.string().max(50).optional(),
+  searchString: z.string().max(256).optional(),
   maxResults: z.number().int().min(1).max(1000).optional(),
 });
 
@@ -76,37 +76,37 @@ export const ListAdsInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const GetCampaignInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
 });
 
 export const GetPlacementInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   placementId: z.string().min(1, 'Placement ID is required'),
 });
 
 export const GetAdInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   adId: z.string().min(1, 'Ad ID is required'),
 });
 
 export const GetCreativeInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   creativeId: z.string().min(1, 'Creative ID is required'),
 });
 
 export const GetLandingPageInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   landingPageId: z.string().min(1, 'Landing page ID is required'),
 });
 
 export const GetSiteInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   siteId: z.string().min(1, 'Site ID is required'),
 });
 
 export const ListSizesInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   width: z.number().int().min(1).optional(),
   height: z.number().int().min(1).optional(),
   iabStandard: z.boolean().optional(),
@@ -117,7 +117,7 @@ export const ListSizesInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const UpdateCampaignInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
   name: z.string().min(1).max(256).optional(),
   startDate: dateString.optional(),
@@ -133,7 +133,7 @@ export const UpdateCampaignInputSchema = z.object({
 );
 
 export const UpdatePlacementInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   placementId: z.string().min(1, 'Placement ID is required'),
   name: z.string().min(1).max(256).optional(),
   activeStatus: z.enum(['ACTIVE', 'INACTIVE', 'ARCHIVED', 'PERMANENTLY_ARCHIVED']).optional(),
@@ -143,7 +143,7 @@ export const UpdatePlacementInputSchema = z.object({
 });
 
 export const UpdateAdInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   adId: z.string().min(1, 'Ad ID is required'),
   name: z.string().min(1).max(256).optional(),
   active: z.boolean().optional(),
@@ -155,7 +155,7 @@ export const UpdateAdInputSchema = z.object({
 });
 
 export const UpdateCreativeInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   creativeId: z.string().min(1, 'Creative ID is required'),
   name: z.string().min(1).max(256).optional(),
   active: z.boolean().optional(),
@@ -163,7 +163,7 @@ export const UpdateCreativeInputSchema = z.object({
 });
 
 export const UpdateLandingPageInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   landingPageId: z.string().min(1, 'Landing page ID is required'),
   name: z.string().min(1).max(256).optional(),
   url: z.string().url('Must be a valid URL').optional(),
@@ -175,8 +175,8 @@ export const UpdateLandingPageInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const CreateCampaignInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
   name: z.string().min(1, 'Campaign name is required').max(256),
   startDate: dateString,
   endDate: dateString,
@@ -187,7 +187,7 @@ export const CreateCampaignInputSchema = z.object({
 );
 
 export const CreatePlacementInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
   siteId: z.string().min(1, 'Site ID is required'),
   name: z.string().min(1, 'Placement name is required').max(256),
@@ -203,14 +203,14 @@ export const CreatePlacementInputSchema = z.object({
 );
 
 export const CreateLandingPageInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
   name: z.string().min(1, 'Landing page name is required').max(256),
   url: z.string().url('Must be a valid URL'),
 });
 
 export const CreateAdInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
   name: z.string().min(1, 'Ad name is required'),
   placementIds: z.array(z.string().min(1)).min(1, 'At least one placement ID is required'),
@@ -218,8 +218,8 @@ export const CreateAdInputSchema = z.object({
 });
 
 export const CreateCreativeInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
   name: z.string().min(1, 'Creative name is required').max(256),
   type: z.enum([
     'DISPLAY', 'DISPLAY_REDIRECT', 'HTML5_BANNER', 'IMAGE',
@@ -238,24 +238,24 @@ export const CreateCreativeInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const AssociateCreativeCampaignInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
   creativeId: z.string().min(1, 'Creative ID is required'),
 });
 
 export const ListCampaignCreativeAssociationsInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
   maxResults: z.number().int().min(1).max(1000).optional(),
 });
 
 export const UploadCreativeAssetInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
   assetName: z.string().min(1, 'Asset filename is required').max(256),
   assetType: z.enum(['HTML', 'HTML_IMAGE', 'IMAGE', 'VIDEO', 'AUDIO', 'PARENT_AUDIO', 'PARENT_VIDEO']),
   /** Base64-encoded file content */
-  assetData: z.string().min(1, 'Asset data (base64) is required'),
+  assetData: z.string().min(1, 'Asset data (base64) is required').max(15_000_000),
 });
 
 // ---------------------------------------------------------------------------
@@ -263,23 +263,26 @@ export const UploadCreativeAssetInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const ListEventTagsInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
-  advertiserId: z.string().optional(),
-  searchString: z.string().optional(),
+  advertiserId: z.string().max(50).optional(),
+  searchString: z.string().max(256).optional(),
 });
 
 export const GetEventTagInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   eventTagId: z.string().min(1, 'Event tag ID is required'),
 });
 
 export const CreateEventTagInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
   name: z.string().min(1).max(256, 'Name must be under 256 characters'),
-  url: z.string().url('Must be a valid URL'),
+  url: z.string().url('Must be a valid URL').refine(
+    (url) => url.startsWith('https://'),
+    'Event tag URLs must use HTTPS',
+  ),
   type: z.enum([
     'IMPRESSION_IMAGE_EVENT_TAG',
     'IMPRESSION_JAVASCRIPT_EVENT_TAG',
@@ -290,17 +293,20 @@ export const CreateEventTagInputSchema = z.object({
 });
 
 export const UpdateEventTagInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   eventTagId: z.string().min(1, 'Event tag ID is required'),
   name: z.string().min(1).max(256).optional(),
-  url: z.string().url().optional(),
+  url: z.string().url().refine(
+    (url) => url.startsWith('https://'),
+    'Event tag URLs must use HTTPS',
+  ).optional(),
   status: z.enum(['ENABLED', 'DISABLED']).optional(),
   siteIds: z.array(z.string()).optional(),
   enabledByDefault: z.boolean().optional(),
 });
 
 export const DeleteEventTagInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   eventTagId: z.string().min(1, 'Event tag ID is required'),
 });
 
@@ -309,20 +315,20 @@ export const DeleteEventTagInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const ListPlacementGroupsInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
-  advertiserId: z.string().optional(),
-  searchString: z.string().optional(),
+  advertiserId: z.string().max(50).optional(),
+  searchString: z.string().max(256).optional(),
   maxResults: z.number().int().min(1).max(1000).optional(),
 });
 
 export const GetPlacementGroupInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   placementGroupId: z.string().min(1, 'Placement group ID is required'),
 });
 
 export const CreatePlacementGroupInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
   siteId: z.string().min(1, 'Site ID is required'),
   name: z.string().min(1, 'Placement group name is required').max(256),
@@ -336,7 +342,7 @@ export const CreatePlacementGroupInputSchema = z.object({
 );
 
 export const UpdatePlacementGroupInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   placementGroupId: z.string().min(1, 'Placement group ID is required'),
   name: z.string().min(1).max(256).optional(),
   activeStatus: z.enum(['ACTIVE', 'ARCHIVED']).optional(),
@@ -352,23 +358,23 @@ export const UpdatePlacementGroupInputSchema = z.object({
 );
 
 export const ListDirectorySitesInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   searchString: z.string().max(256).optional(),
   active: z.boolean().optional(),
 });
 
 export const GetDirectorySiteInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   directorySiteId: z.string().min(1, 'Directory site ID is required'),
 });
 
 export const InsertDirectorySiteInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   siteId: z.string().min(1, 'Directory site ID is required'),
 });
 
 export const GenerateTagsInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
   placementIds: z.array(z.string().min(1)).min(1, 'At least one placement ID is required'),
   tagFormats: z.array(z.enum([
@@ -432,20 +438,20 @@ export type InsertDirectorySiteInput = z.infer<typeof InsertDirectorySiteInputSc
 // ---------------------------------------------------------------------------
 
 export const ListFloodlightActivitiesInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
   floodlightActivityGroupId: z.string().optional(),
   searchString: z.string().max(256).optional(),
 });
 
 export const GetFloodlightActivityInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   floodlightActivityId: z.string().min(1, 'Floodlight activity ID is required'),
 });
 
 export const CreateFloodlightActivityInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
   floodlightActivityGroupId: z.string().min(1, 'Activity group ID is required'),
   name: z.string().min(1).max(256, 'Name must be under 256 characters'),
   type: z.enum(['COUNTER', 'SALE']),
@@ -455,10 +461,19 @@ export const CreateFloodlightActivityInputSchema = z.object({
   tagFormat: z.enum(['HTML', 'XHTML', 'GLOBAL_SITE_TAG']).optional(),
   expectedUrl: z.string().url().optional(),
   notes: z.string().max(1024).optional(),
-});
+}).refine(
+  (data) => {
+    // GLOBAL_SITE_TAG is only valid for COUNTER activities
+    if (data.tagFormat === 'GLOBAL_SITE_TAG' && data.type === 'SALE') {
+      return false;
+    }
+    return true;
+  },
+  { message: 'GLOBAL_SITE_TAG format is not compatible with SALE activity type', path: ['tagFormat'] },
+);
 
 export const GenerateFloodlightTagInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   floodlightActivityId: z.string().min(1, 'Floodlight activity ID is required'),
 });
 
@@ -467,19 +482,19 @@ export const GenerateFloodlightTagInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const ListFloodlightActivityGroupsInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
   searchString: z.string().max(256).optional(),
 });
 
 export const GetFloodlightActivityGroupInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   floodlightActivityGroupId: z.string().min(1, 'Activity group ID is required'),
 });
 
 export const CreateFloodlightActivityGroupInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
   name: z.string().min(1).max(256, 'Name must be under 256 characters'),
   type: z.enum(['COUNTER', 'SALE']),
   tagString: z.string().min(1).max(256, 'Tag string must be under 256 characters')
@@ -491,8 +506,8 @@ export const CreateFloodlightActivityGroupInputSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const ListFloodlightConfigurationsInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
-  advertiserId: z.string().min(1, 'Advertiser ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
+  advertiserId: z.string().min(1, 'Advertiser ID is required').max(50),
 });
 
 export type ListFloodlightActivitiesInput = z.infer<typeof ListFloodlightActivitiesInputSchema>;
@@ -509,14 +524,14 @@ export type ListFloodlightConfigurationsInput = z.infer<typeof ListFloodlightCon
 // ---------------------------------------------------------------------------
 
 export const ListChangeLogsInputSchema = z.object({
-  profileId: z.string().min(1),
+  profileId: z.string().min(1).max(50),
   objectType: z.enum([
     'OBJECT_ADVERTISER', 'OBJECT_CAMPAIGN', 'OBJECT_PLACEMENT',
     'OBJECT_AD', 'OBJECT_CREATIVE', 'OBJECT_LANDING_PAGE',
     'OBJECT_EVENT_TAG', 'OBJECT_PLACEMENT_GROUP',
     'OBJECT_FLOODLIGHT_ACTIVITY', 'OBJECT_SITE',
   ]).optional(),
-  objectId: z.string().optional(),
+  objectId: z.string().max(50).optional(),
   action: z.enum([
     'ACTION_CREATE', 'ACTION_UPDATE', 'ACTION_DELETE',
     'ACTION_ACTIVATE', 'ACTION_DEACTIVATE', 'ACTION_ARCHIVE',
@@ -528,7 +543,7 @@ export const ListChangeLogsInputSchema = z.object({
 });
 
 export const GetChangeLogInputSchema = z.object({
-  profileId: z.string().min(1),
+  profileId: z.string().min(1).max(50),
   changeLogId: z.string().min(1),
 });
 
@@ -597,9 +612,9 @@ export type CreateReportInput = z.infer<typeof CreateReportInputSchema>;
 // ---------------------------------------------------------------------------
 
 export const PacingAnalysisInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required'),
+  profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
-  advertiserId: z.string().optional(),
+  advertiserId: z.string().max(50).optional(),
 });
 
 export type PacingAnalysisInput = z.infer<typeof PacingAnalysisInputSchema>;

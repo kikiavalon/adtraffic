@@ -224,6 +224,19 @@ describe('createRateLimiter', () => {
     });
   });
 
+  describe('cryptographic randomness (H2-5)', () => {
+    it('should not use Math.random for sorted set member IDs', () => {
+      const spy = vi.spyOn(Math, 'random');
+
+      limiter = createRateLimiter({ name: 'test-crypto', windowMs: 60_000, maxRequests: 5, skipInTest: false });
+      const next = vi.fn();
+      limiter(mockReq() as Request, mockRes().res as Response, next);
+
+      expect(spy).not.toHaveBeenCalled();
+      spy.mockRestore();
+    });
+  });
+
   describe('IP resolution fallback', () => {
     it('falls back to socket.remoteAddress when req.ip is undefined', () => {
       limiter = createRateLimiter({ name: 'test-fallback-1', windowMs: 60_000, maxRequests: 1, skipInTest: false });

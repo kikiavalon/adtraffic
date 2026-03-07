@@ -39,9 +39,9 @@ function QuickReplyButtons({
 
   return (
     <div className="quick-reply-container">
-      {options.map((opt) =>
+      {options.map((opt, idx) =>
         opt.isOpenEnded && openEndedActive ? (
-          <div key={opt.label} className="quick-reply-input-row">
+          <div key={`quick-reply-${idx}-${opt.label}`} className="quick-reply-input-row">
             <input
               ref={openEndedRef}
               className="quick-reply-input"
@@ -67,7 +67,7 @@ function QuickReplyButtons({
           </div>
         ) : (
           <button
-            key={opt.label}
+            key={`quick-reply-${idx}-${opt.label}`}
             className={`quick-reply-btn${opt.isOpenEnded ? ' quick-reply-btn-open' : ''}`}
             onClick={() => {
               trackInteraction('button_clicked', { buttonLabel: opt.label, isOpenEnded: opt.isOpenEnded });

@@ -91,6 +91,20 @@ jobs:
             console.log('All dependency versions are pinned');
           "
 
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Check for problematic licenses
+        run: |
+          npx license-checker --production --failOn "GPL-3.0;AGPL-3.0;SSPL-1.0" --summary
+
   test:
     name: Tests
     runs-on: ubuntu-latest

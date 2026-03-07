@@ -1,4 +1,12 @@
 import 'dotenv/config';
+
+// Validate critical environment early — before DB modules initialize
+// Using console.error intentionally — logger module may not be available yet
+if (process.env.NODE_ENV !== 'test' && process.env.DEMO_MODE !== 'true' && !process.env.DATABASE_URL) {
+  console.error('FATAL: DATABASE_URL environment variable must be set');
+  process.exit(1);
+}
+
 import { initSentry, Sentry } from './sentry.js';
 
 // Sentry must be initialized before importing Express
@@ -8,7 +16,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { hostname } from 'os';
-import { createHash } from 'crypto';
 import healthRouter from './routes/health.js';
 import metricsRouter from './routes/metrics.js';
 import chatRouter from './routes/chat.js';
@@ -50,19 +57,23 @@ app.use(requestLoggerMiddleware);
 app.use(metricsCollectorMiddleware);
 
 // Middleware
-// CORS: In production, replace chrome-extension regex with specific extension ID
-// and localhost with the actual production origin (e.g., https://app.adtraffic.ai).
-// Current config is permissive for development. See SEC-003 in enterprise-backlog.md.
+// CORS: In production, set CHROME_EXTENSION_ID to lock to a specific extension.
+// Without it, all chrome-extension origins are allowed in development only.
 const corsOrigins: (string | RegExp)[] = [
-  /^chrome-extension:\/\//,
   /^http:\/\/localhost(:\d+)?$/,
 ];
 if (process.env.WEBAPP_URL) {
   corsOrigins.push(process.env.WEBAPP_URL);
 }
+if (process.env.CHROME_EXTENSION_ID) {
+  corsOrigins.push(`chrome-extension://${process.env.CHROME_EXTENSION_ID}`);
+} else if (process.env.NODE_ENV !== 'production') {
+  // Allow any extension in development only
+  corsOrigins.push(/^chrome-extension:\/\//);
+}
 app.use(cors({
   origin: corsOrigins,
-  methods: ['GET', 'POST', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json({ limit: '100kb' }));
@@ -115,12 +126,7 @@ async function validateExternalDependencies(): Promise<void> {
     errors.push(`Redis: ${err instanceof Error ? err.message : 'unreachable'}`);
   }
 
-  // Log environment hash for cross-instance consistency verification
-  const envHash = createHash('sha256')
-    .update(`${process.env.JWT_SECRET ?? ''}:${process.env.ENCRYPTION_KEY ?? ''}`)
-    .digest('hex')
-    .slice(0, 8);
-  logger.info({ instance: INSTANCE_ID, envHash }, 'Environment hash computed');
+  logger.info({ instance: INSTANCE_ID }, 'Environment validation complete');
 
   if (errors.length > 0) {
     logger.error({ instance: INSTANCE_ID, errors }, 'Dependency check failed');
@@ -184,6 +190,7 @@ if (process.env.NODE_ENV !== 'test') {
 
   if (process.env.DEMO_MODE === 'true') {
     // Demo mode: skip dependency validation, start server directly
+    logger.warn({ instance: INSTANCE_ID }, 'DEMO_MODE enabled — in-memory storage, no persistence. Not suitable for production.');
     startServer();
   } else {
     void validateExternalDependencies().then(() => {

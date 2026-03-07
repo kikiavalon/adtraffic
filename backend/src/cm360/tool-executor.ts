@@ -11,6 +11,7 @@
 
 import type { PendingAction } from '@adtraffic/shared';
 import { mockStore } from './mock-data-store.js';
+import { logger } from '../lib/logger.js';
 // Real CM360 modules (token-manager, cm360-client) are dynamically imported
 // to avoid DB initialization when only the mock path is used.
 // errors.ts and api-rate-limiter.ts have no DB deps and can be static.
@@ -1051,6 +1052,15 @@ async function executeToolReal(
       const parsed = CreateReportInputSchema.safeParse(toolInput);
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
+      }
+      // Warn on large date ranges (>90 days)
+      {
+        const start = new Date(parsed.data.startDate);
+        const end = new Date(parsed.data.endDate);
+        const daysDiff = Math.ceil((end.getTime() - start.getTime()) / 86400000);
+        if (daysDiff > 90) {
+          logger.warn({ daysDiff, reportName: parsed.data.name }, 'Large report date range requested (>90 days)');
+        }
       }
       const profileId = await resolveProfileId(client);
       const report = await client.createReport(profileId, parsed.data);

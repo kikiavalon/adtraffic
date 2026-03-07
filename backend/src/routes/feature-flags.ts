@@ -18,8 +18,11 @@ import {
 } from '../feature-flags/flag-service.js';
 import { ALL_FLAG_NAMES } from '../feature-flags/flag-registry.js';
 import { logger } from '../lib/logger.js';
+import { createRateLimiter } from '../middleware/rate-limiter.js';
 
 const router = Router();
+
+const flagMutateLimiter = createRateLimiter({ name: 'flag-mutate', windowMs: 60_000, maxRequests: 5 });
 
 const FlagValueSchema = z.object({
   value: z.union([z.boolean(), z.number()]),
@@ -46,7 +49,7 @@ router.get('/feature-flags', requireAuth, async (req, res) => {
  * PUT /feature-flags/:flagName
  * Set a flag override for the authenticated user.
  */
-router.put('/feature-flags/:flagName', requireAuth, async (req, res) => {
+router.put('/feature-flags/:flagName', flagMutateLimiter, requireAuth, async (req, res) => {
   try {
     const flagName = req.params['flagName'] as string;
 
@@ -91,7 +94,7 @@ router.put('/feature-flags/:flagName', requireAuth, async (req, res) => {
  * DELETE /feature-flags/:flagName
  * Clear a flag override for the authenticated user.
  */
-router.delete('/feature-flags/:flagName', requireAuth, async (req, res) => {
+router.delete('/feature-flags/:flagName', flagMutateLimiter, requireAuth, async (req, res) => {
   try {
     const flagName = req.params['flagName'] as string;
 

@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import type { ChatMessage, StreamEvent, FileAttachment, ActionPreview } from '@adtraffic/shared';
 import { getSystemPrompt } from './system-prompt.js';
-import { CM360_TOOLS, getEnabledTools } from './tool-definitions.js';
+import { CM360_TOOLS, getEnabledTools, STUBBED_TOOLS } from './tool-definitions.js';
 import type { ResolvedFlags } from '../feature-flags/flag-registry.js';
 import { executeTool } from '../cm360/tool-executor.js';
 import { classifyTool } from '../cm360/write-classifier.js';
@@ -59,8 +59,8 @@ export async function chat(
   }
 
   const dailyLimit = flags?.['limits.daily_api_requests'];
-  const maxToolRounds = flags?.['limits.max_tool_rounds'] ?? DEFAULT_MAX_TOOL_ROUNDS;
-  const tools = flags ? getEnabledTools(flags) : CM360_TOOLS;
+  const maxToolRounds = Math.min(flags?.['limits.max_tool_rounds'] ?? DEFAULT_MAX_TOOL_ROUNDS, 10);
+  const enabledTools = flags ? getEnabledTools(flags) : CM360_TOOLS;
 
   // Check daily usage limit before making any API call
   const limitCheck = await checkLimit(dailyLimit, userId);
@@ -83,6 +83,11 @@ export async function chat(
       // If import fails (e.g., in tests without DB), default to demo mode
     }
   }
+
+  // Filter out stubbed tools when user has a live CM360 connection
+  const tools = isLiveData
+    ? enabledTools.filter(t => !STUBBED_TOOLS.has(t.name))
+    : enabledTools;
 
   const history = await getHistory(conversationId);
 
@@ -316,9 +321,9 @@ export async function chatStream(
     return;
   }
 
-  const maxToolRounds = flags?.['limits.max_tool_rounds'] ?? DEFAULT_MAX_TOOL_ROUNDS;
+  const maxToolRounds = Math.min(flags?.['limits.max_tool_rounds'] ?? DEFAULT_MAX_TOOL_ROUNDS, 10);
   const dailyLimit = flags?.['limits.daily_api_requests'];
-  const tools = flags ? getEnabledTools(flags) : CM360_TOOLS;
+  const enabledTools = flags ? getEnabledTools(flags) : CM360_TOOLS;
 
   // Check daily usage limit before making any API call
   const limitCheck = await checkLimit(dailyLimit, userId);
@@ -347,6 +352,11 @@ export async function chatStream(
       // If import fails (e.g., in tests without DB), default to demo mode
     }
   }
+
+  // Filter out stubbed tools when user has a live CM360 connection
+  const tools = isLiveData
+    ? enabledTools.filter(t => !STUBBED_TOOLS.has(t.name))
+    : enabledTools;
 
   const history = await getHistory(conversationId);
 

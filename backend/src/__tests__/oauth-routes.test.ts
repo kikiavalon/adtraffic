@@ -61,6 +61,10 @@ vi.mock('google-auth-library', () => ({
 
 import oauthRouter from '../routes/oauth.js';
 
+// Clearly-fake mock tokens — must never resemble real credentials
+const MOCK_ACCESS_TOKEN = 'mock-access-token-not-real';
+const MOCK_REFRESH_TOKEN = 'mock-refresh-token-not-real';
+
 function createApp() {
   const app = express();
   app.use(express.json());
@@ -240,8 +244,8 @@ describe('OAuth Routes', () => {
     it('should revoke and delete tokens when they exist', async () => {
       mockSelect.mockReturnValue([{
         userId: 'user-123',
-        accessToken: 'encrypted:test-access-token',
-        refreshToken: 'encrypted:test-refresh-token',
+        accessToken: `encrypted:${MOCK_ACCESS_TOKEN}`,
+        refreshToken: `encrypted:${MOCK_REFRESH_TOKEN}`,
       }]);
       mockRevokeToken.mockResolvedValue(undefined);
 
@@ -254,15 +258,15 @@ describe('OAuth Routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ disconnected: true });
-      expect(mockRevokeToken).toHaveBeenCalledWith('test-access-token');
+      expect(mockRevokeToken).toHaveBeenCalledWith(MOCK_ACCESS_TOKEN);
       expect(mockDelete).toHaveBeenCalled();
     });
 
     it('should still delete tokens even if Google revocation fails', async () => {
       mockSelect.mockReturnValue([{
         userId: 'user-123',
-        accessToken: 'encrypted:test-access-token',
-        refreshToken: 'encrypted:test-refresh-token',
+        accessToken: `encrypted:${MOCK_ACCESS_TOKEN}`,
+        refreshToken: `encrypted:${MOCK_REFRESH_TOKEN}`,
       }]);
       mockRevokeToken.mockRejectedValue(new Error('Network error'));
 

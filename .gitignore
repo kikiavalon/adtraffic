@@ -22,6 +22,9 @@ Thumbs.db
 # Claude Code internals
 .claude/
 
+# Git worktrees
+.worktrees/
+
 # Web app build
 webapp/dist/
 

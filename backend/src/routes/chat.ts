@@ -16,6 +16,14 @@ const router = Router();
 // Rate limit chat: 20 requests per minute per IP
 const chatLimiter = createRateLimiter({ name: 'chat', windowMs: 60_000, maxRequests: 20 });
 
+/** Allowed MIME types for file upload attachments */
+const ALLOWED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
+  'application/vnd.ms-excel', // xls
+  'text/csv',
+]);
+
 /**
  * POST /api/chat
  *
@@ -42,6 +50,12 @@ router.post('/chat', chatLimiter, requireAuth, featureFlagsMiddleware, express.j
   // Check file_upload feature flag if attachment present
   if (attachment && req.featureFlags && !req.featureFlags['chat.file_upload']) {
     res.status(403).json({ error: 'File upload is not enabled for your account' });
+    return;
+  }
+
+  // Validate MIME type if attachment present
+  if (attachment && !ALLOWED_MIME_TYPES.has(attachment.type)) {
+    res.status(400).json({ error: `Unsupported file type: ${attachment.type}. Allowed: PDF, Excel, CSV` });
     return;
   }
 
@@ -119,6 +133,12 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
     return;
   }
 
+  // Validate MIME type if attachment present
+  if (attachment && !ALLOWED_MIME_TYPES.has(attachment.type)) {
+    res.status(400).json({ error: `Unsupported file type: ${attachment.type}. Allowed: PDF, Excel, CSV` });
+    return;
+  }
+
   try {
     const userId = req.user!.userId;
 
@@ -158,7 +178,20 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
 
     // Handle client disconnect — abort the Claude API call
     const controller = new AbortController();
-    req.on('close', () => controller.abort());
+    req.on('close', () => {
+      clearTimeout(sseTimeout);
+      controller.abort();
+    });
+
+    // Server-side timeout: close connection after 5 minutes to prevent resource leaks
+    const sseTimeout = setTimeout(() => {
+      try {
+        sendEvent({ type: 'error', error: 'Connection timed out' });
+        sendEvent({ type: 'done' });
+      } catch { /* client may have disconnected */ }
+      res.end();
+      controller.abort();
+    }, 300_000); // 5 minutes
 
     try {
       await chatStream(conversationId, message, sendEvent, controller.signal, userId, req.featureFlags, attachment, req.user!.role);
@@ -173,6 +206,8 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
         sendEvent({ type: 'error', error: 'Failed to get response from Kiki' });
       }
     }
+
+    clearTimeout(sseTimeout);
 
     // Save assistant message — chatStream() handles this internally via message_end
     // The final message is saved inside chatStream() when it emits message_end

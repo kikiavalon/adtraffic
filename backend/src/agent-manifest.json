@@ -1,0 +1,113 @@
+{
+  "$schema": "https://adtraffic.ai/schemas/agent-manifest/v1.json",
+  "name": "AdTraffic.ai Kiki",
+  "version": "1.0.0",
+  "vendor": {
+    "name": "AdTraffic.ai",
+    "url": "https://adtraffic.ai",
+    "contact": "support@adtraffic.ai",
+    "security_contact": "security@adtraffic.ai",
+    "privacy_contact": "privacy@adtraffic.ai"
+  },
+  "description": "AI-powered assistant for Google Campaign Manager 360 ad trafficking. Reads and writes campaign data through natural language conversation.",
+  "agent_type": "conversational_assistant",
+  "maturity": "beta",
+  "ai_system": {
+    "disclosure": true,
+    "provider": "Anthropic",
+    "model_family": "Claude",
+    "interaction_mode": "conversational",
+    "tool_use": true,
+    "autonomous_actions": false,
+    "human_in_the_loop": true,
+    "explanation": "Kiki interprets natural language requests and executes CM360 API operations. All write operations require explicit user confirmation before execution."
+  },
+  "platform": {
+    "name": "Google Campaign Manager 360",
+    "api_version": "v5",
+    "auth_method": "oauth2_authorization_code",
+    "oauth_scopes": [
+      "https://www.googleapis.com/auth/dfatrafficking",
+      "https://www.googleapis.com/auth/dfareporting"
+    ]
+  },
+  "capabilities": {
+    "tool_count": 71,
+    "categories": [
+      "campaign_management",
+      "placement_management",
+      "creative_management",
+      "ad_management",
+      "tag_generation",
+      "floodlight_tracking",
+      "reporting",
+      "event_tags",
+      "user_role_management",
+      "site_management",
+      "audit_trail",
+      "analysis",
+      "account_management"
+    ],
+    "operations": ["read", "create", "update", "delete", "generate", "analyze"],
+    "write_safety": {
+      "confirmation_required": true,
+      "preview_before_execute": true,
+      "description": "All create, update, and delete operations require explicit user confirmation before execution."
+    }
+  },
+  "data_processing": {
+    "campaign_data_stored": false,
+    "campaign_data_explanation": "CM360 campaign data transits our servers for API execution but is never persisted beyond the API call lifecycle.",
+    "conversation_retention": "90_days_default_configurable",
+    "oauth_token_encryption": "AES-256-GCM",
+    "training_data_usage": "never",
+    "training_data_explanation": "Customer data is never used to train, fine-tune, or improve any AI models or algorithms.",
+    "third_party_processors": [
+      {
+        "name": "Anthropic",
+        "service": "Claude AI",
+        "data_shared": "Chat messages and CM360 tool results within conversation context",
+        "purpose": "AI response generation"
+      },
+      {
+        "name": "Google Cloud",
+        "service": "Cloud Run, Cloud SQL, Secret Manager",
+        "data_shared": "Application data (user accounts, encrypted OAuth tokens, conversation logs)",
+        "purpose": "Infrastructure hosting"
+      },
+      {
+        "name": "Sentry",
+        "service": "Error reporting",
+        "data_shared": "Error events with PII redacted",
+        "purpose": "Application error monitoring"
+      }
+    ]
+  },
+  "compliance": {
+    "eu_ai_act_article_50": true,
+    "gdpr_aware": true,
+    "ccpa_aware": true,
+    "iab_agent_registry": "pending_registration",
+    "soc2_type2": "in_progress"
+  },
+  "security": {
+    "authentication": "JWT + Google OAuth2",
+    "encryption_at_rest": "AES-256-GCM (OAuth tokens), Google-managed (database)",
+    "encryption_in_transit": "TLS enforced",
+    "input_validation": "Zod schemas on all endpoints and tool inputs",
+    "rate_limiting": true,
+    "container_security": "Non-root, read-only filesystem, resource limits",
+    "vulnerability_disclosure": "https://github.com/kikiavalon/adtraffic/blob/main/SECURITY.md"
+  },
+  "health": {
+    "liveness": "/health/live",
+    "readiness": "/health/ready",
+    "full_status": "/health"
+  },
+  "links": {
+    "homepage": "https://adtraffic.ai",
+    "app": "https://app.adtraffic.ai",
+    "privacy_policy": "https://app.adtraffic.ai/privacy",
+    "security_policy": "https://github.com/kikiavalon/adtraffic/blob/main/SECURITY.md"
+  }
+}

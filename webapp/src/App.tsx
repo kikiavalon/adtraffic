@@ -4,6 +4,7 @@ import Chat from './pages/Chat.js';
 import Login from './pages/Login.js';
 import Register from './pages/Register.js';
 import Settings from './pages/Settings.js';
+import Privacy from './pages/Privacy.js';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
@@ -24,6 +25,7 @@ function AppRoutes() {
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/privacy" element={<Privacy />} />
     </Routes>
   );
 }

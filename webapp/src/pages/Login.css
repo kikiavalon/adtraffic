@@ -104,3 +104,10 @@
 .auth-footer a:hover {
   text-decoration: underline;
 }
+
+.auth-ai-disclosure {
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+  margin-top: 12px;
+}

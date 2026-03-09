@@ -155,7 +155,7 @@ describe('Chat edge cases', () => {
     // "Kiki" appears in both the sender label and the message body; check the sender element specifically
     const senderLabel = document.querySelector('.chat-message-sender');
     expect(senderLabel).toBeTruthy();
-    expect(senderLabel!.textContent).toBe('Kiki');
+    expect(senderLabel!.textContent).toContain('Kiki');
   });
 
   it('persists messages to sessionStorage', async () => {
@@ -218,7 +218,7 @@ describe('Chat edge cases', () => {
     await user.click(screen.getByTitle('Start new conversation'));
 
     // Welcome message should be back
-    expect(screen.getByText(/your CM360 trafficking assistant/)).toBeInTheDocument();
+    expect(screen.getByText(/an AI assistant/i)).toBeInTheDocument();
     // The sent message should be gone
     expect(screen.queryByText('First response')).not.toBeInTheDocument();
   });

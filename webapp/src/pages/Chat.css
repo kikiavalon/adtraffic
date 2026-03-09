@@ -612,6 +612,32 @@
   border-radius: 0 !important;
 }
 
+/* EU AI Act Article 50 — AI disclosure badges */
+.ai-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  vertical-align: middle;
+}
+
+.ai-badge-small {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
 /* Responsive sidebar support */
 @media (min-width: 1024px) {
   .chat-page {

@@ -106,6 +106,24 @@ export interface ToolResult {
   pendingAction?: PendingAction;
 }
 
+// ---------------------------------------------------------------------------
+// EU AI Act Article 50(2) — machine-readable AI attribution on generated outputs
+// ---------------------------------------------------------------------------
+
+/** HTML comment prepended to all AI-generated tag code snippets. */
+function aiTagAttribution(): string {
+  return `<!-- AI-Generated: true | Agent: AdTraffic.ai/Kiki | Timestamp: ${new Date().toISOString()} -->`;
+}
+
+/** Metadata object appended to AI-processed report files. */
+function aiReportMetadata(): { agent: string; generated_at: string; eu_ai_act_disclosure: string } {
+  return {
+    agent: 'adtraffic.ai/kiki',
+    generated_at: new Date().toISOString(),
+    eu_ai_act_disclosure: 'This content was processed by an AI system (AdTraffic.ai)',
+  };
+}
+
 /**
  * Map tool names to the cache entity type they operate on.
  * Tools not in this map are not cached (e.g., cm360_generate_tags).
@@ -696,7 +714,17 @@ async function executeToolReal(
         parsed.data.campaignId,
         parsed.data.placementIds,
       );
-      return { result: { placementTags: tags }, isError: false };
+      // EU AI Act Article 50(2) — prepend AI attribution to generated tag code
+      const attribution = aiTagAttribution();
+      const tagResults = tags.map((tag) => ({
+        ...tag,
+        tagData: tag.tagData.map((td) => ({
+          ...td,
+          impressionTag: attribution + '\n' + td.impressionTag,
+          clickTag: td.clickTag,
+        })),
+      }));
+      return { result: { placementTags: tagResults }, isError: false };
     }
 
     // --- Get single entity tools ---
@@ -1087,7 +1115,12 @@ async function executeToolReal(
       if (!file) {
         return { result: null, isError: true, errorMessage: `Report file ${parsed.data.fileId} not found` };
       }
-      return { result: file, isError: false };
+      // EU AI Act Article 50(2) — attach AI-generated metadata to report file output
+      const fileWithMeta = {
+        ...file,
+        _ai_generated: aiReportMetadata(),
+      };
+      return { result: fileWithMeta, isError: false };
     }
 
     case 'cm360_query_compatible_fields': {
@@ -1155,7 +1188,16 @@ async function executeToolReal(
       }
       const gftProfileId = await resolveProfileId(client);
       const flTag = await client.generateFloodlightTag(gftProfileId, parsed.data.floodlightActivityId);
-      return { result: flTag, isError: false };
+      // EU AI Act Article 50(2) — prepend AI attribution to generated floodlight tag snippets
+      const flRealAttr = aiTagAttribution();
+      const flRealTagWithAttr = {
+        ...flTag,
+        ...(flTag.globalSiteTagGlobalSnippet ? { globalSiteTagGlobalSnippet: flRealAttr + '\n' + flTag.globalSiteTagGlobalSnippet } : {}),
+        ...(flTag.globalSiteTagEventSnippet ? { globalSiteTagEventSnippet: flRealAttr + '\n' + flTag.globalSiteTagEventSnippet } : {}),
+        ...(flTag.iframeTag ? { iframeTag: flRealAttr + '\n' + flTag.iframeTag } : {}),
+        ...(flTag.imageTag ? { imageTag: flRealAttr + '\n' + flTag.imageTag } : {}),
+      };
+      return { result: flRealTagWithAttr, isError: false };
     }
 
     case 'cm360_list_floodlight_activity_groups': {
@@ -1645,7 +1687,17 @@ function executeToolMock(
           parsed.data.placementIds,
           parsed.data.tagFormats,
         );
-        return { result: { placementTags: tags }, isError: false };
+        // EU AI Act Article 50(2) — prepend AI attribution to generated tag code
+        const attribution = aiTagAttribution();
+        const tagResults = tags.map((tag) => ({
+          ...tag,
+          tagData: tag.tagData.map((td) => ({
+            ...td,
+            impressionTag: attribution + '\n' + td.impressionTag,
+            clickTag: td.clickTag,
+          })),
+        }));
+        return { result: { placementTags: tagResults }, isError: false };
       }
 
       // --- Get single entity tools ---
@@ -2104,7 +2156,12 @@ function executeToolMock(
         if (!file) {
           return { result: null, isError: true, errorMessage: `Report file ${parsed.data.fileId} not found` };
         }
-        return { result: file, isError: false };
+        // EU AI Act Article 50(2) — attach AI-generated metadata to report file output
+        const fileWithMeta = {
+          ...file,
+          _ai_generated: aiReportMetadata(),
+        };
+        return { result: fileWithMeta, isError: false };
       }
 
       case 'cm360_query_compatible_fields': {
@@ -2170,11 +2227,20 @@ function executeToolMock(
         if (!parsed.success) {
           return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
         }
-        const tag = mockStore.generateFloodlightTag(parsed.data.floodlightActivityId);
-        if (!tag) {
+        const flMockTag = mockStore.generateFloodlightTag(parsed.data.floodlightActivityId);
+        if (!flMockTag) {
           return { result: null, isError: true, errorMessage: `Floodlight activity ${parsed.data.floodlightActivityId} not found` };
         }
-        return { result: tag, isError: false };
+        // EU AI Act Article 50(2) — prepend AI attribution to generated floodlight tag snippets
+        const flAttr = aiTagAttribution();
+        const flTagWithAttr = {
+          ...flMockTag,
+          ...(flMockTag.globalSiteTagGlobalSnippet ? { globalSiteTagGlobalSnippet: flAttr + '\n' + flMockTag.globalSiteTagGlobalSnippet } : {}),
+          ...(flMockTag.globalSiteTagEventSnippet ? { globalSiteTagEventSnippet: flAttr + '\n' + flMockTag.globalSiteTagEventSnippet } : {}),
+          ...(flMockTag.iframeTag ? { iframeTag: flAttr + '\n' + flMockTag.iframeTag } : {}),
+          ...(flMockTag.imageTag ? { imageTag: flAttr + '\n' + flMockTag.imageTag } : {}),
+        };
+        return { result: flTagWithAttr, isError: false };
       }
 
       case 'cm360_list_floodlight_activity_groups': {

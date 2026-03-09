@@ -32,6 +32,8 @@ const FLAG_LABELS: Record<string, string> = {
   'limits.daily_api_requests': 'Daily API Requests',
   'limits.max_tool_rounds': 'Max Tool Rounds',
   'limits.chat_rate_per_minute': 'Chat Rate (per minute)',
+  'compliance.eu_ai_act_disclosure': 'EU AI Act Disclosure',
+  'compliance.ai_attribution_in_exports': 'AI Attribution in Exports',
 };
 
 function Settings() {
@@ -267,6 +269,23 @@ function Settings() {
             ))}
           </section>
         )}
+
+        <section className="settings-section">
+          <h2>About AdTraffic.ai</h2>
+          <p className="settings-about-text">
+            AdTraffic.ai uses artificial intelligence (Claude by Anthropic) to assist with
+            Google Campaign Manager 360 ad trafficking. Kiki, your AI assistant, interprets
+            natural language requests and executes CM360 operations using your authorized
+            Google account.
+          </p>
+          <p className="settings-about-text">
+            All write operations require your explicit confirmation before execution.
+            Your CM360 data transits our servers but is not stored beyond the API call.
+          </p>
+          <p className="settings-about-text">
+            <Link to="/privacy">Privacy Policy</Link>
+          </p>
+        </section>
 
         <section className="settings-section">
           <h2>Account</h2>

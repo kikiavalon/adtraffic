@@ -77,6 +77,9 @@ function Register() {
         <p className="auth-footer">
           Already have an account? <Link to="/login">Sign in</Link>
         </p>
+        <p className="auth-ai-disclosure">
+          AdTraffic.ai uses AI to assist with CM360 ad trafficking. <Link to="/privacy">Privacy Policy</Link>
+        </p>
       </div>
     </div>
   );

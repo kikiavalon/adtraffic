@@ -108,7 +108,7 @@ describe('Chat', () => {
 
   it('renders welcome message on mount', () => {
     renderChat();
-    expect(screen.getByText(/your CM360 trafficking assistant/)).toBeInTheDocument();
+    expect(screen.getByText(/an AI assistant/i)).toBeInTheDocument();
   });
 
   it('renders the sidebar component', () => {
@@ -160,7 +160,7 @@ describe('Chat', () => {
     await user.click(screen.getByRole('button', { name: /send/i }));
 
     // Typing indicator should be visible while streaming hasn't completed
-    expect(screen.getByRole('status', { name: /kiki is typing/i })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: /kiki ai is responding/i })).toBeInTheDocument();
 
     // Resolve the stream
     await act(async () => {
@@ -171,7 +171,7 @@ describe('Chat', () => {
 
     // Typing indicator should be gone
     await waitFor(() => {
-      expect(screen.queryByRole('status', { name: /kiki is typing/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('status', { name: /kiki ai is responding/i })).not.toBeInTheDocument();
     });
   });
 
@@ -223,6 +223,6 @@ describe('Chat', () => {
     await user.click(newChatBtn);
 
     // Welcome message should still be visible (reset to initial state)
-    expect(screen.getByText(/your CM360 trafficking assistant/)).toBeInTheDocument();
+    expect(screen.getByText(/an AI assistant/i)).toBeInTheDocument();
   });
 });

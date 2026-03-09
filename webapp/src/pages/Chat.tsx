@@ -265,7 +265,9 @@ function formatToolName(toolName: string): string {
 
 const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
-const WELCOME_MESSAGE = `Hey! I'm **Kiki**, your CM360 trafficking assistant. I'm connected to the Demo Agency account and ready to help.
+const WELCOME_MESSAGE = `Hey! I'm **Kiki**, an AI assistant for CM360 ad trafficking, powered by Claude. I can help you create campaigns, manage placements, generate tags, and more — just ask in plain English.
+
+I'm connected to the Demo Agency account and ready to help.
 
 Here are some things you can try:
 
@@ -820,6 +822,7 @@ function Chat() {
           <span className="brand-name"><strong>AdTraffic</strong><span className="brand-ai">.ai</span></span>
           <span className="brand-separator">—</span>
           <span>Kiki</span>
+          <span className="ai-badge" aria-label="AI-powered assistant">AI Assistant</span>
         </div>
         <div className="chat-header-actions">
           <span className="chat-user-name">{user?.name}</span>
@@ -852,7 +855,7 @@ function Chat() {
                 <div className="chat-message-row">
                   <div className="kiki-avatar">K</div>
                   <div className="chat-message-bubble">
-                    <div className="chat-message-sender">Kiki</div>
+                    <div className="chat-message-sender">Kiki <span className="ai-badge-small" aria-label="AI">AI</span></div>
                     <div className="chat-message-content">
                       <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
                         {showQuickReplies ? parsed.cleanContent : msg.content}
@@ -905,7 +908,7 @@ function Chat() {
           </div>
         )}
         {isLoading && !toolStatus && (
-          <div className="typing-indicator" role="status" aria-label="Kiki is typing">
+          <div className="typing-indicator" role="status" aria-label="Kiki AI is responding">
             <span className="typing-dot" />
             <span className="typing-dot" />
             <span className="typing-dot" />

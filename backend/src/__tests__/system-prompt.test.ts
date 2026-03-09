@@ -187,3 +187,21 @@ describe('Capability boundaries', () => {
     expect(KIKI_SYSTEM_PROMPT).toMatch(/cannot generate tags until ads exist/i);
   });
 });
+
+describe('AI identity disclosure (Article 50)', () => {
+  it('system prompt contains AI identity disclosure section', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('AI Identity Disclosure');
+  });
+
+  it('instructs Kiki to identify as AI when asked', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain("I'm Kiki, an AI assistant");
+  });
+
+  it('instructs Kiki to never claim to be human', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('Never claim to be human');
+  });
+
+  it('instructs Kiki to mention being powered by Claude', () => {
+    expect(KIKI_SYSTEM_PROMPT).toContain('powered by Claude');
+  });
+});

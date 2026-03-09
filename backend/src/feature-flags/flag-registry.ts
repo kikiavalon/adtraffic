@@ -15,6 +15,8 @@ export const BOOLEAN_FLAGS = {
   'beta.advanced_trafficking': { default: false, description: 'Advanced trafficking features (macros, Adobe/Demandbase)' },
   'beta.video_trafficking': { default: false, description: 'Video trafficking features (VAST/VPAID)' },
   'cm360.user_management': { default: true, description: 'Enable CM360 user & role management tools' },
+  'compliance.eu_ai_act_disclosure': { default: true, description: 'Show AI disclosure badges and metadata (EU AI Act Article 50)' },
+  'compliance.ai_attribution_in_exports': { default: true, description: 'Include AI attribution in generated tag code and reports' },
 } as const;
 
 /** Numeric feature flags — configurable limits */

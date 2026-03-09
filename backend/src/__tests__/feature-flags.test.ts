@@ -120,6 +120,17 @@ describe('flag-registry', () => {
     expect(isNumericFlag('limits.daily_api_requests')).toBe(true);
     expect(isBooleanFlag('limits.daily_api_requests' as any)).toBe(false);
   });
+
+  it('includes compliance feature flags', () => {
+    expect(ALL_FLAG_NAMES).toContain('compliance.eu_ai_act_disclosure');
+    expect(ALL_FLAG_NAMES).toContain('compliance.ai_attribution_in_exports');
+  });
+
+  it('compliance flags default to true', () => {
+    const defaults = getDefaultFlags();
+    expect(defaults['compliance.eu_ai_act_disclosure']).toBe(true);
+    expect(defaults['compliance.ai_attribution_in_exports']).toBe(true);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────

@@ -167,7 +167,7 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'cm360_create_ad',
-    description: 'Create a new ad that links a creative to one or more placements. This is the last step in the trafficking workflow. IMPORTANT: Always show a preview and get user confirmation before calling this tool.',
+    description: 'Create a new ad that links a creative to one or more placements. This is the last step in the trafficking workflow. Optionally set the click-through URL (a specific landing page or a custom URL) and a click-through URL suffix for per-ad UTM tracking parameters. IMPORTANT: Always show a preview and get user confirmation before calling this tool.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -180,6 +180,9 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
           description: 'Array of placement IDs to assign to this ad',
         },
         creativeId: { type: 'string', description: 'Creative ID to assign to this ad' },
+        landingPageId: { type: 'string', description: 'Landing page ID for the click-through URL. Mutually exclusive with customClickThroughUrl. If neither is set, the campaign default landing page is used.' },
+        customClickThroughUrl: { type: 'string', description: 'Custom click-through URL (full URL). Mutually exclusive with landingPageId.' },
+        clickThroughUrlSuffix: { type: 'string', description: 'Query parameters appended to the click-through URL, e.g. UTM tracking like "utm_source=cm360&utm_medium=display". No leading "?" or "&". Must be under 128 characters.' },
       },
       required: ['profileId', 'campaignId', 'name', 'placementIds', 'creativeId'],
     },
@@ -374,7 +377,7 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'cm360_update_ad',
-    description: '[WRITE] Update an ad. Can change name, active/archived status, start/end time, placement assignments, or creative rotation. Always preview changes and confirm with the user before executing.',
+    description: '[WRITE] Update an ad. Can change name, active/archived status, start/end time, placement assignments, creative rotation, click-through URL (landing page or custom URL), or click-through URL suffix (per-ad UTM tracking parameters). Always preview changes and confirm with the user before executing.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -387,6 +390,9 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
         endTime: { type: 'string', description: 'Ad end time (ISO 8601)' },
         placementIds: { type: 'array', items: { type: 'string' }, description: 'New placement assignments (replaces existing)' },
         creativeId: { type: 'string', description: 'New creative ID (replaces existing rotation)' },
+        landingPageId: { type: 'string', description: 'Landing page ID for the click-through URL. Mutually exclusive with customClickThroughUrl.' },
+        customClickThroughUrl: { type: 'string', description: 'Custom click-through URL (full URL). Mutually exclusive with landingPageId.' },
+        clickThroughUrlSuffix: { type: 'string', description: 'Query parameters appended to the click-through URL, e.g. UTM tracking like "utm_source=cm360&utm_medium=display". No leading "?" or "&". Must be under 128 characters.' },
       },
       required: ['profileId', 'adId'],
     },

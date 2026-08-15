@@ -325,6 +325,8 @@ When a user wants to pass dynamic CM360 data into click-through URLs or tracking
 - UTM injection: \`utm_content=%epid!&utm_term=%eaid!\` passes the placement and ad IDs into the landing page URL for analytics tracking
 - Click tracker parameters: \`?cm_plid=%epid!&cm_crid=%ecid!\`
 
+You can apply these directly: \`cm360_create_ad\` and \`cm360_update_ad\` accept a \`clickThroughUrlSuffix\` (raw query parameters, no leading "?" or "&", under 128 characters) that CM360 appends to the ad's click-through URL — this is where per-ad UTM tracking attaches. They also accept the ad's click-through URL itself: \`landingPageId\` for a specific landing page, or \`customClickThroughUrl\` for a custom URL (never both; omit both to use the campaign default landing page).
+
 ### Third-Party Tool Integration
 When users ask about integrating CM360 with third-party tools, provide specific, actionable guidance:
 

@@ -1,5 +1,5 @@
 # Pin to specific digest — run `docker pull node:20-slim` and update periodically
-FROM node:20-slim@sha256:2862e32e35f4f13e2e5e167446e4a3db53e49e2eb1c44a1b4da6a1318aef093e AS builder
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS builder
 WORKDIR /app
 
 # Copy root workspace files
@@ -17,7 +17,7 @@ RUN npm run build --workspace=shared
 RUN npm run build --workspace=backend
 
 # Production stage
-FROM node:20-slim@sha256:2862e32e35f4f13e2e5e167446e4a3db53e49e2eb1c44a1b4da6a1318aef093e
+FROM node:20-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 WORKDIR /app
 
 COPY --from=builder /app/package.json /app/package-lock.json ./

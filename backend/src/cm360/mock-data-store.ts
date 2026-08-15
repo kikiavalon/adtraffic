@@ -19,6 +19,7 @@ import type {
   CM360LandingPage,
   CM360Placement,
   CM360Ad,
+  CM360ClickThroughUrl,
   CM360Creative,
   CM360PlacementTag,
   CM360CreativeType,
@@ -72,6 +73,24 @@ import type {
 import { randomUUID } from 'crypto';
 
 const ACCOUNT_ID = '67890';
+
+/**
+ * Builds a creative-assignment ClickThroughUrl from flat tool inputs.
+ * Returns undefined when neither source is given (CM360 then uses the
+ * campaign default landing page).
+ */
+function buildClickThroughUrl(input: {
+  landingPageId?: string;
+  customClickThroughUrl?: string;
+}): CM360ClickThroughUrl | undefined {
+  if (input.customClickThroughUrl !== undefined) {
+    return { defaultLandingPage: false, customClickThroughUrl: input.customClickThroughUrl };
+  }
+  if (input.landingPageId !== undefined) {
+    return { defaultLandingPage: false, landingPageId: input.landingPageId };
+  }
+  return undefined;
+}
 
 const IAB_SIZES = [
   { width: 300, height: 250 },
@@ -1547,9 +1566,13 @@ class MockDataStore {
     name: string;
     placementIds: string[];
     creativeId: string;
+    landingPageId?: string;
+    customClickThroughUrl?: string;
+    clickThroughUrlSuffix?: string;
   }): CM360Ad {
     const id = this.genId();
     const campaign = this.campaigns.get(input.campaignId);
+    const clickThroughUrl = buildClickThroughUrl(input);
     const ad: CM360Ad = {
       id,
       name: input.name,
@@ -1558,10 +1581,11 @@ class MockDataStore {
       type: 'AD_SERVING_DEFAULT_AD',
       active: true,
       archived: false,
+      ...(input.clickThroughUrlSuffix !== undefined && { clickThroughUrlSuffix: input.clickThroughUrlSuffix }),
       placementAssignments: input.placementIds.map((pid) => ({ placementId: pid })),
       creativeRotation: {
         type: 'CREATIVE_ROTATION_TYPE_RANDOM',
-        creativeAssignments: [{ creativeId: input.creativeId }],
+        creativeAssignments: [{ creativeId: input.creativeId, ...(clickThroughUrl && { clickThroughUrl }) }],
       },
     };
     this.ads.set(id, ad);
@@ -1914,6 +1938,25 @@ class MockDataStore {
   updateAd(id: string, input: CM360UpdateAdInput): CM360Ad | undefined {
     const ad = this.ads.get(id);
     if (!ad) return undefined;
+    const newClickThroughUrl = buildClickThroughUrl(input);
+    let creativeRotation = ad.creativeRotation;
+    if (input.creativeId !== undefined) {
+      // New creative keeps the existing click-through URL unless a new one is given
+      const clickThroughUrl = newClickThroughUrl
+        ?? ad.creativeRotation.creativeAssignments[0]?.clickThroughUrl;
+      creativeRotation = {
+        type: ad.creativeRotation.type,
+        creativeAssignments: [{ creativeId: input.creativeId, ...(clickThroughUrl && { clickThroughUrl }) }],
+      };
+    } else if (newClickThroughUrl) {
+      creativeRotation = {
+        type: ad.creativeRotation.type,
+        creativeAssignments: ad.creativeRotation.creativeAssignments.map((a) => ({
+          creativeId: a.creativeId,
+          clickThroughUrl: newClickThroughUrl,
+        })),
+      };
+    }
     const updated: CM360Ad = {
       ...ad,
       ...(input.name !== undefined && { name: input.name }),
@@ -1921,15 +1964,11 @@ class MockDataStore {
       ...(input.archived !== undefined && { archived: input.archived }),
       ...(input.startTime !== undefined && { startTime: input.startTime }),
       ...(input.endTime !== undefined && { endTime: input.endTime }),
+      ...(input.clickThroughUrlSuffix !== undefined && { clickThroughUrlSuffix: input.clickThroughUrlSuffix }),
       ...(input.placementIds !== undefined && {
         placementAssignments: input.placementIds.map((pid) => ({ placementId: pid })),
       }),
-      ...(input.creativeId !== undefined && {
-        creativeRotation: {
-          type: ad.creativeRotation.type,
-          creativeAssignments: [{ creativeId: input.creativeId }],
-        },
-      }),
+      creativeRotation,
     };
     this.ads.set(id, updated);
     return updated;

@@ -11,6 +11,22 @@ import { z } from 'zod';
 /** CM360 date format: YYYY-MM-DD */
 const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format');
 
+/** CM360 limit: click-through URL suffixes must be less than 128 characters. */
+const clickThroughUrlSuffix = z.string()
+  .max(127, 'Click-through URL suffix must be under 128 characters')
+  .refine(
+    (s) => !s.startsWith('?') && !s.startsWith('&'),
+    'Suffix should be raw query parameters (e.g. "utm_source=cm360&utm_medium=display") without a leading "?" or "&" — CM360 appends the separator automatically',
+  );
+
+const exclusiveClickThroughUrl = (data: { landingPageId?: string; customClickThroughUrl?: string }) =>
+  !(data.landingPageId !== undefined && data.customClickThroughUrl !== undefined);
+
+const exclusiveClickThroughUrlMessage = {
+  message: 'Provide either landingPageId or customClickThroughUrl, not both',
+  path: ['customClickThroughUrl'],
+};
+
 // ---------------------------------------------------------------------------
 // List / Read operations
 // ---------------------------------------------------------------------------
@@ -152,7 +168,10 @@ export const UpdateAdInputSchema = z.object({
   endTime: z.string().optional(),
   placementIds: z.array(z.string().min(1)).min(1).optional(),
   creativeId: z.string().min(1).optional(),
-});
+  landingPageId: z.string().min(1).max(50).optional(),
+  customClickThroughUrl: z.string().url('Must be a valid URL').optional(),
+  clickThroughUrlSuffix: clickThroughUrlSuffix.optional(),
+}).refine(exclusiveClickThroughUrl, exclusiveClickThroughUrlMessage);
 
 export const UpdateCreativeInputSchema = z.object({
   profileId: z.string().min(1, 'Profile ID is required').max(50),
@@ -215,7 +234,10 @@ export const CreateAdInputSchema = z.object({
   name: z.string().min(1, 'Ad name is required'),
   placementIds: z.array(z.string().min(1)).min(1, 'At least one placement ID is required'),
   creativeId: z.string().min(1, 'Creative ID is required'),
-});
+  landingPageId: z.string().min(1).max(50).optional(),
+  customClickThroughUrl: z.string().url('Must be a valid URL').optional(),
+  clickThroughUrlSuffix: clickThroughUrlSuffix.optional(),
+}).refine(exclusiveClickThroughUrl, exclusiveClickThroughUrlMessage);
 
 export const CreateCreativeInputSchema = z.object({
   profileId: z.string().min(1, 'Profile ID is required').max(50),

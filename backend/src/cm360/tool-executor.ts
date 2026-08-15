@@ -699,6 +699,9 @@ async function executeToolReal(
         name: parsed.data.name,
         placementIds: parsed.data.placementIds,
         creativeId: parsed.data.creativeId,
+        landingPageId: parsed.data.landingPageId,
+        customClickThroughUrl: parsed.data.customClickThroughUrl,
+        clickThroughUrlSuffix: parsed.data.clickThroughUrlSuffix,
       });
       return { result: ad, isError: false };
     }
@@ -1673,6 +1676,9 @@ function executeToolMock(
           name: parsed.data.name,
           placementIds: parsed.data.placementIds,
           creativeId: parsed.data.creativeId,
+          landingPageId: parsed.data.landingPageId,
+          customClickThroughUrl: parsed.data.customClickThroughUrl,
+          clickThroughUrlSuffix: parsed.data.clickThroughUrlSuffix,
         });
         return { result: ad, isError: false };
       }

@@ -18,6 +18,7 @@ export type {
   CM360CreatePlacementGroupInput,
   CM360UpdatePlacementGroupInput,
   CM360Ad,
+  CM360ClickThroughUrl,
   CM360Creative,
   CM360CreativeType,
   CM360PlacementTag,

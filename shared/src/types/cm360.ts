@@ -202,6 +202,19 @@ export interface CM360UpdatePlacementGroupInput {
   endDate?: string;
 }
 
+/**
+ * Click-through URL on an ad's creative assignment. Exactly one source applies:
+ * the campaign default landing page, a specific landing page by ID, or a
+ * custom URL. computedClickThroughUrl is a read-only convenience field
+ * populated by the CM360 API.
+ */
+export interface CM360ClickThroughUrl {
+  defaultLandingPage?: boolean;
+  landingPageId?: string;
+  customClickThroughUrl?: string;
+  computedClickThroughUrl?: string;
+}
+
 export interface CM360Ad {
   id: string;
   name: string;
@@ -212,10 +225,12 @@ export interface CM360Ad {
   archived: boolean;
   startTime?: string;
   endTime?: string;
+  /** Query params appended to the click-through URL (CM360: must be under 128 chars). */
+  clickThroughUrlSuffix?: string;
   placementAssignments: Array<{ placementId: string }>;
   creativeRotation: {
     type: CM360CreativeRotationType;
-    creativeAssignments: Array<{ creativeId: string }>;
+    creativeAssignments: Array<{ creativeId: string; clickThroughUrl?: CM360ClickThroughUrl }>;
   };
 }
 
@@ -278,6 +293,9 @@ export interface CM360UpdateAdInput {
   endTime?: string;
   placementIds?: string[];
   creativeId?: string;
+  landingPageId?: string;
+  customClickThroughUrl?: string;
+  clickThroughUrlSuffix?: string;
 }
 
 export interface CM360UpdateCreativeInput {

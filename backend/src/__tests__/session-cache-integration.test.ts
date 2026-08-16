@@ -555,6 +555,16 @@ describe('session-cache-integration', () => {
       expect(mockGetCached).not.toHaveBeenCalled();
     });
 
+    it('treats cm360_insert_directory_site as a write tool (not cached)', async () => {
+      await executeTool(
+        'cm360_insert_directory_site',
+        { profileId: 'p1', name: 'example.com', url: 'https://example.com' },
+        userId,
+      );
+
+      expect(mockGetCached).not.toHaveBeenCalled();
+    });
+
     it('does not cache "not found" results from get-by-ID tools', async () => {
       setupLiveAPI({
         getCampaign: vi.fn().mockResolvedValue(null),

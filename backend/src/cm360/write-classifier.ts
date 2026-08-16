@@ -7,8 +7,16 @@ export const WRITE_TOOL_RISK_MAP: Record<string, OperationRiskLevel> = {
   cm360_create_placement: 'standard',
   cm360_create_landing_page: 'standard',
   cm360_create_creative: 'standard',
+  cm360_create_ad: 'standard',
   cm360_associate_creative_campaign: 'standard',
   cm360_upload_creative_asset: 'standard',
+  cm360_create_event_tag: 'standard',
+  cm360_create_placement_group: 'standard',
+  cm360_insert_directory_site: 'standard',
+  cm360_create_floodlight_activity: 'standard',
+  cm360_create_floodlight_activity_group: 'standard',
+  cm360_create_report: 'standard',
+  cm360_run_report: 'standard',
 
   // Update operations — standard risk (elevated if archiving/deactivating)
   cm360_update_campaign: 'standard',
@@ -16,6 +24,12 @@ export const WRITE_TOOL_RISK_MAP: Record<string, OperationRiskLevel> = {
   cm360_update_ad: 'standard',
   cm360_update_creative: 'standard',
   cm360_update_landing_page: 'standard',
+  cm360_update_event_tag: 'standard',
+  cm360_update_placement_group: 'standard',
+
+  // Access-control operations — elevated risk (change who can do what in the account)
+  cm360_create_account_user_profile: 'elevated',
+  cm360_create_user_role: 'elevated',
 
   // No delete tools: CM360 has no delete for core trafficking entities, and the
   // product deliberately ships zero delete operations. Irreversible archives

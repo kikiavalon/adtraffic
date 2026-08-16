@@ -644,6 +644,17 @@ export function buildActionPreview(toolName: string, input: Record<string, unkno
     cm360_update_ad: 'Ad',
     cm360_update_creative: 'Creative',
     cm360_update_landing_page: 'Landing Page',
+    cm360_create_event_tag: 'Event Tag',
+    cm360_update_event_tag: 'Event Tag',
+    cm360_create_placement_group: 'Placement Group',
+    cm360_update_placement_group: 'Placement Group',
+    cm360_insert_directory_site: 'Directory Site',
+    cm360_create_floodlight_activity: 'Floodlight Activity',
+    cm360_create_floodlight_activity_group: 'Floodlight Activity Group',
+    cm360_create_report: 'Report',
+    cm360_run_report: 'Report Run',
+    cm360_create_account_user_profile: 'Account User Profile',
+    cm360_create_user_role: 'User Role',
   };
 
   // Map verb prefixes to operation types
@@ -652,6 +663,8 @@ export function buildActionPreview(toolName: string, input: Record<string, unkno
     update: 'update',
     associate: 'create',
     upload: 'create',
+    insert: 'create',
+    run: 'create',
   };
 
   const entityType = entityTypeMap[toolName] ?? 'Entity';

@@ -229,13 +229,13 @@ export function getCacheFilter(toolName: string, toolInput: Record<string, unkno
 /**
  * Check whether a tool is a write/mutate operation for cache purposes.
  * Uses the write-classifier's isWriteTool as the primary check,
- * but also catches create tools not yet in the write classifier
- * (e.g., cm360_create_ad) by checking the tool name prefix.
+ * plus a verb-prefix fallback so future write tools that haven't been
+ * added to WRITE_TOOL_RISK_MAP yet are still never served from cache.
  */
 function isMutatingTool(toolName: string): boolean {
   if (isWriteTool(toolName)) return true;
-  // Catch any create/update/delete/upload/associate tools not in the classifier
-  return /^cm360_(create|update|delete|upload|associate)_/.test(toolName);
+  // Catch any create/update/delete/upload/associate/insert tools not in the classifier
+  return /^cm360_(create|update|delete|upload|associate|insert)_/.test(toolName);
 }
 
 /**

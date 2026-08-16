@@ -151,6 +151,70 @@ describe('buildActionPreview', () => {
     });
   });
 
+  describe('newly gated write tools', () => {
+    it('creates preview for event tag creation', () => {
+      const preview = buildActionPreview('cm360_create_event_tag', {
+        profileId: '123',
+        campaignId: '1001',
+        name: 'Viewability Pixel',
+      });
+
+      expect(preview.entityType).toBe('Event Tag');
+      expect(preview.operation).toBe('create');
+    });
+
+    it('creates preview for placement group update', () => {
+      const preview = buildActionPreview('cm360_update_placement_group', {
+        placementGroupId: '7001',
+        name: 'Renamed Roadblock',
+      });
+
+      expect(preview.entityType).toBe('Placement Group');
+      expect(preview.operation).toBe('update');
+    });
+
+    it('maps insert verb to create for directory site approval', () => {
+      const preview = buildActionPreview('cm360_insert_directory_site', {
+        profileId: '123',
+        name: 'example.com',
+        url: 'https://example.com',
+      });
+
+      expect(preview.entityType).toBe('Directory Site');
+      expect(preview.operation).toBe('create');
+    });
+
+    it('creates preview for floodlight activity creation', () => {
+      const preview = buildActionPreview('cm360_create_floodlight_activity', {
+        profileId: '123',
+        name: 'Purchase Conversion',
+      });
+
+      expect(preview.entityType).toBe('Floodlight Activity');
+      expect(preview.operation).toBe('create');
+    });
+
+    it('maps run verb to create for report execution', () => {
+      const preview = buildActionPreview('cm360_run_report', {
+        profileId: '123',
+        reportId: '9001',
+      });
+
+      expect(preview.entityType).toBe('Report Run');
+      expect(preview.operation).toBe('create');
+    });
+
+    it('creates preview for user role creation', () => {
+      const preview = buildActionPreview('cm360_create_user_role', {
+        profileId: '123',
+        name: 'Junior Trafficker',
+      });
+
+      expect(preview.entityType).toBe('User Role');
+      expect(preview.operation).toBe('create');
+    });
+  });
+
   describe('archive operations', () => {
     it('detects archive from archived:true', () => {
       const preview = buildActionPreview('cm360_update_campaign', {

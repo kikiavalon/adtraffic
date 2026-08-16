@@ -4,7 +4,8 @@ import { requireAuth } from '../auth/middleware.js';
 import { logger } from '../lib/logger.js';
 // pdf-parse has no proper type declarations; import and cast to typed function
 import * as pdfParseModule from 'pdf-parse';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { cellText } from '../io/excel-processor.js';
 
 const parsePdf = (pdfParseModule as unknown as { default: (buffer: Buffer) => Promise<{ text: string }> }).default;
 
@@ -75,12 +76,11 @@ async function handleFileExtraction(req: Request, res: Response): Promise<void> 
       req.file.mimetype.includes('spreadsheet') ||
       req.file.mimetype.includes('excel')
     ) {
-      const workbook = XLSX.read(req.file.buffer);
-      extractedText = workbook.SheetNames.map((name) => {
-        const sheet = workbook.Sheets[name];
-        if (!sheet) return '';
-        return XLSX.utils.sheet_to_csv(sheet);
-      }).join('\n\n---SHEET BREAK---\n\n');
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(req.file.buffer as unknown as ExcelJS.Buffer);
+      extractedText = workbook.worksheets
+        .map((sheet) => sheetToCsv(sheet))
+        .join('\n\n---SHEET BREAK---\n\n');
     } else {
       // CSV — read as UTF-8 text
       extractedText = req.file.buffer.toString('utf-8');
@@ -99,6 +99,22 @@ async function handleFileExtraction(req: Request, res: Response): Promise<void> 
     );
     res.status(500).json({ error: 'Failed to extract content from file' });
   }
+}
+
+function csvEscape(value: string): string {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
+function sheetToCsv(sheet: ExcelJS.Worksheet): string {
+  const lines: string[] = [];
+  sheet.eachRow((row) => {
+    const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+    lines.push(values.map((v) => csvEscape(cellText(v))).join(','));
+  });
+  return lines.join('\n');
 }
 
 export default router;

@@ -7,9 +7,12 @@ import {
   getApprovalById,
   approveRequest,
   rejectRequest,
+  recordExecutionResult,
 } from '../approval/approval-service.js';
+import { executeTool, type ToolResult } from '../cm360/tool-executor.js';
 import { logRequestAuditEvent } from '../middleware/audit-logger.js';
 import { logger } from '../lib/logger.js';
+import type { PendingAction } from '@adtraffic/shared';
 
 const router = Router();
 
@@ -85,6 +88,7 @@ router.get('/approvals/my-requests', requireAuth, async (req, res) => {
       conversationId: item.conversationId,
       actionPayload: item.actionPayload,
       status: item.status,
+      executionResult: item.executionResult,
       note: item.note,
       createdAt: item.createdAt.toISOString(),
       resolvedAt: item.resolvedAt ? item.resolvedAt.toISOString() : null,
@@ -164,11 +168,63 @@ router.post('/approvals/:id/approve', requireAuth, requirePermission('canApprove
       requesterId: approval.requesterId,
     });
 
+    // Execute the stored action. The payload was serialized from the requester's
+    // pending action (a StoredPendingAction), so it carries the original toolInput.
+    // The original pending_actions row was consumed when the request was routed
+    // here, so this is the only place the approved write can actually run.
+    const payload = approval.actionPayload as PendingAction & { toolInput?: Record<string, unknown> };
+    const executedAt = new Date().toISOString();
+    let toolResult: ToolResult;
+    if (!payload.toolInput) {
+      toolResult = {
+        result: null,
+        isError: true,
+        errorMessage: 'Stored action payload is missing the tool input; the operation was not executed. Ask the requester to resubmit.',
+      };
+    } else {
+      try {
+        toolResult = await executeTool(payload.toolName, payload.toolInput, approval.requesterId, approval.conversationId ?? undefined);
+      } catch (err) {
+        toolResult = {
+          result: null,
+          isError: true,
+          errorMessage: err instanceof Error ? err.message : 'Tool execution failed',
+        };
+      }
+    }
+
+    try {
+      await recordExecutionResult(approvalId, {
+        result: toolResult.result,
+        isError: toolResult.isError,
+        errorMessage: toolResult.errorMessage,
+        executedAt,
+      });
+    } catch (err) {
+      // The tool already ran — a bookkeeping failure must not turn the response into a 500
+      logger.error(
+        { approvalId, err: { message: err instanceof Error ? err.message : 'Unknown error' }, requestId: req.requestId },
+        'Failed to record execution result on approval row',
+      );
+    }
+
+    logRequestAuditEvent(req, 'tool_executed', approval.conversationId ?? undefined, {
+      approvalId,
+      toolName: approval.actionPayload.toolName,
+      riskLevel: approval.actionPayload.riskLevel,
+      requesterId: approval.requesterId,
+      success: !toolResult.isError,
+      ...(toolResult.errorMessage ? { errorMessage: toolResult.errorMessage } : {}),
+    });
+
     res.json({
       approvalId,
       status: 'approved',
-      executedAt: new Date().toISOString(),
-      message: 'Request approved.',
+      executedAt,
+      result: toolResult.result,
+      isError: toolResult.isError,
+      errorMessage: toolResult.errorMessage,
+      message: toolResult.isError ? 'Request approved, but execution failed.' : 'Request approved and executed.',
     });
   } catch (error) {
     logger.error(

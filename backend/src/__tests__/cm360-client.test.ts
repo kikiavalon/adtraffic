@@ -34,6 +34,8 @@ function createMockApi(): dfareporting_v5.Dfareporting {
     ads: {
       list: vi.fn(),
       insert: vi.fn(),
+      get: vi.fn(),
+      patch: vi.fn(),
     },
   } as unknown as dfareporting_v5.Dfareporting;
 }
@@ -329,6 +331,234 @@ describe('CM360Client', () => {
           clickTag: 'https://click.example.com',
         }],
       }]);
+    });
+  });
+
+  describe('click-through URLs and suffixes', () => {
+    it('mapAd carries clickThroughUrl and suffix fields from an API-shaped ad', async () => {
+      (mockApi.ads.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: {
+          ads: [{
+            id: 900,
+            name: 'CT Ad',
+            campaignId: 500,
+            advertiserId: 100,
+            type: 'AD_SERVING_STANDARD_AD',
+            active: true,
+            archived: false,
+            placementAssignments: [{ placementId: 700 }],
+            creativeRotation: {
+              type: 'CREATIVE_ROTATION_TYPE_RANDOM',
+              creativeAssignments: [{
+                creativeId: 800,
+                clickThroughUrl: {
+                  defaultLandingPage: false,
+                  landingPageId: 300,
+                  customClickThroughUrl: undefined,
+                  computedClickThroughUrl: 'https://landing.example.com/?utm_source=cm360',
+                },
+              }],
+            },
+            clickThroughUrlSuffixProperties: {
+              clickThroughUrlSuffix: 'utm_content=ad-level',
+              overrideInheritedSuffix: true,
+            },
+          }],
+        },
+      });
+
+      const ads = await client.listAds('111');
+      const assignment = ads[0]!.creativeRotation.creativeAssignments[0]!;
+      expect(assignment.creativeId).toBe('800');
+      expect(assignment.clickThroughUrl).toEqual({
+        defaultLandingPage: false,
+        landingPageId: '300',
+        customClickThroughUrl: undefined,
+        computedClickThroughUrl: 'https://landing.example.com/?utm_source=cm360',
+      });
+      expect(ads[0]!.clickThroughUrlSuffixProperties).toEqual({
+        clickThroughUrlSuffix: 'utm_content=ad-level',
+        overrideInheritedSuffix: true,
+      });
+    });
+
+    it('createAd puts a landingPageId clickThroughUrl on the creative assignment', async () => {
+      (mockApi.ads.insert as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: { id: '901', name: 'New Ad', campaignId: '500' },
+      });
+
+      await client.createAd('111', {
+        campaignId: '500',
+        name: 'New Ad',
+        placementIds: ['700'],
+        creativeId: '800',
+        landingPageId: '300',
+      });
+
+      expect(mockApi.ads.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            creativeRotation: expect.objectContaining({
+              creativeAssignments: [{
+                creativeId: '800',
+                active: true,
+                clickThroughUrl: { landingPageId: '300' },
+              }],
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('createAd puts a customClickThroughUrl on the creative assignment', async () => {
+      (mockApi.ads.insert as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: { id: '902', name: 'New Ad', campaignId: '500' },
+      });
+
+      await client.createAd('111', {
+        campaignId: '500',
+        name: 'New Ad',
+        placementIds: ['700'],
+        creativeId: '800',
+        customClickThroughUrl: 'https://example.com/promo',
+      });
+
+      expect(mockApi.ads.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            creativeRotation: expect.objectContaining({
+              creativeAssignments: [{
+                creativeId: '800',
+                active: true,
+                clickThroughUrl: { customClickThroughUrl: 'https://example.com/promo' },
+              }],
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('createAd defaults to the campaign default landing page when neither field given', async () => {
+      (mockApi.ads.insert as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: { id: '903', name: 'New Ad', campaignId: '500' },
+      });
+
+      await client.createAd('111', {
+        campaignId: '500',
+        name: 'New Ad',
+        placementIds: ['700'],
+        creativeId: '800',
+      });
+
+      expect(mockApi.ads.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requestBody: expect.objectContaining({
+            creativeRotation: expect.objectContaining({
+              creativeAssignments: [{
+                creativeId: '800',
+                active: true,
+                clickThroughUrl: { defaultLandingPage: true },
+              }],
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('patchAd with only landingPageId gets the ad first and preserves the existing creative assignment', async () => {
+      (mockApi.ads.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: {
+          id: '900',
+          creativeRotation: {
+            type: 'CREATIVE_ROTATION_TYPE_RANDOM',
+            creativeAssignments: [{
+              creativeId: '800',
+              active: true,
+              clickThroughUrl: { defaultLandingPage: true },
+            }],
+          },
+        },
+      });
+      (mockApi.ads.patch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: { id: '900', name: 'Patched Ad', campaignId: '500' },
+      });
+
+      await client.patchAd('111', '900', { landingPageId: '300' });
+
+      expect(mockApi.ads.get).toHaveBeenCalledWith({ profileId: '111', id: '900' });
+      expect(mockApi.ads.patch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          profileId: '111',
+          id: '900',
+          requestBody: expect.objectContaining({
+            creativeRotation: expect.objectContaining({
+              creativeAssignments: [
+                expect.objectContaining({
+                  creativeId: '800',
+                  clickThroughUrl: { landingPageId: '300' },
+                }),
+              ],
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('patchAd without click-through or creative changes does not call ads.get', async () => {
+      (mockApi.ads.patch as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: { id: '900', name: 'Renamed Ad', campaignId: '500' },
+      });
+
+      await client.patchAd('111', '900', { name: 'Renamed Ad' });
+
+      expect(mockApi.ads.get).not.toHaveBeenCalled();
+      expect(mockApi.ads.patch).toHaveBeenCalledWith(
+        expect.objectContaining({ requestBody: { name: 'Renamed Ad' } }),
+      );
+    });
+
+    it('mapCampaign maps clickThroughUrlSuffixProperties', async () => {
+      (mockApi.campaigns.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: {
+          campaigns: [{
+            id: '500',
+            name: 'Suffix Campaign',
+            accountId: '222',
+            advertiserId: '100',
+            startDate: '2026-01-01',
+            endDate: '2026-03-31',
+            defaultLandingPage: { id: '300' },
+            archived: false,
+            clickThroughUrlSuffixProperties: {
+              clickThroughUrlSuffix: 'utm_content=campaign-level',
+              overrideInheritedSuffix: true,
+            },
+          }],
+        },
+      });
+
+      const result = await client.listCampaigns('111');
+      expect(result[0]!.clickThroughUrlSuffixProperties).toEqual({
+        clickThroughUrlSuffix: 'utm_content=campaign-level',
+        overrideInheritedSuffix: true,
+      });
+    });
+
+    it('mapAdvertiser maps clickThroughUrlSuffix', async () => {
+      (mockApi.advertisers.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: {
+          advertisers: [{
+            id: '100',
+            name: 'Acme Corp',
+            accountId: '222',
+            status: 'APPROVED',
+            clickThroughUrlSuffix: 'utm_content=adv-level',
+          }],
+        },
+      });
+
+      const result = await client.listAdvertisers('111');
+      expect(result[0]!.clickThroughUrlSuffix).toBe('utm_content=adv-level');
     });
   });
 

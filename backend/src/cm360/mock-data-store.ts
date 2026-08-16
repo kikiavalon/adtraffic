@@ -19,7 +19,6 @@ import type {
   CM360LandingPage,
   CM360Placement,
   CM360Ad,
-  CM360ClickThroughUrl,
   CM360Creative,
   CM360PlacementTag,
   CM360CreativeType,
@@ -70,27 +69,10 @@ import type {
   CM360ObjectFilterStatus,
   CM360UserLocale,
 } from '@adtraffic/shared';
+import { resolveClickThroughUrl } from '@adtraffic/shared';
 import { randomUUID } from 'crypto';
 
 const ACCOUNT_ID = '67890';
-
-/**
- * Builds a creative-assignment ClickThroughUrl from flat tool inputs.
- * Returns undefined when neither source is given (CM360 then uses the
- * campaign default landing page).
- */
-function buildClickThroughUrl(input: {
-  landingPageId?: string;
-  customClickThroughUrl?: string;
-}): CM360ClickThroughUrl | undefined {
-  if (input.customClickThroughUrl !== undefined) {
-    return { defaultLandingPage: false, customClickThroughUrl: input.customClickThroughUrl };
-  }
-  if (input.landingPageId !== undefined) {
-    return { defaultLandingPage: false, landingPageId: input.landingPageId };
-  }
-  return undefined;
-}
 
 const IAB_SIZES = [
   { width: 300, height: 250 },
@@ -181,7 +163,8 @@ class MockDataStore {
     ];
 
     const advertiserIds: string[] = [];
-    for (const def of advertiserDefs) {
+    for (let ai = 0; ai < advertiserDefs.length; ai++) {
+      const def = advertiserDefs[ai]!;
       const id = this.genId();
       advertiserIds.push(id);
       this.advertisers.set(id, {
@@ -189,6 +172,9 @@ class MockDataStore {
         name: def.name,
         accountId: ACCOUNT_ID,
         status: 'APPROVED',
+        // Advertisers 0-2 get a click-through URL suffix — a token deliberately absent
+        // from every seeded landing-page URL so suffix tests can't pass vacuously.
+        ...(ai <= 2 && { clickThroughUrlSuffix: 'utm_content=suffix-%epid!' }),
       });
     }
 
@@ -275,6 +261,14 @@ class MockDataStore {
           endDate: quarter.end,
           defaultLandingPageId: lpIds[0] ?? '',
           archived: false,
+          // Advertiser 1's first campaign overrides the inherited advertiser suffix so
+          // demo data exercises the override rule (advertiser 0 stays pure inheritance).
+          ...(ai === 1 && c === 0 && {
+            clickThroughUrlSuffixProperties: {
+              clickThroughUrlSuffix: 'utm_content=campaign-override-%epid!',
+              overrideInheritedSuffix: true,
+            },
+          }),
         });
       }
       campaignsByAdvertiser.set(advId, campIds);
@@ -1545,6 +1539,39 @@ class MockDataStore {
     return placement;
   }
 
+  /**
+   * Computes the click-through URL on read (like the real API — the campaign
+   * default landing page or suffixes can change after the ad is stored).
+   */
+  private withComputedClickThrough(ad: CM360Ad): CM360Ad {
+    const campaign = this.campaigns.get(ad.campaignId);
+    const advertiser = this.advertisers.get(ad.advertiserId);
+    const landingPages = [...this.landingPages.values()].map((lp) => ({ id: lp.id, url: lp.url }));
+    return {
+      ...ad,
+      creativeRotation: {
+        ...ad.creativeRotation,
+        creativeAssignments: ad.creativeRotation.creativeAssignments.map((ca) => {
+          const resolved = resolveClickThroughUrl({
+            assignment: ca.clickThroughUrl ?? { defaultLandingPage: true },
+            landingPages,
+            campaignDefaultLandingPageId: campaign?.defaultLandingPageId,
+            advertiserSuffix: advertiser?.clickThroughUrlSuffix,
+            campaignSuffixProperties: campaign?.clickThroughUrlSuffixProperties,
+            adSuffixProperties: ad.clickThroughUrlSuffixProperties,
+          });
+          return {
+            ...ca,
+            clickThroughUrl: {
+              ...(ca.clickThroughUrl ?? { defaultLandingPage: true }),
+              computedClickThroughUrl: resolved.url,
+            },
+          };
+        }),
+      },
+    };
+  }
+
   listAds(filter?: ListFilter): CM360Ad[] {
     let results = [...this.ads.values()];
     if (filter?.campaignId) {
@@ -1558,7 +1585,7 @@ class MockDataStore {
       results = results.filter((a) => a.name.toLowerCase().includes(search));
     }
     const max = filter?.maxResults ?? 100;
-    return results.slice(0, max);
+    return results.slice(0, max).map((a) => this.withComputedClickThrough(a));
   }
 
   createAd(input: {
@@ -1572,7 +1599,10 @@ class MockDataStore {
   }): CM360Ad {
     const id = this.genId();
     const campaign = this.campaigns.get(input.campaignId);
-    const clickThroughUrl = buildClickThroughUrl(input);
+    const clickThroughUrl =
+      input.customClickThroughUrl ? { customClickThroughUrl: input.customClickThroughUrl }
+      : input.landingPageId ? { landingPageId: input.landingPageId }
+      : { defaultLandingPage: true };
     const ad: CM360Ad = {
       id,
       name: input.name,
@@ -1581,15 +1611,20 @@ class MockDataStore {
       type: 'AD_SERVING_DEFAULT_AD',
       active: true,
       archived: false,
-      ...(input.clickThroughUrlSuffix !== undefined && { clickThroughUrlSuffix: input.clickThroughUrlSuffix }),
+      ...(input.clickThroughUrlSuffix !== undefined && {
+        clickThroughUrlSuffixProperties: {
+          clickThroughUrlSuffix: input.clickThroughUrlSuffix,
+          overrideInheritedSuffix: true,
+        },
+      }),
       placementAssignments: input.placementIds.map((pid) => ({ placementId: pid })),
       creativeRotation: {
         type: 'CREATIVE_ROTATION_TYPE_RANDOM',
-        creativeAssignments: [{ creativeId: input.creativeId, ...(clickThroughUrl && { clickThroughUrl }) }],
+        creativeAssignments: [{ creativeId: input.creativeId, clickThroughUrl }],
       },
     };
     this.ads.set(id, ad);
-    return ad;
+    return this.withComputedClickThrough(ad);
   }
 
   listCreatives(filter?: ListFilter): CM360Creative[] {
@@ -1646,7 +1681,8 @@ class MockDataStore {
   }
 
   getAd(id: string): CM360Ad | undefined {
-    return this.ads.get(id);
+    const ad = this.ads.get(id);
+    return ad && this.withComputedClickThrough(ad);
   }
 
   getLandingPage(id: string): CM360LandingPage | undefined {
@@ -1823,10 +1859,6 @@ class MockDataStore {
     return updated;
   }
 
-  deleteEventTag(id: string): boolean {
-    return this.eventTags.delete(id);
-  }
-
   // --- Placement Groups ---
 
   listPlacementGroups(
@@ -1938,25 +1970,14 @@ class MockDataStore {
   updateAd(id: string, input: CM360UpdateAdInput): CM360Ad | undefined {
     const ad = this.ads.get(id);
     if (!ad) return undefined;
-    const newClickThroughUrl = buildClickThroughUrl(input);
-    let creativeRotation = ad.creativeRotation;
-    if (input.creativeId !== undefined) {
-      // New creative keeps the existing click-through URL unless a new one is given
-      const clickThroughUrl = newClickThroughUrl
-        ?? ad.creativeRotation.creativeAssignments[0]?.clickThroughUrl;
-      creativeRotation = {
-        type: ad.creativeRotation.type,
-        creativeAssignments: [{ creativeId: input.creativeId, ...(clickThroughUrl && { clickThroughUrl }) }],
-      };
-    } else if (newClickThroughUrl) {
-      creativeRotation = {
-        type: ad.creativeRotation.type,
-        creativeAssignments: ad.creativeRotation.creativeAssignments.map((a) => ({
-          creativeId: a.creativeId,
-          clickThroughUrl: newClickThroughUrl,
-        })),
-      };
-    }
+    // One-of click-through replacement when either new field is present;
+    // otherwise carry the existing clickThroughUrl forward (incl. on creative swap).
+    const existingClickThrough = ad.creativeRotation.creativeAssignments[0]?.clickThroughUrl;
+    const newClickThrough =
+      input.customClickThroughUrl !== undefined ? { customClickThroughUrl: input.customClickThroughUrl }
+      : input.landingPageId !== undefined ? { landingPageId: input.landingPageId }
+      : undefined;
+    const clickThroughChanged = newClickThrough !== undefined;
     const updated: CM360Ad = {
       ...ad,
       ...(input.name !== undefined && { name: input.name }),
@@ -1964,14 +1985,29 @@ class MockDataStore {
       ...(input.archived !== undefined && { archived: input.archived }),
       ...(input.startTime !== undefined && { startTime: input.startTime }),
       ...(input.endTime !== undefined && { endTime: input.endTime }),
-      ...(input.clickThroughUrlSuffix !== undefined && { clickThroughUrlSuffix: input.clickThroughUrlSuffix }),
+      ...(input.clickThroughUrlSuffix !== undefined && {
+        clickThroughUrlSuffixProperties: {
+          clickThroughUrlSuffix: input.clickThroughUrlSuffix,
+          overrideInheritedSuffix: true,
+        },
+      }),
       ...(input.placementIds !== undefined && {
         placementAssignments: input.placementIds.map((pid) => ({ placementId: pid })),
       }),
-      creativeRotation,
+      ...((input.creativeId !== undefined || clickThroughChanged) && {
+        creativeRotation: {
+          type: ad.creativeRotation.type,
+          creativeAssignments: [{
+            creativeId: input.creativeId ?? ad.creativeRotation.creativeAssignments[0]?.creativeId ?? '',
+            ...(clickThroughChanged
+              ? { clickThroughUrl: newClickThrough }
+              : existingClickThrough !== undefined && { clickThroughUrl: existingClickThrough }),
+          }],
+        },
+      }),
     };
     this.ads.set(id, updated);
-    return updated;
+    return this.withComputedClickThrough(updated);
   }
 
   updateCreative(id: string, input: CM360UpdateCreativeInput): CM360Creative | undefined {

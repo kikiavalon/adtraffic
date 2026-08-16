@@ -28,6 +28,7 @@ import type {
   CM360CreateCreativeInput,
   CM360Ad,
   CM360ClickThroughUrl,
+  CM360ClickThroughUrlSuffixProperties,
   CM360PlacementTag,
   CM360AdvertiserStatus,
   CM360PlacementStatus,
@@ -501,13 +502,18 @@ export class CM360Client {
       clickThroughUrlSuffix?: string;
     },
   ): Promise<CM360Ad> {
-    const clickThroughUrl = buildAssignmentClickThroughUrl(input);
     const res = await this.api.ads.insert({
       profileId,
       requestBody: {
         campaignId: input.campaignId,
         name: input.name,
         type: 'AD_SERVING_STANDARD_AD',
+        ...(input.clickThroughUrlSuffix !== undefined && {
+          clickThroughUrlSuffixProperties: {
+            clickThroughUrlSuffix: input.clickThroughUrlSuffix,
+            overrideInheritedSuffix: true,
+          },
+        }),
         placementAssignments: input.placementIds.map(id => ({
           placementId: id,
           active: true,
@@ -516,16 +522,14 @@ export class CM360Client {
           creativeAssignments: [{
             creativeId: input.creativeId,
             active: true,
-            ...(clickThroughUrl && { clickThroughUrl }),
+            clickThroughUrl: input.customClickThroughUrl
+              ? { customClickThroughUrl: input.customClickThroughUrl }
+              : input.landingPageId
+                ? { landingPageId: input.landingPageId }
+                : { defaultLandingPage: true },
           }],
           type: 'CREATIVE_ROTATION_TYPE_RANDOM',
         },
-        ...(input.clickThroughUrlSuffix !== undefined && {
-          clickThroughUrlSuffixProperties: {
-            clickThroughUrlSuffix: input.clickThroughUrlSuffix,
-            overrideInheritedSuffix: true,
-          },
-        }),
       },
     });
     return mapAd(res.data);
@@ -549,40 +553,59 @@ export class CM360Client {
     if (input.archived !== undefined) requestBody.archived = input.archived;
     if (input.startTime !== undefined) requestBody.startTime = input.startTime;
     if (input.endTime !== undefined) requestBody.endTime = input.endTime;
-    if (input.placementIds !== undefined) {
-      requestBody.placementAssignments = input.placementIds.map(id => ({
-        placementId: id,
-        active: true,
-      }));
-    }
     if (input.clickThroughUrlSuffix !== undefined) {
       requestBody.clickThroughUrlSuffixProperties = {
         clickThroughUrlSuffix: input.clickThroughUrlSuffix,
         overrideInheritedSuffix: true,
       };
     }
-    const clickThroughUrl = buildAssignmentClickThroughUrl(input);
-    if (input.creativeId !== undefined) {
-      requestBody.creativeRotation = {
-        creativeAssignments: [{
+    if (input.placementIds !== undefined) {
+      requestBody.placementAssignments = input.placementIds.map(id => ({
+        placementId: id,
+        active: true,
+      }));
+    }
+    // CM360 patch replaces whole nested objects — sending a partial creativeRotation
+    // clobbers it. When the rotation must change (creative or click-through), get the
+    // existing ad first and rebuild the rotation preserving existing assignments,
+    // overriding only what changed.
+    if (
+      input.creativeId !== undefined ||
+      input.landingPageId !== undefined ||
+      input.customClickThroughUrl !== undefined
+    ) {
+      const existing = await this.api.ads.get({ profileId, id: adId });
+      const rotation = (existing.data?.creativeRotation ?? {}) as Record<string, unknown>;
+      const assignments =
+        (rotation.creativeAssignments as Array<Record<string, unknown>> | undefined) ?? [];
+      const newClickThrough: Record<string, unknown> | undefined =
+        input.customClickThroughUrl !== undefined
+          ? { customClickThroughUrl: input.customClickThroughUrl }
+          : input.landingPageId !== undefined
+            ? { landingPageId: input.landingPageId }
+            : undefined;
+      let newAssignments: Array<Record<string, unknown>>;
+      if (input.creativeId !== undefined) {
+        // Creative swap: carry the existing click-through forward unless it also changed.
+        const existingClickThrough = assignments[0]?.clickThroughUrl as
+          | Record<string, unknown>
+          | undefined;
+        newAssignments = [{
           creativeId: input.creativeId,
           active: true,
-          ...(clickThroughUrl && { clickThroughUrl }),
-        }],
-        type: 'CREATIVE_ROTATION_TYPE_RANDOM',
-      };
-    } else if (clickThroughUrl) {
-      // The API replaces creativeRotation wholesale on patch, so changing the
-      // click-through URL alone requires rebuilding the existing rotation.
-      const existing = await this.api.ads.get({ profileId, id: adId });
-      const rotation = existing.data?.creativeRotation;
+          clickThroughUrl: newClickThrough ?? existingClickThrough ?? { defaultLandingPage: true },
+        }];
+      } else {
+        // Click-through-only change: preserve every existing assignment.
+        newAssignments = assignments.map(a => ({
+          ...a,
+          clickThroughUrl: newClickThrough ?? a.clickThroughUrl,
+        }));
+      }
       requestBody.creativeRotation = {
-        type: rotation?.type ?? 'CREATIVE_ROTATION_TYPE_RANDOM',
-        creativeAssignments: (rotation?.creativeAssignments ?? []).map(a => ({
-          creativeId: String(a.creativeId ?? ''),
-          active: true,
-          clickThroughUrl,
-        })),
+        ...rotation,
+        type: (rotation.type as string | undefined) ?? 'CREATIVE_ROTATION_TYPE_RANDOM',
+        creativeAssignments: newAssignments,
       };
     }
     const res = await this.api.ads.patch({
@@ -735,10 +758,6 @@ export class CM360Client {
       },
     });
     return mapEventTag(res.data);
-  }
-
-  async deleteEventTag(profileId: string, eventTagId: string): Promise<void> {
-    await this.api.eventTags.delete({ profileId, id: eventTagId });
   }
 
   // ---------- Placement Groups ----------
@@ -1410,6 +1429,25 @@ function mapAdvertiser(a: any): CM360Advertiser {
     name: (a.name as string) ?? '',
     accountId: String(a.accountId ?? ''),
     status: ((a.status as string) ?? 'APPROVED') as CM360AdvertiserStatus,
+    clickThroughUrlSuffix: (a.clickThroughUrlSuffix as string) ?? undefined,
+  };
+}
+
+function mapSuffixProperties(sp: any): CM360ClickThroughUrlSuffixProperties | undefined {
+  if (!sp) return undefined;
+  return {
+    clickThroughUrlSuffix: (sp.clickThroughUrlSuffix as string) ?? undefined,
+    overrideInheritedSuffix: (sp.overrideInheritedSuffix as boolean) ?? undefined,
+  };
+}
+
+function mapClickThroughUrl(ct: any): CM360ClickThroughUrl | undefined {
+  if (!ct) return undefined;
+  return {
+    defaultLandingPage: (ct.defaultLandingPage as boolean) ?? undefined,
+    landingPageId: ct.landingPageId != null ? String(ct.landingPageId) : undefined,
+    customClickThroughUrl: (ct.customClickThroughUrl as string) ?? undefined,
+    computedClickThroughUrl: (ct.computedClickThroughUrl as string) ?? undefined,
   };
 }
 
@@ -1424,6 +1462,7 @@ function mapCampaign(c: any): CM360Campaign {
     endDate: (c.endDate as string) ?? '',
     defaultLandingPageId: String(defaultLP?.id ?? c.defaultLandingPageId ?? ''),
     archived: (c.archived as boolean) ?? false,
+    clickThroughUrlSuffixProperties: mapSuffixProperties(c.clickThroughUrlSuffixProperties),
   };
 }
 
@@ -1453,35 +1492,10 @@ function mapPlacement(p: any): CM360Placement {
   };
 }
 
-/** Builds the Ad-resource ClickThroughUrl object from flat tool inputs, or undefined when neither is given. */
-function buildAssignmentClickThroughUrl(input: {
-  landingPageId?: string;
-  customClickThroughUrl?: string;
-}): CM360ClickThroughUrl | undefined {
-  if (input.customClickThroughUrl !== undefined) {
-    return { defaultLandingPage: false, customClickThroughUrl: input.customClickThroughUrl };
-  }
-  if (input.landingPageId !== undefined) {
-    return { defaultLandingPage: false, landingPageId: input.landingPageId };
-  }
-  return undefined;
-}
-
-function mapClickThroughUrl(ctu: Record<string, unknown> | undefined): CM360ClickThroughUrl | undefined {
-  if (!ctu) return undefined;
-  return {
-    ...(ctu.defaultLandingPage != null && { defaultLandingPage: ctu.defaultLandingPage as boolean }),
-    ...(ctu.landingPageId != null && { landingPageId: String(ctu.landingPageId) }),
-    ...(ctu.customClickThroughUrl != null && { customClickThroughUrl: ctu.customClickThroughUrl as string }),
-    ...(ctu.computedClickThroughUrl != null && { computedClickThroughUrl: ctu.computedClickThroughUrl as string }),
-  };
-}
-
 function mapAd(ad: any): CM360Ad {
   const placements = ad.placementAssignments as Array<Record<string, unknown>> | undefined;
   const rotation = ad.creativeRotation as Record<string, unknown> | undefined;
   const assignments = rotation?.creativeAssignments as Array<Record<string, unknown>> | undefined;
-  const suffixProps = ad.clickThroughUrlSuffixProperties as Record<string, unknown> | undefined;
   return {
     id: String(ad.id ?? ''),
     name: (ad.name as string) ?? '',
@@ -1492,20 +1506,17 @@ function mapAd(ad: any): CM360Ad {
     archived: (ad.archived as boolean) ?? false,
     startTime: (ad.startTime as string) ?? undefined,
     endTime: (ad.endTime as string) ?? undefined,
-    clickThroughUrlSuffix: (suffixProps?.clickThroughUrlSuffix as string) ?? undefined,
     placementAssignments: (placements ?? []).map(pa => ({
       placementId: String(pa.placementId ?? ''),
     })),
     creativeRotation: {
       type: ((rotation?.type as string) ?? 'CREATIVE_ROTATION_TYPE_RANDOM') as CM360Ad['creativeRotation']['type'],
-      creativeAssignments: (assignments ?? []).map(ca => {
-        const clickThroughUrl = mapClickThroughUrl(ca.clickThroughUrl as Record<string, unknown> | undefined);
-        return {
-          creativeId: String(ca.creativeId ?? ''),
-          ...(clickThroughUrl && { clickThroughUrl }),
-        };
-      }),
+      creativeAssignments: (assignments ?? []).map(ca => ({
+        creativeId: String(ca.creativeId ?? ''),
+        clickThroughUrl: mapClickThroughUrl(ca.clickThroughUrl),
+      })),
     },
+    clickThroughUrlSuffixProperties: mapSuffixProperties(ad.clickThroughUrlSuffixProperties),
   };
 }
 function mapEventTag(t: any): CM360EventTag {

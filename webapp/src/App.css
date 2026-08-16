@@ -1,3 +1,46 @@
+/* Design tokens — single source of truth for color, type, space, radius.
+   Consolidates the drifted palette (5 blues, 8 reds, 9 font sizes) found
+   in the August 2026 design review. Change values here, not in components. */
+:root {
+  --color-primary: #0066ff;
+  --color-primary-dark: #0052cc;
+  --color-primary-light: #4d94ff;
+  --color-primary-border: #b8d4ff;
+  --color-primary-tint: #eef4ff;
+
+  --color-danger: #c62828;
+  --color-danger-dark: #a32d2d;
+  --color-danger-tint: #fdecea;
+
+  --color-success: #16a34a;
+  --color-success-dark: #1e7e34;
+  --color-success-tint: #e6f4ea;
+
+  --color-warning-text: #a05a00;
+  --color-warning-tint: #fff3e0;
+
+  --color-text: #2d2d2d;
+  --color-text-secondary: #555;
+  --color-text-muted: #6b6b6b;
+
+  --color-border: #d0d0d0;
+  --color-border-light: #e5e5e5;
+  --color-bg: #f7f7f7;
+  --color-bg-subtle: #f0f0f0;
+  --color-surface: #fff;
+
+  --font-xs: 11px;
+  --font-sm: 12px;
+  --font-md: 13px;
+  --font-base: 14px;
+  --font-lg: 16px;
+
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-pill: 16px;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -6,7 +49,7 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
-  color: #1a1a1a;
+  font-size: var(--font-base);
+  color: var(--color-text);
   background: #ffffff;
 }

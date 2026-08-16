@@ -6,13 +6,13 @@ import './Settings.css';
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
 interface UsageSummary {
-  date: string;
-  requests: number;
-  limit: number;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  estimatedCost: string;
+  date?: string;
+  requests?: number;
+  limit?: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  estimatedCost?: string;
 }
 
 interface CM360Status {
@@ -37,7 +37,8 @@ const FLAG_LABELS: Record<string, string> = {
 };
 
 function Settings() {
-  const { user, logout, authFetch, featureFlags } = useAuth();
+  const { user, logout, authFetch, featureFlags, refreshCM360Status } = useAuth();
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [usageError, setUsageError] = useState('');
   const [cm360Status, setCM360Status] = useState<CM360Status | null>(null);
@@ -104,6 +105,7 @@ function Settings() {
       if (res.ok) {
         setCM360Status({ connected: false });
         setToast('CM360 account disconnected');
+        void refreshCM360Status?.();
       } else {
         setCM360Error('Failed to disconnect');
       }
@@ -111,8 +113,9 @@ function Settings() {
       setCM360Error('Could not connect to backend');
     } finally {
       setCM360ActionLoading(false);
+      setConfirmingDisconnect(false);
     }
-  }, [authFetch]);
+  }, [authFetch, refreshCM360Status]);
 
   useEffect(() => {
     fetchUsage();
@@ -137,7 +140,10 @@ function Settings() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const usagePercent = usage ? Math.round((usage.requests / usage.limit) * 100) : 0;
+  const usagePercent = usage?.limit ? Math.round(((usage.requests ?? 0) / usage.limit) * 100) : 0;
+  const tokenExpired = Boolean(
+    cm360Status?.connected && cm360Status.expiresAt && new Date(cm360Status.expiresAt).getTime() < Date.now(),
+  );
 
   return (
     <div className="settings-page">
@@ -185,11 +191,7 @@ function Settings() {
               </div>
               <div className="settings-field">
                 <label>Tokens used</label>
-                <span>{usage.totalTokens.toLocaleString()} ({usage.inputTokens.toLocaleString()} in / {usage.outputTokens.toLocaleString()} out)</span>
-              </div>
-              <div className="settings-field">
-                <label>Estimated cost</label>
-                <span>{usage.estimatedCost}</span>
+                <span>{(usage.totalTokens ?? 0).toLocaleString()} ({(usage.inputTokens ?? 0).toLocaleString()} in / {(usage.outputTokens ?? 0).toLocaleString()} out)</span>
               </div>
             </>
           )}
@@ -206,36 +208,56 @@ function Settings() {
           {cm360Error && <p className="settings-error">{cm360Error}</p>}
           {cm360Loading ? (
             <p className="settings-placeholder">Loading connection status...</p>
+          ) : cm360Status?.connected && tokenExpired ? (
+            <>
+              <div className="settings-field">
+                <label>Status</label>
+                <span className="settings-error">Connection expired</span>
+              </div>
+              <p className="cm360-expired-note">
+                Your CM360 access has expired. Kiki is using demo data until you reconnect.
+              </p>
+              <button
+                className="cm360-connect-btn"
+                onClick={handleConnect}
+                disabled={cm360ActionLoading}
+              >
+                {cm360ActionLoading ? 'Opening Google...' : 'Reconnect CM360'}
+              </button>
+            </>
           ) : cm360Status?.connected ? (
             <>
               <div className="settings-field">
                 <label>Status</label>
                 <span className="settings-connected">Connected</span>
               </div>
-              {cm360Status.scopes && cm360Status.scopes.length > 0 && (
-                <div className="settings-field">
-                  <label>Scopes</label>
-                  <span className="cm360-scopes">
-                    {cm360Status.scopes.map((scope) => {
-                      const shortScope = scope.split('/').pop() ?? scope;
-                      return shortScope;
-                    }).join(', ')}
-                  </span>
+              {confirmingDisconnect ? (
+                <div className="cm360-disconnect-confirm">
+                  <p>Disconnect CM360? Kiki returns to demo data until you reconnect.</p>
+                  <div className="cm360-disconnect-confirm-actions">
+                    <button
+                      className="cm360-connect-btn"
+                      onClick={() => setConfirmingDisconnect(false)}
+                    >
+                      Keep connected
+                    </button>
+                    <button
+                      className="cm360-disconnect-btn"
+                      onClick={handleDisconnect}
+                      disabled={cm360ActionLoading}
+                    >
+                      {cm360ActionLoading ? 'Disconnecting...' : 'Disconnect CM360'}
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <button
+                  className="cm360-disconnect-btn"
+                  onClick={() => setConfirmingDisconnect(true)}
+                >
+                  Disconnect…
+                </button>
               )}
-              {cm360Status.expiresAt && (
-                <div className="settings-field">
-                  <label>Token expires</label>
-                  <span>{new Date(cm360Status.expiresAt).toLocaleString()}</span>
-                </div>
-              )}
-              <button
-                className="cm360-disconnect-btn"
-                onClick={handleDisconnect}
-                disabled={cm360ActionLoading}
-              >
-                {cm360ActionLoading ? 'Disconnecting...' : 'Disconnect CM360'}
-              </button>
             </>
           ) : (
             <>

@@ -8,9 +8,18 @@ export interface ApprovalItem {
   conversationId: string | null;
   actionPayload: PendingAction;
   status: 'pending' | 'approved' | 'rejected' | 'expired';
+  executionResult: ApprovalExecutionResult | null;
   note: string | null;
   createdAt: Date;
   resolvedAt: Date | null;
+}
+
+/** Outcome of executing an approved action, stored on the approval row */
+export interface ApprovalExecutionResult {
+  result: unknown;
+  isError: boolean;
+  errorMessage?: string;
+  executedAt: string;
 }
 
 /** Submit a junior user's write operation for approval. Returns the approval queue ID. */
@@ -57,6 +66,13 @@ export async function approveRequest(approvalId: string, approverId: string, not
   if (result.length === 0) {
     throw new Error('Approval request not found or already resolved');
   }
+}
+
+/** Record the outcome of executing an approved action on its queue row. */
+export async function recordExecutionResult(approvalId: string, execution: ApprovalExecutionResult): Promise<void> {
+  await db.update(schema.approvalQueue)
+    .set({ executionResult: JSON.stringify(execution) })
+    .where(eq(schema.approvalQueue.id, approvalId));
 }
 
 /** Get a single approval queue entry by ID. Returns null if not found. */
@@ -107,12 +123,22 @@ function mapRow(row: typeof schema.approvalQueue.$inferSelect): ApprovalItem {
   } catch {
     throw new Error(`Corrupted actionPayload in approval queue row ${row.id}`);
   }
+  let executionResult: ApprovalExecutionResult | null = null;
+  if (row.executionResult) {
+    try {
+      executionResult = JSON.parse(row.executionResult) as ApprovalExecutionResult;
+    } catch {
+      // A corrupted execution record shouldn't make the whole row unreadable
+      executionResult = null;
+    }
+  }
   return {
     id: row.id,
     requesterId: row.requesterId,
     conversationId: row.conversationId,
     actionPayload,
     status: row.status,
+    executionResult,
     note: row.note,
     createdAt: row.createdAt,
     resolvedAt: row.resolvedAt,

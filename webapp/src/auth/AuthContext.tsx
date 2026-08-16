@@ -15,6 +15,9 @@ interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   featureFlags: FeatureFlags | null;
+  /** null = unknown (treat as demo), false = demo data, true = live CM360 */
+  cm360Connected: boolean | null;
+  refreshCM360Status: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
@@ -37,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
+  const [cm360Connected, setCM360Connected] = useState<boolean | null>(null);
 
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; }, [token]);
@@ -63,9 +67,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* silently fail — flags are non-critical */ }
   }, []);
 
+  const refreshCM360Status = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/auth/google/status`, {
+        headers: tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCM360Connected(data.connected === true);
+      }
+    } catch { /* status stays unknown — UI treats it as demo */ }
+  }, []);
+
   // Fetch flags on initial load when user is already authenticated
   useEffect(() => {
-    if (token && user) { fetchFlags(); }
+    if (token && user) { fetchFlags(); refreshCM360Status(); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = useCallback(async (email: string, password: string) => {
@@ -86,12 +102,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.token);
       setUser(data.user);
       tokenRef.current = data.token;
-      // Fetch feature flags after login
+      // Fetch feature flags and CM360 connection status after login
       fetchFlags();
+      refreshCM360Status();
     } finally {
       setIsLoading(false);
     }
-  }, [fetchFlags]);
+  }, [fetchFlags, refreshCM360Status]);
 
   const register = useCallback(async (email: string, password: string, name: string) => {
     setIsLoading(true);
@@ -111,17 +128,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.token);
       setUser(data.user);
       tokenRef.current = data.token;
-      // Fetch feature flags after registration
+      // Fetch feature flags and CM360 connection status after registration
       fetchFlags();
+      refreshCM360Status();
     } finally {
       setIsLoading(false);
     }
-  }, [fetchFlags]);
+  }, [fetchFlags, refreshCM360Status]);
 
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     setFeatureFlags(null);
+    setCM360Connected(null);
     sessionStorage.clear();
   }, []);
 
@@ -144,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res;
   }, []);
 
-  const value = useMemo(() => ({ user, token, featureFlags, login, register, logout, isLoading, authFetch }), [user, token, featureFlags, login, register, logout, isLoading, authFetch]);
+  const value = useMemo(() => ({ user, token, featureFlags, cm360Connected, refreshCM360Status, login, register, logout, isLoading, authFetch }), [user, token, featureFlags, cm360Connected, refreshCM360Status, login, register, logout, isLoading, authFetch]);
 
   return (
     <AuthContext.Provider value={value}>

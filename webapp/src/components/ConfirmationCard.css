@@ -1,18 +1,18 @@
 /* ConfirmationCard — risk-level-aware confirmation UI for CM360 write operations */
 
 .confirmation-card {
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 16px 20px;
   margin: 8px 0;
   max-width: 520px;
-  font-size: 14px;
+  font-size: var(--font-base);
   line-height: 1.5;
 }
 
 /* Standard: neutral/blue */
 .confirmation-card--standard {
-  background: #f0f4ff;
-  border: 1px solid #c6d4f0;
+  background: var(--color-primary-tint);
+  border: 1px solid var(--color-primary-border);
 }
 
 /* Elevated: orange/amber warning */
@@ -42,17 +42,17 @@
 
 .confirmation-card__title {
   font-weight: 600;
-  font-size: 14px;
-  color: #1a1a1a;
+  font-size: var(--font-base);
+  color: var(--color-text);
 }
 
 /* Entity name */
 .confirmation-card__entity-name {
   font-weight: 500;
-  color: #333;
+  color: var(--color-text);
   margin-bottom: 12px;
   padding-left: 26px;
-  font-size: 13px;
+  font-size: var(--font-md);
 }
 
 /* Warnings */
@@ -60,11 +60,11 @@
   list-style: none;
   margin: 0 0 12px 0;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius);
 }
 
 .confirmation-card--elevated .confirmation-card__warnings {
-  background: #fff3e0;
+  background: var(--color-warning-tint);
   border: 1px solid #ffe0b2;
 }
 
@@ -74,13 +74,13 @@
 }
 
 .confirmation-card__warning-item {
-  color: #b71c1c;
-  font-size: 13px;
+  color: var(--color-danger-dark);
+  font-size: var(--font-md);
   padding: 2px 0;
 }
 
 .confirmation-card--elevated .confirmation-card__warning-item {
-  color: #e65100;
+  color: var(--color-warning-text);
 }
 
 /* Create fields table */
@@ -92,19 +92,19 @@
 
 .confirmation-card__fields td {
   padding: 4px 8px;
-  font-size: 13px;
+  font-size: var(--font-md);
   vertical-align: top;
 }
 
 .confirmation-card__field-name {
-  color: #666;
+  color: var(--color-text-secondary);
   font-weight: 500;
   white-space: nowrap;
   width: 1%;
 }
 
 .confirmation-card__field-value {
-  color: #1a1a1a;
+  color: var(--color-text);
 }
 
 /* Update changes table */
@@ -116,30 +116,30 @@
 
 .confirmation-card__changes td {
   padding: 4px 6px;
-  font-size: 13px;
+  font-size: var(--font-md);
   vertical-align: top;
 }
 
 .confirmation-card__change-field {
-  color: #666;
+  color: var(--color-text-secondary);
   font-weight: 500;
   white-space: nowrap;
   width: 1%;
 }
 
 .confirmation-card__change-from {
-  color: #b71c1c;
+  color: var(--color-danger-dark);
   text-decoration: line-through;
 }
 
 .confirmation-card__change-arrow {
-  color: #999;
+  color: var(--color-text-muted);
   text-align: center;
   width: 24px;
 }
 
 .confirmation-card__change-to {
-  color: #1b5e20;
+  color: var(--color-success-dark);
   font-weight: 500;
 }
 
@@ -150,9 +150,9 @@
 
 .confirmation-card__type-label {
   display: block;
-  font-size: 13px;
+  font-size: var(--font-md);
   font-weight: 600;
-  color: #b71c1c;
+  color: var(--color-danger-dark);
   margin-bottom: 6px;
 }
 
@@ -160,8 +160,8 @@
   width: 100%;
   padding: 8px 12px;
   border: 1px solid #e57373;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: var(--radius);
+  font-size: var(--font-base);
   font-family: inherit;
   background: #fff;
   box-sizing: border-box;
@@ -169,7 +169,7 @@
 
 .confirmation-card__type-input:focus {
   outline: none;
-  border-color: #d32f2f;
+  border-color: var(--color-danger);
   box-shadow: 0 0 0 2px rgba(211, 47, 47, 0.15);
 }
 
@@ -186,8 +186,8 @@
 
 .confirmation-card__btn {
   padding: 8px 20px;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius);
+  font-size: var(--font-md);
   font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
@@ -204,44 +204,73 @@
 .confirmation-card__btn--approve {
   background: #22c55e;
   color: #fff;
-  border-color: #16a34a;
+  border-color: var(--color-success);
 }
 
 .confirmation-card__btn--approve:hover:not(:disabled) {
-  background: #16a34a;
+  background: var(--color-success);
 }
 
 /* Reject button — gray outline */
 .confirmation-card__btn--reject {
   background: transparent;
-  color: #666;
-  border-color: #ccc;
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
 }
 
 .confirmation-card__btn--reject:hover:not(:disabled) {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--color-bg);
+  color: var(--color-text);
 }
 
 /* Destructive Delete button — red */
 .confirmation-card__btn--destructive {
-  background: #ef4444;
+  background: var(--color-danger);
   color: #fff;
-  border-color: #dc2626;
+  border-color: var(--color-danger);
 }
 
 .confirmation-card__btn--destructive:hover:not(:disabled) {
-  background: #dc2626;
+  background: var(--color-danger);
 }
 
 /* Cancel button — gray outline */
 .confirmation-card__btn--cancel {
   background: transparent;
-  color: #666;
-  border-color: #ccc;
+  color: var(--color-text-secondary);
+  border-color: var(--color-border);
 }
 
 .confirmation-card__btn--cancel:hover:not(:disabled) {
-  background: #f5f5f5;
-  color: #333;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.confirmation-card__mode {
+  margin-left: auto;
+  font-size: var(--font-xs);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.confirmation-card__mode--demo {
+  background: var(--color-warning-tint);
+  color: var(--color-warning-text);
+}
+
+.confirmation-card__mode--live {
+  background: var(--color-success-tint);
+  color: var(--color-success-dark);
+}
+
+
+/* Visible keyboard focus (a11y) */
+input:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }

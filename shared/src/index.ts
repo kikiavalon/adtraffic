@@ -17,8 +17,9 @@ export type {
   CM360PlacementGroupType,
   CM360CreatePlacementGroupInput,
   CM360UpdatePlacementGroupInput,
-  CM360Ad,
   CM360ClickThroughUrl,
+  CM360ClickThroughUrlSuffixProperties,
+  CM360Ad,
   CM360Creative,
   CM360CreativeType,
   CM360PlacementTag,
@@ -128,3 +129,5 @@ export type { ValidatedChatRequest } from './schemas/chat.js';
 
 export { TraffickingPlanSchema } from './schemas/trafficking-plan.js';
 export type { ValidatedTraffickingPlan } from './schemas/trafficking-plan.js';
+
+export * from './qa/resolve-click-through.js';

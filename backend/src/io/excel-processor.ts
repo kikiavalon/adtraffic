@@ -1,4 +1,5 @@
-import XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { Readable } from 'node:stream';
 
 /**
  * Process an Excel or CSV file (base64-encoded) into structured text
@@ -7,7 +8,7 @@ import XLSX from 'xlsx';
  * Returns a text representation with sheet names and tabular data.
  * Each sheet is rendered as a markdown-style table.
  */
-export function processExcel(base64Data: string, filename: string): string {
+export async function processExcel(base64Data: string, filename: string): Promise<string> {
   // Validate base64 encoding before processing
   if (!/^[A-Za-z0-9+/\n\r]*={0,2}$/.test(base64Data)) {
     throw new Error('Invalid base64 data');
@@ -19,36 +20,34 @@ export function processExcel(base64Data: string, filename: string): string {
     throw new Error('Empty file data');
   }
 
-  // Detect CSV by extension — xlsx library handles both
+  const workbook = new ExcelJS.Workbook();
   const isCsv = filename.toLowerCase().endsWith('.csv');
-  const workbook = XLSX.read(buffer, {
-    type: 'buffer',
-    ...(isCsv ? { raw: true } : {}),
-  });
+  if (isCsv) {
+    await workbook.csv.read(Readable.from(buffer));
+  } else {
+    await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+  }
 
   const sections: string[] = [];
 
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    if (!sheet) continue;
-
-    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
-      header: 1,
-      defval: '',
-      blankrows: false,
+  for (const sheet of workbook.worksheets) {
+    const rows: string[][] = [];
+    sheet.eachRow((row) => {
+      const values = Array.isArray(row.values) ? row.values.slice(1) : [];
+      rows.push(values.map(cellText));
     });
 
     if (rows.length === 0) continue;
 
     // Build a markdown-style table
     const lines: string[] = [];
-    lines.push(`## Sheet: ${sheetName}`);
+    lines.push(`## Sheet: ${sheet.name}`);
     lines.push('');
 
     // Header row
     const headerRow = rows[0];
     if (!headerRow) continue;
-    const header = headerRow.map((cell) => String(cell ?? '').trim());
+    const header = headerRow.map((cell) => cell.trim());
     lines.push(`| ${header.join(' | ')} |`);
     lines.push(`| ${header.map(() => '---').join(' | ')} |`);
 
@@ -56,7 +55,7 @@ export function processExcel(base64Data: string, filename: string): string {
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (!row) continue;
-      const cells = row.map((cell) => String(cell ?? '').trim());
+      const cells = row.map((cell) => cell.trim());
       // Pad to header length
       while (cells.length < header.length) cells.push('');
       lines.push(`| ${cells.join(' | ')} |`);
@@ -70,4 +69,18 @@ export function processExcel(base64Data: string, filename: string): string {
   }
 
   return `File: ${filename}\n\n${sections.join('\n\n')}`;
+}
+
+/** Render an ExcelJS cell value as plain text. */
+export function cellText(value: ExcelJS.CellValue): string {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'object') {
+    if ('richText' in value) return value.richText.map((r) => r.text).join('');
+    if ('text' in value && typeof value.text === 'string') return value.text;
+    if ('result' in value) return cellText(value.result as ExcelJS.CellValue);
+    if ('error' in value) return String(value.error);
+    return '';
+  }
+  return String(value);
 }

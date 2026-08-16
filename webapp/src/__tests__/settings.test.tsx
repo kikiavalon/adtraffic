@@ -63,7 +63,7 @@ describe('Settings', () => {
       expect(screen.getByText('42 / 100')).toBeInTheDocument();
     });
     expect(screen.getByText('8,000 (5,000 in / 3,000 out)')).toBeInTheDocument();
-    expect(screen.getByText('$0.12')).toBeInTheDocument();
+    expect(screen.queryByText('$0.12')).not.toBeInTheDocument();
   });
 
   it('shows error message when usage fetch fails', async () => {

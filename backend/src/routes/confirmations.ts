@@ -1,13 +1,36 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth/middleware.js';
 import { isValidRole, hasPermission } from '../auth/roles.js';
-import { consumePendingAction } from '../cm360/pending-actions.js';
+import { consumePendingAction, listPendingActions } from '../cm360/pending-actions.js';
 import { executeTool } from '../cm360/tool-executor.js';
 import { submitForApproval } from '../approval/approval-service.js';
 import { logger } from '../lib/logger.js';
 import { logRequestAuditEvent } from '../middleware/audit-logger.js';
 
 const router = Router();
+
+/**
+ * GET /confirmations/pending?conversationId=...
+ *
+ * Lists the caller's unexpired pending confirmations so the webapp can
+ * rehydrate approval cards after a page refresh.
+ */
+router.get('/confirmations/pending', requireAuth, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const conversationId = typeof req.query['conversationId'] === 'string'
+      ? req.query['conversationId']
+      : undefined;
+    const actions = await listPendingActions(userId, conversationId);
+    res.json({ actions });
+  } catch (error) {
+    logger.error(
+      { err: { message: error instanceof Error ? error.message : 'Unknown' } },
+      'Failed to list pending confirmations',
+    );
+    res.status(500).json({ error: 'Failed to list pending confirmations' });
+  }
+});
 
 /**
  * POST /confirmations/:actionId/approve
@@ -21,7 +44,7 @@ router.post('/confirmations/:actionId/approve', requireAuth, async (req, res) =>
     const userId = req.user!.userId;
     const { typedConfirmation } = req.body as { typedConfirmation?: string };
 
-    const action = consumePendingAction(actionId, userId);
+    const action = await consumePendingAction(actionId, userId);
     if (!action) {
       res.status(404).json({ error: 'Action not found or expired' });
       return;
@@ -96,12 +119,12 @@ router.post('/confirmations/:actionId/approve', requireAuth, async (req, res) =>
  *
  * Marks a pending action as rejected and removes it from the store.
  */
-router.post('/confirmations/:actionId/reject', requireAuth, (req, res) => {
+router.post('/confirmations/:actionId/reject', requireAuth, async (req, res) => {
   try {
     const actionId = req.params['actionId'] as string;
     const userId = req.user!.userId;
 
-    const action = consumePendingAction(actionId, userId);
+    const action = await consumePendingAction(actionId, userId);
     if (!action) {
       res.status(404).json({ error: 'Action not found or expired' });
       return;

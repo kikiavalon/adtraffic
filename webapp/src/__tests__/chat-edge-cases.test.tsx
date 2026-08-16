@@ -223,7 +223,7 @@ describe('Chat edge cases', () => {
     expect(screen.queryByText('First response')).not.toBeInTheDocument();
   });
 
-  it('New Chat attempts to delete conversation on server', async () => {
+  it('New Chat does not delete the conversation on the server', async () => {
     mockAuthFetch.mockResolvedValue({ ok: true });
 
     const user = userEvent.setup();
@@ -231,9 +231,9 @@ describe('Chat edge cases', () => {
 
     await user.click(screen.getByTitle('Start new conversation'));
 
-    // Should have called DELETE on the conversation
-    expect(mockAuthFetch).toHaveBeenCalledWith(
-      expect.stringMatching(/\/api\/v1\/conversations\/.+/),
+    // New Chat only rotates the conversation ID — deletion is an explicit sidebar action
+    expect(mockAuthFetch).not.toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ method: 'DELETE' })
     );
   });
@@ -264,69 +264,5 @@ describe('Chat edge cases', () => {
   it('shows upload button', () => {
     renderChat();
     expect(screen.getByLabelText('Upload file')).toBeInTheDocument();
-  });
-});
-
-describe('Chat extension context params', () => {
-  beforeEach(() => {
-    mockAuthFetch.mockReset();
-    mockLogout.mockReset();
-    sessionStorage.clear();
-  });
-
-  it('auto-sends context message when advertiserId is in URL', async () => {
-    mockAuthFetch.mockResolvedValue(createSSEResponse('Got the context'));
-
-    renderChat(['/?advertiserId=12345']);
-
-    await waitFor(() => {
-      expect(mockAuthFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/chat/stream'),
-        expect.objectContaining({
-          body: expect.stringContaining('advertiser 12345'),
-        })
-      );
-    });
-  });
-
-  it('auto-sends context message when campaignId is in URL', async () => {
-    mockAuthFetch.mockResolvedValue(createSSEResponse('Got the context'));
-
-    renderChat(['/?campaignId=67890']);
-
-    await waitFor(() => {
-      expect(mockAuthFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/chat/stream'),
-        expect.objectContaining({
-          body: expect.stringContaining('campaign 67890'),
-        })
-      );
-    });
-  });
-
-  it('auto-sends context with both advertiser and campaign IDs', async () => {
-    mockAuthFetch.mockResolvedValue(createSSEResponse('Got the context'));
-
-    renderChat(['/?advertiserId=12345&campaignId=67890']);
-
-    await waitFor(() => {
-      expect(mockAuthFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/v1/chat/stream'),
-        expect.objectContaining({
-          body: expect.stringContaining('advertiser 12345'),
-        })
-      );
-    });
-
-    // Should contain both in the same message
-    const body = JSON.parse(mockAuthFetch.mock.calls[0]![1]!.body as string);
-    expect(body.message).toContain('campaign 67890');
-  });
-
-  it('does nothing when no extension params are present', () => {
-    renderChat(['/']);
-
-    // Should not auto-send any message
-    expect(mockAuthFetch).not.toHaveBeenCalled();
   });
 });

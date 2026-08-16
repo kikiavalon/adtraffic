@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 // Mock requireAuth middleware
 vi.mock('../auth/middleware.js', () => ({
@@ -84,14 +84,14 @@ describe('POST /api/v1/upload', () => {
   });
 
   it('extracts text from Excel file', async () => {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Placements');
+    ws.addRows([
       ['Campaign', 'Placement', 'Size'],
       ['Summer 2026', 'Homepage Banner', '300x250'],
       ['Summer 2026', 'Sidebar', '160x600'],
     ]);
-    XLSX.utils.book_append_sheet(wb, ws, 'Placements');
-    const buffer = Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as ArrayBuffer);
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
 
     const res = await request(app)
       .post('/api/v1/upload')
@@ -110,12 +110,10 @@ describe('POST /api/v1/upload', () => {
   });
 
   it('extracts text from Excel file with multiple sheets', async () => {
-    const wb = XLSX.utils.book_new();
-    const ws1 = XLSX.utils.aoa_to_sheet([['Sheet1Data']]);
-    const ws2 = XLSX.utils.aoa_to_sheet([['Sheet2Data']]);
-    XLSX.utils.book_append_sheet(wb, ws1, 'Sheet1');
-    XLSX.utils.book_append_sheet(wb, ws2, 'Sheet2');
-    const buffer = Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as ArrayBuffer);
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('Sheet1').addRows([['Sheet1Data']]);
+    wb.addWorksheet('Sheet2').addRows([['Sheet2Data']]);
+    const buffer = Buffer.from(await wb.xlsx.writeBuffer());
 
     const res = await request(app)
       .post('/api/v1/upload')

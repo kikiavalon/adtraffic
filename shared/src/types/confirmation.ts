@@ -25,8 +25,9 @@ export interface ActionPreview {
   entityType: string;
   /** Entity name for display (e.g., "Apex Motors Q1 Display Campaign") */
   entityName: string;
-  /** What operation: create, update, archive, delete */
-  operation: 'create' | 'update' | 'archive' | 'delete';
+  /** What operation: create, update, or archive. There is no delete —
+   * CM360 has no delete for core entities and the product ships zero delete tools. */
+  operation: 'create' | 'update' | 'archive';
   /** For updates: old value -> new value pairs */
   changes?: Array<{ field: string; from?: string; to: string }>;
   /** For creates: key fields being set */

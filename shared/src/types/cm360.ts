@@ -77,6 +77,7 @@ export interface CM360Advertiser {
   accountId: string;
   status: CM360AdvertiserStatus;
   floodlightConfigurationId?: string;
+  clickThroughUrlSuffix?: string;
 }
 
 export interface CM360Campaign {
@@ -88,6 +89,7 @@ export interface CM360Campaign {
   endDate: string;   // YYYY-MM-DD
   defaultLandingPageId: string;
   archived: boolean;
+  clickThroughUrlSuffixProperties?: CM360ClickThroughUrlSuffixProperties;
 }
 
 export interface CM360CreateCampaignInput {
@@ -202,17 +204,19 @@ export interface CM360UpdatePlacementGroupInput {
   endDate?: string;
 }
 
-/**
- * Click-through URL on an ad's creative assignment. Exactly one source applies:
- * the campaign default landing page, a specific landing page by ID, or a
- * custom URL. computedClickThroughUrl is a read-only convenience field
- * populated by the CM360 API.
- */
+/** Click-through URL on a creative assignment (CM360 API v5 ClickThroughUrl). */
 export interface CM360ClickThroughUrl {
   defaultLandingPage?: boolean;
   landingPageId?: string;
   customClickThroughUrl?: string;
+  /** Read-only: the URL CM360 resolved from the precedence rules. */
   computedClickThroughUrl?: string;
+}
+
+/** URL suffix properties (campaign and ad level). Lower levels override, never append. */
+export interface CM360ClickThroughUrlSuffixProperties {
+  clickThroughUrlSuffix?: string;
+  overrideInheritedSuffix?: boolean;
 }
 
 export interface CM360Ad {
@@ -225,8 +229,7 @@ export interface CM360Ad {
   archived: boolean;
   startTime?: string;
   endTime?: string;
-  /** Query params appended to the click-through URL (CM360: must be under 128 chars). */
-  clickThroughUrlSuffix?: string;
+  clickThroughUrlSuffixProperties?: CM360ClickThroughUrlSuffixProperties;
   placementAssignments: Array<{ placementId: string }>;
   creativeRotation: {
     type: CM360CreativeRotationType;
@@ -295,6 +298,8 @@ export interface CM360UpdateAdInput {
   creativeId?: string;
   landingPageId?: string;
   customClickThroughUrl?: string;
+  /** Ad-level suffix override (stored as clickThroughUrlSuffixProperties with
+   * overrideInheritedSuffix; blank clears the inherited suffix). Under 128 chars. */
   clickThroughUrlSuffix?: string;
 }
 

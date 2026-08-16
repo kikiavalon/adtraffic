@@ -167,7 +167,7 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'cm360_create_ad',
-    description: 'Create a new ad that links a creative to one or more placements. This is the last step in the trafficking workflow. Optionally set the click-through URL (a specific landing page or a custom URL) and a click-through URL suffix for per-ad UTM tracking parameters. IMPORTANT: Always show a preview and get user confirmation before calling this tool.',
+    description: 'Create a new ad that links a creative to one or more placements, optionally setting its click-through destination (landing page or custom URL) and a click-through URL suffix for per-ad UTM tracking parameters. This is the last step in the trafficking workflow. IMPORTANT: Always show a preview and get user confirmation before calling this tool.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -180,9 +180,18 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
           description: 'Array of placement IDs to assign to this ad',
         },
         creativeId: { type: 'string', description: 'Creative ID to assign to this ad' },
-        landingPageId: { type: 'string', description: 'Landing page ID for the click-through URL. Mutually exclusive with customClickThroughUrl. If neither is set, the campaign default landing page is used.' },
-        customClickThroughUrl: { type: 'string', description: 'Custom click-through URL (full URL). Mutually exclusive with landingPageId.' },
-        clickThroughUrlSuffix: { type: 'string', description: 'Query parameters appended to the click-through URL, e.g. UTM tracking like "utm_source=cm360&utm_medium=display". No leading "?" or "&". Must be under 128 characters.' },
+        landingPageId: {
+          type: 'string',
+          description: "Landing page ID to set as this ad's click-through destination (assigned on the creative assignment). Mutually exclusive with customClickThroughUrl. Omit both to use the campaign default landing page.",
+        },
+        customClickThroughUrl: {
+          type: 'string',
+          description: 'Explicit https:// click-through URL, bypassing landing pages. Mutually exclusive with landingPageId. Prefer landing pages — custom URLs are not centrally managed.',
+        },
+        clickThroughUrlSuffix: {
+          type: 'string',
+          description: 'Query parameters appended to the click-through URL, e.g. UTM tracking like "utm_source=cm360&utm_medium=display". No leading "?" or "&". Must be under 128 characters. Overrides (never appends to) any campaign- or advertiser-level suffix.',
+        },
       },
       required: ['profileId', 'campaignId', 'name', 'placementIds', 'creativeId'],
     },
@@ -377,7 +386,7 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'cm360_update_ad',
-    description: '[WRITE] Update an ad. Can change name, active/archived status, start/end time, placement assignments, creative rotation, click-through URL (landing page or custom URL), or click-through URL suffix (per-ad UTM tracking parameters). Always preview changes and confirm with the user before executing.',
+    description: '[WRITE] Update an ad. Can change name, active/archived status, start/end time, placement assignments, creative rotation, click-through destination (landing page or custom URL), or click-through URL suffix (per-ad UTM tracking parameters). Always preview changes and confirm with the user before executing.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -390,9 +399,18 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
         endTime: { type: 'string', description: 'Ad end time (ISO 8601)' },
         placementIds: { type: 'array', items: { type: 'string' }, description: 'New placement assignments (replaces existing)' },
         creativeId: { type: 'string', description: 'New creative ID (replaces existing rotation)' },
-        landingPageId: { type: 'string', description: 'Landing page ID for the click-through URL. Mutually exclusive with customClickThroughUrl.' },
-        customClickThroughUrl: { type: 'string', description: 'Custom click-through URL (full URL). Mutually exclusive with landingPageId.' },
-        clickThroughUrlSuffix: { type: 'string', description: 'Query parameters appended to the click-through URL, e.g. UTM tracking like "utm_source=cm360&utm_medium=display". No leading "?" or "&". Must be under 128 characters.' },
+        landingPageId: {
+          type: 'string',
+          description: "Landing page ID to set as this ad's click-through destination (assigned on the creative assignment). Mutually exclusive with customClickThroughUrl. Omit both to use the campaign default landing page.",
+        },
+        customClickThroughUrl: {
+          type: 'string',
+          description: 'Explicit https:// click-through URL, bypassing landing pages. Mutually exclusive with landingPageId. Prefer landing pages — custom URLs are not centrally managed.',
+        },
+        clickThroughUrlSuffix: {
+          type: 'string',
+          description: 'Query parameters appended to the click-through URL, e.g. UTM tracking like "utm_source=cm360&utm_medium=display". No leading "?" or "&". Must be under 128 characters. Overrides (never appends to) any campaign- or advertiser-level suffix; an empty string clears the inherited suffix.',
+        },
       },
       required: ['profileId', 'adId'],
     },
@@ -543,18 +561,6 @@ export const CM360_TOOLS: Anthropic.Tool[] = [
         status: { type: 'string', enum: ['ENABLED', 'DISABLED'], description: 'Enable or disable the event tag' },
         siteIds: { type: 'array', items: { type: 'string' }, description: 'New site assignments (replaces existing)' },
         enabledByDefault: { type: 'boolean', description: 'Whether the tag fires by default on all placements' },
-      },
-      required: ['profileId', 'eventTagId'],
-    },
-  },
-  {
-    name: 'cm360_delete_event_tag',
-    description: '[WRITE] Delete an event tag. IMPORTANT: This is a destructive action — always preview and confirm with the user before executing. The tag will be permanently removed from the campaign.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        profileId: { type: 'string', description: 'The CM360 user profile ID' },
-        eventTagId: { type: 'string', description: 'The event tag ID to delete' },
       },
       required: ['profileId', 'eventTagId'],
     },
@@ -1178,7 +1184,6 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
   // Event tags (write)
   cm360_create_event_tag: 'cm360.write_operations',
   cm360_update_event_tag: 'cm360.write_operations',
-  cm360_delete_event_tag: 'cm360.write_operations',
   // Placement groups (read)
   cm360_list_placement_groups: 'cm360.read_operations',
   cm360_get_placement_group: 'cm360.read_operations',
@@ -1239,7 +1244,6 @@ export const STUBBED_TOOLS = new Set([
   'cm360_get_event_tag',
   'cm360_create_event_tag',
   'cm360_update_event_tag',
-  'cm360_delete_event_tag',
   'cm360_list_placement_groups',
   'cm360_get_placement_group',
   'cm360_create_placement_group',

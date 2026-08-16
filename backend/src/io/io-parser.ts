@@ -30,7 +30,7 @@ export async function prepareIOContent(
     case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
     case 'application/vnd.ms-excel':
     case 'text/csv': {
-      const text = processExcel(attachment.data, attachment.name);
+      const text = await processExcel(attachment.data, attachment.name);
       return {
         contentBlocks: [{ type: 'text', text }],
         isPdf: false,

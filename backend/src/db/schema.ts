@@ -78,6 +78,8 @@ export const approvalQueue = pgTable('approval_queue', {
   /** Pending action details (serialized PendingAction) */
   actionPayload: text('action_payload').notNull(), // JSON string
   status: text('status', { enum: ['pending', 'approved', 'rejected', 'expired'] }).notNull().default('pending'),
+  /** Outcome of executing the approved action (serialized {result, isError, errorMessage, executedAt}) */
+  executionResult: text('execution_result'), // JSON string, null until executed
   /** Approver's note (optional) */
   note: text('note'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -86,6 +88,21 @@ export const approvalQueue = pgTable('approval_queue', {
   statusIdx: index('approval_queue_status_idx').on(table.status),
   requesterIdx: index('approval_queue_requester_id_idx').on(table.requesterId),
   createdAtIdx: index('approval_queue_created_at_idx').on(table.createdAt),
+}));
+
+/** In-flight write confirmations — persisted so pending approvals survive
+ * page refreshes, backend restarts, and load-balanced replicas */
+export const pendingActions = pgTable('pending_actions', {
+  actionId: uuid('action_id').primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  conversationId: text('conversation_id').notNull(),
+  /** Serialized StoredPendingAction (PendingAction + toolInput) */
+  payload: text('payload').notNull(), // JSON string
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  userIdx: index('pending_actions_user_id_idx').on(table.userId),
+  expiresIdx: index('pending_actions_expires_at_idx').on(table.expiresAt),
 }));
 
 /** OAuth tokens — encrypted CM360 tokens (future) */

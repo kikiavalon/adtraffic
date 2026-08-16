@@ -195,25 +195,6 @@ describe('buildActionPreview', () => {
       expect(preview.warnings!.some(w => w.includes('CANNOT be undone'))).toBe(true);
     });
 
-    it('handles delete tool', () => {
-      const preview = buildActionPreview('cm360_delete_event_tag', {
-        id: '5001',
-        profileId: '123',
-      });
-
-      expect(preview.entityType).toBe('Event Tag');
-      expect(preview.operation).toBe('delete');
-    });
-
-    it('handles delete floodlight activity', () => {
-      const preview = buildActionPreview('cm360_delete_floodlight_activity', {
-        id: '6001',
-        profileId: '123',
-      });
-
-      expect(preview.entityType).toBe('Floodlight Activity');
-      expect(preview.operation).toBe('delete');
-    });
   });
 
   describe('edge cases', () => {

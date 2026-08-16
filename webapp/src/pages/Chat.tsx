@@ -3,7 +3,7 @@ import type { ChatMessage, StreamEvent, PendingAction } from '@adtraffic/shared'
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { PluggableList } from 'unified';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
 import ConversationSidebar from '../components/ConversationSidebar.js';
 import ConfirmationCard from '../components/ConfirmationCard.js';
@@ -220,7 +220,6 @@ const TOOL_LABELS: Record<string, string> = {
   cm360_get_event_tag: 'Getting event tag details',
   cm360_create_event_tag: 'Creating event tag',
   cm360_update_event_tag: 'Updating event tag',
-  cm360_delete_event_tag: 'Deleting event tag',
 
   // Placement groups
   cm360_list_placement_groups: 'Loading placement groups',
@@ -267,8 +266,6 @@ const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? 
 
 const WELCOME_MESSAGE = `Hey! I'm **Kiki**, an AI assistant for CM360 ad trafficking, powered by Claude. I can help you create campaigns, manage placements, generate tags, and more — just ask in plain English.
 
-I'm connected to the Demo Agency account and ready to help.
-
 Here are some things you can try:
 
 **Browse & Search**
@@ -293,8 +290,14 @@ Here are some things you can try:
 
 What would you like to do?`;
 
+/** Clickable conversation starters shown on a fresh chat. */
+const STARTER_PROMPTS = [
+  'What advertisers do we have?',
+  'Show me campaigns for Apex Motors',
+  'Create a new campaign for Luminance Beauty',
+];
+
 function Chat() {
-  const [searchParams, setSearchParams] = useSearchParams();
   const [conversationId, setConversationId] = useState<string>(() => {
     return sessionStorage.getItem('adtraffic-conv-id') ?? generateConversationId();
   });
@@ -319,11 +322,14 @@ function Chat() {
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const [failedSend, setFailedSend] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [toolStatus, setToolStatus] = useState<{ toolName: string; status: 'running' } | null>(null);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [processingActionId, setProcessingActionId] = useState<string | null>(null);
-  const { user, logout, authFetch } = useAuth();
+  const { user, logout, authFetch, cm360Connected } = useAuth();
+  const dataMode: 'live' | 'demo' = cm360Connected === true ? 'live' : 'demo';
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -332,6 +338,29 @@ function Chat() {
   // Delta batching refs for ~60fps streaming renders
   const pendingDelta = useRef('');
   const rafRef = useRef<number | null>(null);
+
+  // Rehydrate pending write confirmations after a refresh — approvals are
+  // persisted server-side, so a reload must not orphan them
+  const rehydratedRef = useRef(false);
+  useEffect(() => {
+    if (rehydratedRef.current) return;
+    rehydratedRef.current = true;
+    const storedConv = sessionStorage.getItem('adtraffic-conv-id');
+    if (!storedConv) return; // fresh session — nothing pending
+    (async () => {
+      try {
+        const res = await authFetch(
+          `${API_URL}/api/v1/confirmations/pending?conversationId=${encodeURIComponent(storedConv)}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.actions) && data.actions.length > 0) {
+            setPendingActions(data.actions as PendingAction[]);
+          }
+        }
+      } catch { /* pending list is best-effort */ }
+    })();
+  }, [authFetch]);
 
   // Persist conversation state
   useEffect(() => {
@@ -342,9 +371,34 @@ function Chat() {
     sessionStorage.setItem(`adtraffic-messages-${conversationId}`, JSON.stringify(messages));
   }, [conversationId, messages]);
 
+  // Autoscroll only when the user is already near the bottom; otherwise
+  // surface a jump-to-latest affordance instead of yanking their scroll
+  const messagesContainerRef = useRef<HTMLElement>(null);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+
+  const isNearBottom = useCallback(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  }, []);
+
   useEffect(() => {
+    if (isNearBottom()) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setShowJumpToLatest(false);
+    } else {
+      setShowJumpToLatest(true);
+    }
+  }, [messages, pendingActions, isNearBottom]);
+
+  const handleMessagesScroll = useCallback(() => {
+    if (isNearBottom()) setShowJumpToLatest(false);
+  }, [isNearBottom]);
+
+  const jumpToLatest = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, pendingActions]);
+    setShowJumpToLatest(false);
+  }, []);
 
   // Refocus input after loading finishes
   useEffect(() => {
@@ -421,6 +475,7 @@ function Chat() {
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
+    setFailedSend(null);
 
     trackInteraction('message_sent', { conversationId, messageLength: text.length });
 
@@ -475,6 +530,11 @@ function Chat() {
       }
 
       const reader = response.body.getReader();
+      // Stop button aborts the controller; cancelling the reader unblocks the
+      // pending read() so the stream ends cleanly with what has arrived so far
+      controller.signal.addEventListener('abort', () => {
+        reader.cancel().catch(() => {});
+      });
       const decoder = new TextDecoder();
       let buffer = '';
 
@@ -520,6 +580,18 @@ function Chat() {
               setSidebarRefresh((n) => n + 1);
               break;
 
+            case 'approval_submitted':
+              setMessages((prev) => {
+                const infoMsg: ChatMessage = {
+                  id: crypto.randomUUID(),
+                  role: 'assistant',
+                  content: `This action needs a senior approver — your request for "${event.action.preview.entityName}" has been submitted and will run once approved.`,
+                  timestamp: Date.now(),
+                };
+                return [...prev, infoMsg];
+              });
+              break;
+
             case 'retrying':
               // Backend is retrying a transient error — keep loading animation going
               setToolStatus({ toolName: 'reconnecting', status: 'running' });
@@ -561,19 +633,17 @@ function Chat() {
         rafRef.current = null;
       }
       pendingDelta.current = '';
-      const errorMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: `Sorry, I had trouble connecting. Make sure the backend is running. Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        timestamp: Date.now(),
-      };
+      setFailedSend(text);
       setMessages((prev) => {
-        // Replace the streaming placeholder if it exists
-        const last = prev[prev.length - 1];
-        if (last?.id === 'streaming') {
-          return [...prev.slice(0, -1), errorMessage];
+        // Drop the streaming placeholder and the unsent user message — the
+        // retry bar below the transcript carries the failure state, and a
+        // retry re-sends the text without duplicating the bubble
+        let next = prev;
+        if (next[next.length - 1]?.id === 'streaming') next = next.slice(0, -1);
+        if (next[next.length - 1]?.role === 'user' && next[next.length - 1]?.content === text) {
+          next = next.slice(0, -1);
         }
-        return [...prev, errorMessage];
+        return next;
       });
     } finally {
       setIsLoading(false);
@@ -581,41 +651,9 @@ function Chat() {
     }
   }, [isLoading, conversationId, authFetch, appendDelta, flushDelta, pendingAttachment]);
 
-  // Accept context from companion Chrome extension (?advertiserId=X&campaignId=Y)
-  const extensionContextHandled = useRef(false);
-  useEffect(() => {
-    if (extensionContextHandled.current) return;
-    const advertiserId = searchParams.get('advertiserId');
-    const campaignId = searchParams.get('campaignId');
-    if (!advertiserId && !campaignId) return;
-
-    extensionContextHandled.current = true;
-
-    // Clear the query params from the URL
-    setSearchParams({}, { replace: true });
-
-    // Auto-send a contextual first message
-    const parts: string[] = [];
-    if (advertiserId) parts.push(`advertiser ${advertiserId}`);
-    if (campaignId) parts.push(`campaign ${campaignId}`);
-    const contextMsg = `I'm looking at ${parts.join(', ')} in CM360.`;
-
-    // Queue the message send after a short delay to allow the component to fully mount
-    setTimeout(() => {
-      sendMessage(contextMsg);
-    }, 300);
-  }, [searchParams, setSearchParams, sendMessage]);
-
-  const startNewChat = useCallback(async () => {
-    // Clear server-side conversation
-    try {
-      await authFetch(`${API_URL}/api/v1/conversations/${conversationId}`, {
-        method: 'DELETE',
-      });
-    } catch { /* best effort */ }
-
-    // Clear client-side state
-    sessionStorage.removeItem(`adtraffic-messages-${conversationId}`);
+  const startNewChat = useCallback(() => {
+    // Rotate to a fresh conversation ID — the previous conversation stays
+    // intact on the server and remains reachable from the sidebar
     const newId = generateConversationId();
     trackInteraction('session_started', { conversationId: newId });
     setConversationId(newId);
@@ -629,7 +667,7 @@ function Chat() {
     setPendingActions([]);
     setProcessingActionId(null);
     setSidebarRefresh((n) => n + 1);
-  }, [conversationId, authFetch]);
+  }, []);
 
   const handleApprove = useCallback(async (actionId: string, typedConfirmation?: string) => {
     trackInteraction('confirmation_approved', { actionId, hasTypedConfirmation: !!typedConfirmation });
@@ -647,10 +685,20 @@ function Chat() {
       setPendingActions((prev) => prev.filter((a) => a.actionId !== actionId));
 
       if (response.ok && !data.isError) {
-        // Add success result as assistant message
-        const resultContent = typeof data.result === 'string'
-          ? data.result
-          : JSON.stringify(data.result, null, 2);
+        // Render a readable receipt — never raw JSON
+        const approved = pendingActions.find((a) => a.actionId === actionId);
+        const when = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+        const modeLabel = dataMode === 'live' ? 'live data' : 'demo data';
+        const detail = typeof data.result === 'string' ? data.result : undefined;
+        const resultContent = approved
+          ? [
+              `✅ **Approved — ${approved.preview.operation} ${approved.preview.entityType}**`,
+              '',
+              detail ?? approved.preview.entityName,
+              '',
+              `_${when} · ${modeLabel}_`,
+            ].join('\n')
+          : detail ?? `✅ Action approved and executed. (${when} · ${modeLabel})`;
         const resultMessage: ChatMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
@@ -682,7 +730,7 @@ function Chat() {
     } finally {
       setProcessingActionId(null);
     }
-  }, [authFetch]);
+  }, [authFetch, pendingActions, dataMode]);
 
   const handleReject = useCallback(async (actionId: string) => {
     trackInteraction('confirmation_rejected', { actionId });
@@ -764,9 +812,11 @@ function Chat() {
 
     // Client-side size validation (10MB limit)
     if (file.size > 10 * 1024 * 1024) {
+      setUploadError(`"${file.name}" is too large — the limit is 10MB.`);
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
+    setUploadError('');
 
     // Reset the file input so the same file can be re-selected
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -818,11 +868,17 @@ function Chat() {
       />
       <header className="chat-header">
         <div className="chat-header-title">
-          <span className="status-dot" />
           <span className="brand-name"><strong>AdTraffic</strong><span className="brand-ai">.ai</span></span>
           <span className="brand-separator">—</span>
           <span>Kiki</span>
           <span className="ai-badge" aria-label="AI-powered assistant">AI Assistant</span>
+          <span
+            className={`mode-chip mode-chip--${dataMode}`}
+            role="status"
+            aria-label={dataMode === 'live' ? 'Connected to live CM360 data' : 'Using demo data'}
+          >
+            {dataMode === 'live' ? 'Live · CM360' : 'Demo data'}
+          </span>
         </div>
         <div className="chat-header-actions">
           <span className="chat-user-name">{user?.name}</span>
@@ -838,8 +894,16 @@ function Chat() {
         </div>
       </header>
 
-      <main className="chat-messages">
+      <main className="chat-messages" ref={messagesContainerRef} onScroll={handleMessagesScroll} aria-live="polite">
+        {dataMode === 'demo' && (
+          <div className="demo-banner">
+            You're exploring demo data — <Link to="/settings">connect your CM360 account</Link> to go live.
+          </div>
+        )}
         {messages.map((msg, idx) => {
+          // The streaming placeholder stays invisible until the first delta
+          // arrives — the typing indicator covers the waiting state
+          if (msg.id === 'streaming' && msg.content === '') return null;
           const isLastAssistant =
             msg.role === 'assistant' &&
             !isLoading &&
@@ -877,6 +941,20 @@ function Chat() {
             </div>
           );
         })}
+        {messages.length === 1 && messages[0]?.id === 'welcome' && (
+          <div className="starter-chips">
+            {STARTER_PROMPTS.map((prompt) => (
+              <button
+                key={prompt}
+                className="starter-chip"
+                onClick={() => sendMessage(prompt)}
+                disabled={isLoading}
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
         {pendingActions.map((action) => (
           <div key={action.actionId} className="chat-message chat-message-assistant">
             <div className="chat-message-row">
@@ -887,6 +965,7 @@ function Chat() {
                   onApprove={handleApprove}
                   onReject={handleReject}
                   disabled={processingActionId === action.actionId}
+                  mode={dataMode}
                 />
               </div>
             </div>
@@ -917,7 +996,29 @@ function Chat() {
         <div ref={messagesEndRef} />
       </main>
 
+      {showJumpToLatest && (
+        <button className="jump-to-latest" onClick={jumpToLatest} aria-label="Jump to latest">
+          ↓ Jump to latest
+        </button>
+      )}
+
       <footer className="chat-input-area">
+        {failedSend && (
+          <div className="send-error-bar" role="alert">
+            <span>Your message didn't send — connection problem.</span>
+            <button className="send-error-retry" onClick={() => sendMessage(failedSend)}>
+              Retry
+            </button>
+          </div>
+        )}
+        {uploadError && (
+          <div className="send-error-bar" role="alert">
+            <span>{uploadError}</span>
+            <button className="send-error-retry" onClick={() => setUploadError('')} aria-label="Dismiss">
+              ✕
+            </button>
+          </div>
+        )}
         {pendingAttachment && (
           <div className="attachment-chip">
             <span className="attachment-chip-name">{pendingAttachment.name}</span>
@@ -958,8 +1059,17 @@ function Chat() {
           onKeyDown={handleKeyDown}
           placeholder="Message Kiki..."
           rows={1}
-          disabled={isLoading || isUploading}
+          disabled={isUploading}
         />
+        {isLoading && (
+          <button
+            className="chat-stop-btn"
+            onClick={() => abortControllerRef.current?.abort()}
+            aria-label="Stop response"
+          >
+            ◼ Stop
+          </button>
+        )}
         <button
           className="chat-send-btn"
           onClick={() => sendMessage(input)}

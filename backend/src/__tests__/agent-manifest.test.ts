@@ -60,7 +60,7 @@ describe('GET /api/v1/agent/manifest', () => {
     const res = await request(app).get('/api/v1/agent/manifest');
 
     expect(res.body.capabilities).toBeDefined();
-    expect(res.body.capabilities.tool_count).toBe(71);
+    expect(res.body.capabilities.tool_count).toBe(70);
     expect(res.body.capabilities.write_safety.confirmation_required).toBe(true);
   });
 
@@ -110,9 +110,9 @@ describe('GET /api/v1/agent/tools', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/json/);
-    expect(res.body.tool_count).toBe(71);
+    expect(res.body.tool_count).toBe(70);
     expect(res.body.tools).toBeInstanceOf(Array);
-    expect(res.body.tools).toHaveLength(71);
+    expect(res.body.tools).toHaveLength(70);
   });
 
   it('each tool has name and description', async () => {

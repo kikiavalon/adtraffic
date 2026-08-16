@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { PendingAction } from '@adtraffic/shared';
 import './ConfirmationCard.css';
 
@@ -7,6 +7,9 @@ interface ConfirmationCardProps {
   onApprove: (actionId: string, typedConfirmation?: string) => void;
   onReject: (actionId: string) => void;
   disabled?: boolean;
+  /** Which data mode the write will hit — shown inside the card so the
+   * consequence of approving is unambiguous. */
+  mode?: 'live' | 'demo';
 }
 
 const RISK_ICONS: Record<string, string> = {
@@ -20,9 +23,15 @@ export default function ConfirmationCard({
   onApprove,
   onReject,
   disabled = false,
+  mode,
 }: ConfirmationCardProps) {
   const [submitted, setSubmitted] = useState(false);
   const [typedConfirmation, setTypedConfirmation] = useState('');
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    cardRef.current?.focus();
+  }, []);
 
   const { preview, riskLevel, actionId } = action;
   const isDestructive = riskLevel === 'destructive';
@@ -49,6 +58,8 @@ export default function ConfirmationCard({
       className={`confirmation-card confirmation-card--${riskLevel}`}
       role="region"
       aria-label={`Confirmation: ${title}`}
+      ref={cardRef}
+      tabIndex={-1}
     >
       {/* Header */}
       <div className="confirmation-card__header">
@@ -56,6 +67,11 @@ export default function ConfirmationCard({
           {RISK_ICONS[riskLevel] ?? RISK_ICONS.standard}
         </span>
         <span className="confirmation-card__title">{title}</span>
+        {mode && (
+          <span className={`confirmation-card__mode confirmation-card__mode--${mode}`}>
+            {mode === 'live' ? 'Live data' : 'Demo data'}
+          </span>
+        )}
       </div>
 
       {/* Entity name */}
@@ -119,18 +135,10 @@ export default function ConfirmationCard({
         </div>
       )}
 
-      {/* Action buttons */}
+      {/* Action buttons — Cancel first so the safe path is the first target */}
       <div className="confirmation-card__actions">
         {isDestructive ? (
           <>
-            <button
-              className="confirmation-card__btn confirmation-card__btn--destructive"
-              onClick={handleApprove}
-              disabled={submitted || disabled || !confirmationValid}
-              aria-label={`${titleVerb} Forever`}
-            >
-              {titleVerb} Forever
-            </button>
             <button
               className="confirmation-card__btn confirmation-card__btn--cancel"
               onClick={handleReject}
@@ -139,9 +147,25 @@ export default function ConfirmationCard({
             >
               Cancel
             </button>
+            <button
+              className="confirmation-card__btn confirmation-card__btn--destructive"
+              onClick={handleApprove}
+              disabled={submitted || disabled || !confirmationValid}
+              aria-label={`${titleVerb} ${preview.entityType}`}
+            >
+              {titleVerb} {preview.entityType}
+            </button>
           </>
         ) : (
           <>
+            <button
+              className="confirmation-card__btn confirmation-card__btn--reject"
+              onClick={handleReject}
+              disabled={submitted || disabled}
+              aria-label="Cancel"
+            >
+              Cancel
+            </button>
             <button
               className="confirmation-card__btn confirmation-card__btn--approve"
               onClick={handleApprove}
@@ -149,14 +173,6 @@ export default function ConfirmationCard({
               aria-label="Approve"
             >
               Approve
-            </button>
-            <button
-              className="confirmation-card__btn confirmation-card__btn--reject"
-              onClick={handleReject}
-              disabled={submitted || disabled}
-              aria-label="Reject"
-            >
-              Reject
             </button>
           </>
         )}

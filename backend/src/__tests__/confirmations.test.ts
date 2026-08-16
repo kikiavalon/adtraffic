@@ -127,7 +127,7 @@ describe('POST /api/v1/confirmations/:actionId/approve', () => {
   it('returns 400 when destructive op missing typed confirmation', async () => {
     const action = makeStoredPendingAction({
       riskLevel: 'destructive',
-      preview: { entityType: 'campaign', entityName: 'Old Campaign', operation: 'delete' as const, fields: [] },
+      preview: { entityType: 'placement', entityName: 'Old Placement', operation: 'archive' as const, fields: [] },
     });
     mockConsumePendingAction.mockReturnValue(action);
 
@@ -136,7 +136,7 @@ describe('POST /api/v1/confirmations/:actionId/approve', () => {
       .send({});
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Type "DELETE" to confirm this action');
+    expect(res.body.error).toBe('Type "ARCHIVE" to confirm this action');
     // executeTool should NOT have been called
     expect(mockExecuteTool).not.toHaveBeenCalled();
   });
@@ -144,7 +144,7 @@ describe('POST /api/v1/confirmations/:actionId/approve', () => {
   it('returns 400 when destructive op has wrong typed confirmation', async () => {
     const action = makeStoredPendingAction({
       riskLevel: 'destructive',
-      preview: { entityType: 'campaign', entityName: 'Old Campaign', operation: 'delete' as const, fields: [] },
+      preview: { entityType: 'placement', entityName: 'Old Placement', operation: 'archive' as const, fields: [] },
     });
     mockConsumePendingAction.mockReturnValue(action);
 
@@ -153,28 +153,28 @@ describe('POST /api/v1/confirmations/:actionId/approve', () => {
       .send({ typedConfirmation: 'WRONG' });
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Type "DELETE" to confirm this action');
+    expect(res.body.error).toBe('Type "ARCHIVE" to confirm this action');
     expect(mockExecuteTool).not.toHaveBeenCalled();
   });
 
   it('executes destructive op when typed confirmation is correct', async () => {
     const action = makeStoredPendingAction({
       riskLevel: 'destructive',
-      preview: { entityType: 'campaign', entityName: 'Old Campaign', operation: 'delete' as const, fields: [] },
+      preview: { entityType: 'placement', entityName: 'Old Placement', operation: 'archive' as const, fields: [] },
     });
     mockConsumePendingAction.mockReturnValue(action);
     mockExecuteTool.mockResolvedValue({
-      result: { deleted: true },
+      result: { archived: true },
       isError: false,
     });
 
     const res = await request(app)
       .post('/api/v1/confirmations/action-123/approve')
-      .send({ typedConfirmation: 'DELETE' });
+      .send({ typedConfirmation: 'ARCHIVE' });
 
     expect(res.status).toBe(200);
     expect(res.body.actionId).toBe('action-123');
-    expect(res.body.result).toEqual({ deleted: true });
+    expect(res.body.result).toEqual({ archived: true });
     expect(mockExecuteTool).toHaveBeenCalledOnce();
   });
 

@@ -41,7 +41,7 @@ const mockUsageDanger = {
 const mockCM360Connected = {
   connected: true,
   scopes: ['https://www.googleapis.com/auth/dfatrafficking', 'https://www.googleapis.com/auth/dfareporting'],
-  expiresAt: '2026-03-01T00:00:00Z',
+  expiresAt: '2027-03-01T00:00:00Z',
 };
 
 const mockCM360Disconnected = {
@@ -156,7 +156,7 @@ describe('Settings — CM360 Connection', () => {
     expect(screen.getByText('Loading connection status...')).toBeInTheDocument();
   });
 
-  it('shows connected state with scopes and expiry', async () => {
+  it('shows connected state without exposing scopes or token expiry', async () => {
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Connected));
@@ -166,8 +166,9 @@ describe('Settings — CM360 Connection', () => {
     await waitFor(() => {
       expect(screen.getByText('Connected')).toBeInTheDocument();
     });
-    expect(screen.getByText(/dfatrafficking, dfareporting/)).toBeInTheDocument();
-    expect(screen.getByText(/Disconnect CM360/)).toBeInTheDocument();
+    expect(screen.queryByText(/dfatrafficking/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Token expires')).not.toBeInTheDocument();
+    expect(screen.getByText(/Disconnect/)).toBeInTheDocument();
   });
 
   it('shows disconnected state with connect button', async () => {
@@ -223,9 +224,10 @@ describe('Settings — CM360 Connection', () => {
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText('Disconnect CM360')).toBeInTheDocument();
+      expect(screen.getByText('Disconnect\u2026')).toBeInTheDocument();
     });
 
+    await user.click(screen.getByText('Disconnect\u2026'));
     await user.click(screen.getByText('Disconnect CM360'));
 
     await waitFor(() => {
@@ -262,9 +264,10 @@ describe('Settings — CM360 Connection', () => {
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText('Disconnect CM360')).toBeInTheDocument();
+      expect(screen.getByText('Disconnect\u2026')).toBeInTheDocument();
     });
 
+    await user.click(screen.getByText('Disconnect\u2026'));
     await user.click(screen.getByText('Disconnect CM360'));
 
     await waitFor(() => {
@@ -282,9 +285,10 @@ describe('Settings — CM360 Connection', () => {
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText('Disconnect CM360')).toBeInTheDocument();
+      expect(screen.getByText('Disconnect\u2026')).toBeInTheDocument();
     });
 
+    await user.click(screen.getByText('Disconnect\u2026'));
     await user.click(screen.getByText('Disconnect CM360'));
 
     expect(screen.getByText('Disconnecting...')).toBeInTheDocument();
@@ -410,9 +414,10 @@ describe('Settings — Toast', () => {
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText('Disconnect CM360')).toBeInTheDocument();
+      expect(screen.getByText('Disconnect\u2026')).toBeInTheDocument();
     });
 
+    await user.click(screen.getByText('Disconnect\u2026'));
     await user.click(screen.getByText('Disconnect CM360'));
 
     await waitFor(() => {

@@ -200,6 +200,10 @@ export async function chat(
               const pendingActionPayload = {
                 actionId: crypto.randomUUID(),
                 toolName: toolUse.name,
+                // The approvals route executes the stored payload after sign-off,
+                // so it must carry the original tool input (as the confirmations
+                // route does via StoredPendingAction).
+                toolInput,
                 description: `${preview.operation} ${preview.entityType}: ${preview.entityName}`,
                 preview,
                 riskLevel,
@@ -231,7 +235,7 @@ export async function chat(
               }
             }
 
-            const pendingAction = createPendingAction({
+            const pendingAction = await createPendingAction({
               userId: userId ?? 'anonymous',
               conversationId,
               toolName: toolUse.name,
@@ -507,6 +511,10 @@ export async function chatStream(
             const pendingActionPayload = {
               actionId: crypto.randomUUID(),
               toolName: toolUse.name,
+              // The approvals route executes the stored payload after sign-off,
+              // so it must carry the original tool input (as the confirmations
+              // route does via StoredPendingAction).
+              toolInput,
               description: `${preview.operation} ${preview.entityType}: ${preview.entityName}`,
               preview,
               riskLevel,
@@ -542,7 +550,7 @@ export async function chatStream(
             }
           }
 
-          const pendingAction = createPendingAction({
+          const pendingAction = await createPendingAction({
             userId: userId ?? 'anonymous',
             conversationId,
             toolName: toolUse.name,
@@ -636,15 +644,12 @@ export function buildActionPreview(toolName: string, input: Record<string, unkno
     cm360_update_ad: 'Ad',
     cm360_update_creative: 'Creative',
     cm360_update_landing_page: 'Landing Page',
-    cm360_delete_event_tag: 'Event Tag',
-    cm360_delete_floodlight_activity: 'Floodlight Activity',
   };
 
   // Map verb prefixes to operation types
   const operationMap: Record<string, ActionPreview['operation']> = {
     create: 'create',
     update: 'update',
-    delete: 'delete',
     associate: 'create',
     upload: 'create',
   };

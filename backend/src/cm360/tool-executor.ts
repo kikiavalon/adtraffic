@@ -56,7 +56,6 @@ import {
   GetEventTagInputSchema,
   CreateEventTagInputSchema,
   UpdateEventTagInputSchema,
-  DeleteEventTagInputSchema,
   ListPlacementGroupsInputSchema,
   GetPlacementGroupInputSchema,
   CreatePlacementGroupInputSchema,
@@ -454,7 +453,6 @@ const VALID_TOOL_NAMES = new Set([
   'cm360_get_event_tag',
   'cm360_create_event_tag',
   'cm360_update_event_tag',
-  'cm360_delete_event_tag',
   // Placement groups
   'cm360_list_placement_groups',
   'cm360_get_placement_group',
@@ -963,14 +961,6 @@ async function executeToolReal(
 
     case 'cm360_update_event_tag': {
       const parsed = UpdateEventTagInputSchema.safeParse(toolInput);
-      if (!parsed.success) {
-        return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
-      }
-      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
-    }
-
-    case 'cm360_delete_event_tag': {
-      const parsed = DeleteEventTagInputSchema.safeParse(toolInput);
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
@@ -1969,18 +1959,6 @@ function executeToolMock(
           return { result: null, isError: true, errorMessage: `Event tag ${parsed.data.eventTagId} not found` };
         }
         return { result: updated, isError: false };
-      }
-
-      case 'cm360_delete_event_tag': {
-        const parsed = DeleteEventTagInputSchema.safeParse(toolInput);
-        if (!parsed.success) {
-          return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
-        }
-        const deleted = mockStore.deleteEventTag(parsed.data.eventTagId);
-        if (!deleted) {
-          return { result: null, isError: true, errorMessage: `Event tag ${parsed.data.eventTagId} not found` };
-        }
-        return { result: { success: true, message: `Event tag ${parsed.data.eventTagId} deleted` }, isError: false };
       }
 
       case 'cm360_list_placement_groups': {

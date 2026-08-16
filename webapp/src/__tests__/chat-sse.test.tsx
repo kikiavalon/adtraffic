@@ -136,7 +136,7 @@ describe('Chat SSE streaming', () => {
     await sendTestMessage(user);
 
     await waitFor(() => {
-      expect(screen.getByText(/Backend error: 500/)).toBeInTheDocument();
+      expect(screen.getByText(/didn't send/i)).toBeInTheDocument();
     });
   });
 
@@ -153,7 +153,7 @@ describe('Chat SSE streaming', () => {
     await sendTestMessage(user);
 
     await waitFor(() => {
-      expect(screen.getByText(/No response body for streaming/)).toBeInTheDocument();
+      expect(screen.getByText(/didn't send/i)).toBeInTheDocument();
     });
   });
 
@@ -165,7 +165,7 @@ describe('Chat SSE streaming', () => {
     await sendTestMessage(user);
 
     await waitFor(() => {
-      expect(screen.getByText(/Failed to fetch/)).toBeInTheDocument();
+      expect(screen.getByText(/didn't send/i)).toBeInTheDocument();
     });
   });
 
@@ -307,8 +307,8 @@ describe('Chat SSE streaming', () => {
       expect(screen.getByText(/Reconnecting/)).toBeInTheDocument();
     });
 
-    // Input should still be disabled (isLoading is true)
-    expect(screen.getByPlaceholderText('Message Kiki...')).toBeDisabled();
+    // Still loading: composer stays enabled, send stays disabled
+    expect(screen.getByRole('button', { name: /send/i })).toBeDisabled();
 
     // Resolve the stream to complete normally
     await act(async () => {
@@ -407,7 +407,7 @@ describe('Chat SSE streaming', () => {
     await user.type(input, 'First');
     await user.click(screen.getByRole('button', { name: /send/i }));
 
-    // The component should be in loading state (input disabled)
-    expect(input).toBeDisabled();
+    // The component should be in loading state (send disabled)
+    expect(screen.getByRole('button', { name: /send/i })).toBeDisabled();
   });
 });

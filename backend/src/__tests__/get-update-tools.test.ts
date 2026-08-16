@@ -16,6 +16,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { executeTool } from '../cm360/tool-executor.js';
 import { mockStore } from '../cm360/mock-data-store.js';
+import { CreateAdInputSchema, UpdateAdInputSchema } from '../cm360/tool-input-schemas.js';
+import type { CM360Ad } from '@adtraffic/shared';
 
 const PROFILE_ID = '12345';
 
@@ -532,5 +534,70 @@ describe('Get + Update round trips', () => {
     expect(updated.startDate).toBe(target.startDate);
     expect(updated.endDate).toBe(target.endDate);
     expect(updated.archived).toBe(target.archived);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Click-through URL schema fields
+// ---------------------------------------------------------------------------
+
+describe('click-through URL schema fields', () => {
+  it('create/update ad schemas accept one click-through field and reject both', () => {
+    const base = { profileId: 'p', campaignId: 'c', name: 'n', placementIds: ['1'], creativeId: 'cr' };
+    expect(CreateAdInputSchema.safeParse({ ...base, landingPageId: 'lp1' }).success).toBe(true);
+    expect(CreateAdInputSchema.safeParse({ ...base, customClickThroughUrl: 'https://x.com' }).success).toBe(true);
+    expect(CreateAdInputSchema.safeParse({ ...base, landingPageId: 'lp1', customClickThroughUrl: 'https://x.com' }).success).toBe(false);
+    expect(CreateAdInputSchema.safeParse({ ...base, customClickThroughUrl: 'notaurl' }).success).toBe(false);
+    const upd = { profileId: 'p', adId: 'a1' };
+    expect(UpdateAdInputSchema.safeParse({ ...upd, landingPageId: 'lp1' }).success).toBe(true);
+    expect(UpdateAdInputSchema.safeParse({ ...upd, landingPageId: 'lp1', customClickThroughUrl: 'https://x.com' }).success).toBe(false);
+  });
+
+  it('customClickThroughUrl must be https', () => {
+    const upd = { profileId: 'p', adId: 'a1' };
+    expect(UpdateAdInputSchema.safeParse({ ...upd, customClickThroughUrl: 'http://insecure.com' }).success).toBe(false);
+    expect(UpdateAdInputSchema.safeParse({ ...upd, customClickThroughUrl: 'https://secure.com' }).success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Click-through URL executor passthrough (Task 5)
+// ---------------------------------------------------------------------------
+
+describe('click-through URL executor passthrough', () => {
+  it('cm360_create_ad passes landingPageId through to the assignment and computes the URL', async () => {
+    const advertiser = mockStore.listAdvertisers()[0]!;
+    const lp = mockStore.listLandingPages({ advertiserId: advertiser.id })[0]!;
+    const campaign = mockStore.listCampaigns({ advertiserId: advertiser.id })[0]!;
+    const placement = mockStore.listPlacements({ campaignId: campaign.id })[0]!;
+    const creative = mockStore.listCreatives({ advertiserId: advertiser.id })[0]!;
+    const result = await executeTool('cm360_create_ad', {
+      profileId: PROFILE_ID,
+      campaignId: campaign.id,
+      name: 'Executor CT test',
+      placementIds: [placement.id],
+      creativeId: creative.id,
+      landingPageId: lp.id,
+    });
+    expect(result.isError).toBe(false);
+    const ad = result.result as CM360Ad;
+    const assignment = ad.creativeRotation.creativeAssignments[0]!;
+    expect(assignment.clickThroughUrl?.landingPageId).toBe(lp.id);
+    expect(assignment.clickThroughUrl?.computedClickThroughUrl).toBeDefined();
+  });
+
+  it('cm360_update_ad switches an ad to a customClickThroughUrl', async () => {
+    const existing = mockStore.listAds()[0]!;
+    const result = await executeTool('cm360_update_ad', {
+      profileId: PROFILE_ID,
+      adId: existing.id,
+      customClickThroughUrl: 'https://example.com/executor-override',
+    });
+    expect(result.isError).toBe(false);
+    const ad = result.result as CM360Ad;
+    const ct = ad.creativeRotation.creativeAssignments[0]!.clickThroughUrl;
+    expect(ct?.customClickThroughUrl).toBe('https://example.com/executor-override');
+    expect(ct?.computedClickThroughUrl).toContain('https://example.com/executor-override');
+    expect(ct?.landingPageId).toBeUndefined();
   });
 });

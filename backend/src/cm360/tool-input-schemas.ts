@@ -15,17 +15,9 @@ const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM
 const clickThroughUrlSuffix = z.string()
   .max(127, 'Click-through URL suffix must be under 128 characters')
   .refine(
-    (s) => !s.startsWith('?') && !s.startsWith('&'),
+    (v) => !v.startsWith('?') && !v.startsWith('&'),
     'Suffix should be raw query parameters (e.g. "utm_source=cm360&utm_medium=display") without a leading "?" or "&" — CM360 appends the separator automatically',
   );
-
-const exclusiveClickThroughUrl = (data: { landingPageId?: string; customClickThroughUrl?: string }) =>
-  !(data.landingPageId !== undefined && data.customClickThroughUrl !== undefined);
-
-const exclusiveClickThroughUrlMessage = {
-  message: 'Provide either landingPageId or customClickThroughUrl, not both',
-  path: ['customClickThroughUrl'],
-};
 
 // ---------------------------------------------------------------------------
 // List / Read operations
@@ -169,9 +161,12 @@ export const UpdateAdInputSchema = z.object({
   placementIds: z.array(z.string().min(1)).min(1).optional(),
   creativeId: z.string().min(1).optional(),
   landingPageId: z.string().min(1).max(50).optional(),
-  customClickThroughUrl: z.string().url('Must be a valid URL').optional(),
+  customClickThroughUrl: z.string().url().startsWith('https://', 'Click-through URLs must be https').max(2048).optional(),
   clickThroughUrlSuffix: clickThroughUrlSuffix.optional(),
-}).refine(exclusiveClickThroughUrl, exclusiveClickThroughUrlMessage);
+}).refine(
+  (v) => !(v.landingPageId && v.customClickThroughUrl),
+  { message: 'Provide landingPageId or customClickThroughUrl, not both', path: ['customClickThroughUrl'] },
+);
 
 export const UpdateCreativeInputSchema = z.object({
   profileId: z.string().min(1, 'Profile ID is required').max(50),
@@ -235,9 +230,12 @@ export const CreateAdInputSchema = z.object({
   placementIds: z.array(z.string().min(1)).min(1, 'At least one placement ID is required'),
   creativeId: z.string().min(1, 'Creative ID is required'),
   landingPageId: z.string().min(1).max(50).optional(),
-  customClickThroughUrl: z.string().url('Must be a valid URL').optional(),
+  customClickThroughUrl: z.string().url().startsWith('https://', 'Click-through URLs must be https').max(2048).optional(),
   clickThroughUrlSuffix: clickThroughUrlSuffix.optional(),
-}).refine(exclusiveClickThroughUrl, exclusiveClickThroughUrlMessage);
+}).refine(
+  (v) => !(v.landingPageId && v.customClickThroughUrl),
+  { message: 'Provide landingPageId or customClickThroughUrl, not both', path: ['customClickThroughUrl'] },
+);
 
 export const CreateCreativeInputSchema = z.object({
   profileId: z.string().min(1, 'Profile ID is required').max(50),
@@ -325,11 +323,6 @@ export const UpdateEventTagInputSchema = z.object({
   status: z.enum(['ENABLED', 'DISABLED']).optional(),
   siteIds: z.array(z.string()).optional(),
   enabledByDefault: z.boolean().optional(),
-});
-
-export const DeleteEventTagInputSchema = z.object({
-  profileId: z.string().min(1, 'Profile ID is required').max(50),
-  eventTagId: z.string().min(1, 'Event tag ID is required'),
 });
 
 // ---------------------------------------------------------------------------
@@ -446,7 +439,6 @@ export type ListEventTagsInput = z.infer<typeof ListEventTagsInputSchema>;
 export type GetEventTagInput = z.infer<typeof GetEventTagInputSchema>;
 export type CreateEventTagInput = z.infer<typeof CreateEventTagInputSchema>;
 export type UpdateEventTagInput = z.infer<typeof UpdateEventTagInputSchema>;
-export type DeleteEventTagInput = z.infer<typeof DeleteEventTagInputSchema>;
 export type ListPlacementGroupsInput = z.infer<typeof ListPlacementGroupsInputSchema>;
 export type GetPlacementGroupInput = z.infer<typeof GetPlacementGroupInputSchema>;
 export type CreatePlacementGroupInput = z.infer<typeof CreatePlacementGroupInputSchema>;

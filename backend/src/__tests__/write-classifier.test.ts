@@ -46,8 +46,9 @@ describe('write-classifier', () => {
       expect(classifyTool('cm360_update_placement', { activeStatus: 'PERMANENTLY_ARCHIVED' })).toBe('destructive');
     });
 
-    it('classifies delete operations as destructive', () => {
-      expect(classifyTool('cm360_delete_event_tag')).toBe('destructive');
+    it('has no delete tools — CM360 core entities cannot be deleted, and the product ships zero delete operations', () => {
+      expect(classifyTool('cm360_delete_event_tag')).toBeNull();
+      expect(classifyTool('cm360_delete_floodlight_activity')).toBeNull();
     });
 
     it('returns null for read tools', () => {

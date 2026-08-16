@@ -175,7 +175,7 @@ describe('Chat', () => {
     });
   });
 
-  it('disables input while loading', async () => {
+  it('keeps input enabled but send disabled while loading', async () => {
     const [response, resolve] = createPendingSSEResponse();
     mockAuthFetch.mockResolvedValue(response);
 
@@ -186,7 +186,8 @@ describe('Chat', () => {
     await user.type(input, 'Test');
     await user.click(screen.getByRole('button', { name: /send/i }));
 
-    expect(input).toBeDisabled();
+    expect(input).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /send/i })).toBeDisabled();
 
     await act(async () => {
       resolve();

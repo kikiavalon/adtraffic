@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import { CM360_TOOLS } from '../claude/tool-definitions.js';
 
-// All 71 expected tools (59 from HEAD + 12 user/role management)
+// All 70 expected tools (CM360 has no delete for core entities; the product ships zero delete tools)
 const EXPECTED_TOOLS = [
   'cm360_list_profiles',
   'cm360_list_advertisers',
@@ -43,7 +43,6 @@ const EXPECTED_TOOLS = [
   'cm360_get_event_tag',
   'cm360_create_event_tag',
   'cm360_update_event_tag',
-  'cm360_delete_event_tag',
   // Placement groups
   'cm360_list_placement_groups',
   'cm360_get_placement_group',
@@ -105,7 +104,6 @@ const WRITE_TOOLS = [
   // Event tags (write)
   'cm360_create_event_tag',
   'cm360_update_event_tag',
-  'cm360_delete_event_tag',
   // Placement groups (write)
   'cm360_create_placement_group',
   'cm360_update_placement_group',
@@ -122,8 +120,8 @@ const WRITE_TOOLS = [
 ];
 
 describe('Tool inventory', () => {
-  it('defines exactly 71 tools', () => {
-    expect(CM360_TOOLS).toHaveLength(71);
+  it('defines exactly 70 tools', () => {
+    expect(CM360_TOOLS).toHaveLength(70);
   });
 
   it('includes all expected tool names', () => {
@@ -264,4 +262,25 @@ describe('Property types', () => {
     const props = tool.input_schema.properties as Record<string, { enum?: string[] }>;
     expect(props.paymentSource!.enum).toEqual(['PLACEMENT_AGENCY_PAID', 'PLACEMENT_PUBLISHER_PAID']);
   });
+});
+
+describe('click-through URL fields on ad tools (Task 7)', () => {
+  it.each(['cm360_create_ad', 'cm360_update_ad'])(
+    '%s exposes landingPageId and customClickThroughUrl with mutual exclusivity noted',
+    (toolName) => {
+      const tool = CM360_TOOLS.find((t) => t.name === toolName)!;
+      const props = tool.input_schema.properties as Record<string, { type?: string; description?: string }>;
+      expect(props.landingPageId).toBeDefined();
+      expect(props.landingPageId!.type).toBe('string');
+      expect(props.landingPageId!.description).toContain('Mutually exclusive with customClickThroughUrl');
+      expect(props.customClickThroughUrl).toBeDefined();
+      expect(props.customClickThroughUrl!.type).toBe('string');
+      expect(props.customClickThroughUrl!.description).toContain('Mutually exclusive with landingPageId');
+      // Optional fields — must not be required
+      expect(tool.input_schema.required).not.toContain('landingPageId');
+      expect(tool.input_schema.required).not.toContain('customClickThroughUrl');
+      // Tool description mentions click-through capability
+      expect(tool.description!.toLowerCase()).toContain('click-through');
+    },
+  );
 });

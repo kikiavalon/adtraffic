@@ -25,6 +25,7 @@ import {
   getPendingApprovals,
   approveRequest,
   rejectRequest,
+  recordExecutionResult,
 } from '../approval/approval-service.js';
 
 const mockAction: PendingAction = {
@@ -160,6 +161,58 @@ describe('approval-service', () => {
       await expect(getPendingApprovals()).rejects.toThrow('Corrupted actionPayload in approval queue row approval-bad');
     });
 
+    it('parses a stored executionResult into the mapped item', async () => {
+      const mockOrderBy = vi.fn().mockResolvedValue([
+        {
+          id: 'approval-executed',
+          requesterId: 'user-1',
+          approverId: 'admin-1',
+          conversationId: null,
+          actionPayload: JSON.stringify(mockAction),
+          executionResult: JSON.stringify({ result: { id: 'camp-1' }, isError: false, executedAt: '2026-08-15T10:00:00.000Z' }),
+          status: 'approved',
+          note: null,
+          createdAt: new Date(),
+          resolvedAt: new Date(),
+        },
+      ]);
+      const mockWhere = vi.fn().mockReturnValue({ orderBy: mockOrderBy });
+      const mockFrom = vi.fn().mockReturnValue({ where: mockWhere });
+      (db.select as Mock).mockReturnValue({ from: mockFrom });
+
+      const results = await getPendingApprovals();
+
+      expect(results[0]!.executionResult).toEqual({
+        result: { id: 'camp-1' },
+        isError: false,
+        executedAt: '2026-08-15T10:00:00.000Z',
+      });
+    });
+
+    it('maps a missing executionResult to null', async () => {
+      const mockOrderBy = vi.fn().mockResolvedValue([
+        {
+          id: 'approval-1',
+          requesterId: 'user-1',
+          approverId: null,
+          conversationId: null,
+          actionPayload: JSON.stringify(mockAction),
+          executionResult: null,
+          status: 'pending',
+          note: null,
+          createdAt: new Date(),
+          resolvedAt: null,
+        },
+      ]);
+      const mockWhere = vi.fn().mockReturnValue({ orderBy: mockOrderBy });
+      const mockFrom = vi.fn().mockReturnValue({ where: mockWhere });
+      (db.select as Mock).mockReturnValue({ from: mockFrom });
+
+      const results = await getPendingApprovals();
+
+      expect(results[0]!.executionResult).toBeNull();
+    });
+
     it('returns empty array when no pending items', async () => {
       const mockOrderBy = vi.fn().mockResolvedValue([]);
       const mockWhere = vi.fn().mockReturnValue({ orderBy: mockOrderBy });
@@ -214,6 +267,49 @@ describe('approval-service', () => {
 
       const setCall = mockSet.mock.calls[0]![0] as { note: string | null };
       expect(setCall.note).toBeNull();
+    });
+  });
+
+  describe('recordExecutionResult', () => {
+    it('stores the serialized execution result on the approval row', async () => {
+      const mockUpdateWhere = vi.fn().mockResolvedValue(undefined);
+      const mockSet = vi.fn().mockReturnValue({ where: mockUpdateWhere });
+      (db.update as Mock).mockReturnValue({ set: mockSet });
+
+      await recordExecutionResult('approval-1', {
+        result: { campaign: { id: 'camp-99', name: 'Q1 Display' } },
+        isError: false,
+        executedAt: '2026-08-15T10:00:00.000Z',
+      });
+
+      expect(db.update).toHaveBeenCalled();
+      const setCall = mockSet.mock.calls[0]![0] as { executionResult: string };
+      const parsed = JSON.parse(setCall.executionResult) as {
+        result: { campaign: { id: string } };
+        isError: boolean;
+        executedAt: string;
+      };
+      expect(parsed.isError).toBe(false);
+      expect(parsed.result.campaign.id).toBe('camp-99');
+      expect(parsed.executedAt).toBe('2026-08-15T10:00:00.000Z');
+    });
+
+    it('stores error details when execution failed', async () => {
+      const mockUpdateWhere = vi.fn().mockResolvedValue(undefined);
+      const mockSet = vi.fn().mockReturnValue({ where: mockUpdateWhere });
+      (db.update as Mock).mockReturnValue({ set: mockSet });
+
+      await recordExecutionResult('approval-1', {
+        result: null,
+        isError: true,
+        errorMessage: 'CM360 API rejected the request',
+        executedAt: '2026-08-15T10:00:00.000Z',
+      });
+
+      const setCall = mockSet.mock.calls[0]![0] as { executionResult: string };
+      const parsed = JSON.parse(setCall.executionResult) as { isError: boolean; errorMessage: string };
+      expect(parsed.isError).toBe(true);
+      expect(parsed.errorMessage).toBe('CM360 API rejected the request');
     });
   });
 

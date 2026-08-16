@@ -17,9 +17,9 @@ export const WRITE_TOOL_RISK_MAP: Record<string, OperationRiskLevel> = {
   cm360_update_creative: 'standard',
   cm360_update_landing_page: 'standard',
 
-  // Future delete operations — destructive
-  cm360_delete_event_tag: 'destructive',
-  cm360_delete_floodlight_activity: 'destructive',
+  // No delete tools: CM360 has no delete for core trafficking entities, and the
+  // product deliberately ships zero delete operations. Irreversible archives
+  // (PERMANENTLY_ARCHIVED) are escalated to 'destructive' in classifyTool below.
 };
 
 /** Check if a tool is a write operation requiring confirmation */

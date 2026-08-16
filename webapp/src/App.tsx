@@ -5,6 +5,7 @@ import Login from './pages/Login.js';
 import Register from './pages/Register.js';
 import Settings from './pages/Settings.js';
 import Privacy from './pages/Privacy.js';
+import ErrorBoundary from './components/ErrorBoundary.js';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
@@ -32,9 +33,11 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -32,7 +32,7 @@
     ]
   },
   "capabilities": {
-    "tool_count": 71,
+    "tool_count": 70,
     "categories": [
       "campaign_management",
       "placement_management",
@@ -48,11 +48,11 @@
       "analysis",
       "account_management"
     ],
-    "operations": ["read", "create", "update", "delete", "generate", "analyze"],
+    "operations": ["read", "create", "update", "archive", "generate", "analyze"],
     "write_safety": {
       "confirmation_required": true,
       "preview_before_execute": true,
-      "description": "All create, update, and delete operations require explicit user confirmation before execution."
+      "description": "All create, update, and archive operations require explicit user confirmation before execution. The agent ships zero delete operations — CM360 core entities cannot be deleted, and no delete tools are exposed."
     }
   },
   "data_processing": {

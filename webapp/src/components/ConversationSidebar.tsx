@@ -55,7 +55,32 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
     } catch { /* ignore */ }
   };
 
+  const handleDelete = async (convId: string, title: string | null) => {
+    const name = title ?? 'this conversation';
+    if (!window.confirm(`Delete "${name}"? This can't be undone.`)) return;
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/conversations/${convId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        sessionStorage.removeItem(`adtraffic-messages-${convId}`);
+        if (convId === currentConversationId) onNewChat();
+        loadConversations();
+      }
+    } catch { /* ignore */ }
+  };
+
   const showSidebar = isWide || isOpen;
+
+  // Escape closes the mobile overlay sidebar
+  useEffect(() => {
+    if (isWide || !isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isWide, isOpen]);
 
   return (
     <>
@@ -69,6 +94,14 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
         >
           {isOpen ? '\u2715' : '\u2630'}
         </button>
+      )}
+
+      {!isWide && isOpen && (
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setIsOpen(false)}
+          aria-hidden="true"
+        />
       )}
 
       {showSidebar && (
@@ -85,16 +118,25 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
               <p className="sidebar-empty">No conversations yet</p>
             )}
             {conversations.map((conv) => (
-              <button
-                key={conv.id}
-                className={`sidebar-item ${conv.id === currentConversationId ? 'sidebar-item-active' : ''}`}
-                onClick={() => handleSelect(conv.id)}
-              >
-                <span className="sidebar-item-title">{conv.title ?? 'New conversation'}</span>
-                <span className="sidebar-item-date">
-                  {new Date(conv.updatedAt).toLocaleDateString()}
-                </span>
-              </button>
+              <div key={conv.id} className="sidebar-item-row">
+                <button
+                  className={`sidebar-item ${conv.id === currentConversationId ? 'sidebar-item-active' : ''}`}
+                  onClick={() => handleSelect(conv.id)}
+                >
+                  <span className="sidebar-item-title">{conv.title ?? 'New conversation'}</span>
+                  <span className="sidebar-item-date">
+                    {new Date(conv.updatedAt).toLocaleDateString()}
+                  </span>
+                </button>
+                <button
+                  className="sidebar-item-delete"
+                  onClick={() => handleDelete(conv.id, conv.title)}
+                  aria-label={`Delete conversation ${conv.title ?? 'New conversation'}`}
+                  title="Delete conversation"
+                >
+                  {'✕'}
+                </button>
+              </div>
             ))}
           </div>
         </aside>

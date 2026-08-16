@@ -103,7 +103,7 @@ describe('Chat confirmation flow', () => {
 
     // Approve and Reject buttons should be present
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
   });
 
   it('calls approve API endpoint when Approve is clicked', async () => {
@@ -170,11 +170,11 @@ describe('Chat confirmation flow', () => {
 
     // Wait for confirmation card
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
     });
 
     // Click reject
-    await user.click(screen.getByRole('button', { name: /reject/i }));
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
 
     // Verify the reject API was called
     await waitFor(() => {
@@ -242,10 +242,10 @@ describe('Chat confirmation flow', () => {
     await sendTestMessage(user);
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByRole('button', { name: /reject/i }));
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
 
     // Confirmation card should be removed and cancellation message shown
     await waitFor(() => {
@@ -348,7 +348,7 @@ describe('Chat confirmation flow', () => {
     });
   });
 
-  it('renders approve result as JSON when result is an object', async () => {
+  it('renders a receipt (not JSON) when result is an object', async () => {
     const action = makePendingAction();
     const events = [
       `data: ${JSON.stringify({ type: 'confirmation_required', action })}\n\n`,
@@ -376,9 +376,89 @@ describe('Chat confirmation flow', () => {
 
     await user.click(screen.getByRole('button', { name: /approve/i }));
 
-    // Object result should be rendered as JSON
+    // Object result renders as a readable receipt, never raw JSON
     await waitFor(() => {
-      expect(screen.getByText(/camp-123/)).toBeInTheDocument();
+      expect(screen.getByText(/Approved — create Campaign/i)).toBeInTheDocument();
     });
+    expect(screen.queryByText(/"status"/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Approval receipt', () => {
+  beforeEach(() => {
+    mockAuthFetch.mockReset();
+    sessionStorage.clear();
+  });
+
+  it('renders a readable receipt instead of raw JSON after approval', async () => {
+    const action = makePendingAction();
+    const sseEvents = [
+      `data: ${JSON.stringify({ type: 'confirmation_required', action })}\n\n`,
+      `data: ${JSON.stringify({ type: 'done' })}\n\n`,
+    ];
+
+    mockAuthFetch
+      .mockResolvedValueOnce(createSSEResponse(sseEvents))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            actionId: 'act-001',
+            result: { id: 'camp-123', name: 'Apex Motors Q1 Display', kind: 'campaign' },
+            isError: false,
+          }),
+      });
+
+    const user = userEvent.setup();
+    renderChat();
+    await sendTestMessage(user);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /approve/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Approved — create Campaign/i)).toBeInTheDocument();
+    });
+    // Entity name shown, raw JSON not
+    expect(screen.getAllByText(/Apex Motors Q1 Display/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/"kind"/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Pending confirmation rehydration', () => {
+  beforeEach(() => {
+    mockAuthFetch.mockReset();
+    sessionStorage.clear();
+  });
+
+  it('rehydrates pending confirmations after a refresh', async () => {
+    sessionStorage.setItem('adtraffic-conv-id', 'conv-refresh');
+    sessionStorage.setItem(
+      'adtraffic-messages-conv-refresh',
+      JSON.stringify([{ id: 'welcome', role: 'assistant', content: 'Welcome back', timestamp: 1 }])
+    );
+    mockAuthFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ actions: [makePendingAction()] }),
+    });
+
+    renderChat();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
+    });
+    expect(mockAuthFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/confirmations/pending?conversationId=conv-refresh')
+    );
+  });
+
+  it('does not fetch pending confirmations for a fresh session', () => {
+    mockAuthFetch.mockResolvedValue({ ok: false });
+    renderChat();
+    expect(mockAuthFetch).not.toHaveBeenCalledWith(
+      expect.stringContaining('/confirmations/pending')
+    );
   });
 });

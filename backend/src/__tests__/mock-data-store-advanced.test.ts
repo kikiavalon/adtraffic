@@ -411,3 +411,79 @@ describe('Data consistency after mutations', () => {
     expect(mockStore.listCampaigns().find((c) => c.name === 'Will Be Cleared')).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Ad click-through URLs
+// ---------------------------------------------------------------------------
+
+describe('ad click-through URLs', () => {
+  // NOTE: tsconfig sets noUncheckedIndexedAccess — use the repo's `[0]!` pattern on index access.
+  it('createAd stores a landingPageId click-through and computes the URL', () => {
+    const advertiser = mockStore.listAdvertisers()[0]!;
+    const lp = mockStore.listLandingPages({ advertiserId: advertiser.id })[0]!;
+    const campaign = mockStore.listCampaigns({ advertiserId: advertiser.id })[0]!;
+    const placement = mockStore.listPlacements({ campaignId: campaign.id })[0]!;
+    const creative = mockStore.listCreatives({ advertiserId: advertiser.id })[0]!;
+    const ad = mockStore.createAd({
+      campaignId: campaign.id, name: 'CT test', placementIds: [placement.id],
+      creativeId: creative.id, landingPageId: lp.id,
+    });
+    const assignment = ad.creativeRotation.creativeAssignments[0]!;
+    expect(assignment.clickThroughUrl?.landingPageId).toBe(lp.id);
+    expect(assignment.clickThroughUrl?.computedClickThroughUrl).toContain(lp.url.split('?')[0]!);
+  });
+
+  it('createAd without click-through falls back to campaign default landing page', () => {
+    const campaign = mockStore.listCampaigns()[0]!;
+    const placement = mockStore.listPlacements({ campaignId: campaign.id })[0]!;
+    const creative = mockStore.listCreatives({ advertiserId: campaign.advertiserId })[0]!;
+    const ad = mockStore.createAd({
+      campaignId: campaign.id, name: 'CT default', placementIds: [placement.id], creativeId: creative.id,
+    });
+    const ct = ad.creativeRotation.creativeAssignments[0]!.clickThroughUrl;
+    expect(ct?.defaultLandingPage).toBe(true);
+    const defaultLp = mockStore.getLandingPage(campaign.defaultLandingPageId);
+    expect(ct?.computedClickThroughUrl).toContain((defaultLp?.url ?? 'MISSING').split('?')[0]!);
+  });
+
+  it('updateAd can switch to a customClickThroughUrl', () => {
+    // Pick an ad from a suffix-free advertiser (3+) so computedClickThroughUrl
+    // equals the custom URL exactly (suffixes apply to custom URLs too).
+    const suffixFreeAdvertiser = mockStore.listAdvertisers().find((a) => !a.clickThroughUrlSuffix)!;
+    const ad = mockStore.listAds({ advertiserId: suffixFreeAdvertiser.id })[0]!;
+    const updated = mockStore.updateAd(ad.id, { customClickThroughUrl: 'https://example.com/override' });
+    const ct = updated?.creativeRotation.creativeAssignments[0]!.clickThroughUrl;
+    expect(ct?.customClickThroughUrl).toBe('https://example.com/override');
+    expect(ct?.computedClickThroughUrl).toBe('https://example.com/override');
+    expect(ct?.landingPageId).toBeUndefined();
+  });
+
+  it('updateAd with only a creativeId change carries the existing clickThroughUrl forward', () => {
+    const advertiser = mockStore.listAdvertisers()[0]!;
+    const lp = mockStore.listLandingPages({ advertiserId: advertiser.id })[0]!;
+    const campaign = mockStore.listCampaigns({ advertiserId: advertiser.id })[0]!;
+    const placement = mockStore.listPlacements({ campaignId: campaign.id })[0]!;
+    const creatives = mockStore.listCreatives({ advertiserId: advertiser.id });
+    const ad = mockStore.createAd({
+      campaignId: campaign.id, name: 'CT carry', placementIds: [placement.id],
+      creativeId: creatives[0]!.id, landingPageId: lp.id,
+    });
+    const swapped = mockStore.updateAd(ad.id, { creativeId: creatives[1]?.id ?? creatives[0]!.id });
+    const ct = swapped?.creativeRotation.creativeAssignments[0]!.clickThroughUrl;
+    expect(ct?.landingPageId).toBe(lp.id);
+  });
+
+  it('appends the advertiser suffix AFTER the base URL query string', () => {
+    // Seeded advertiser 0 has clickThroughUrlSuffix 'utm_content=suffix-%epid!' (Step 3.3) —
+    // a token deliberately absent from every seeded landing-page URL, so this test can only
+    // pass if suffix-appending actually ran (the base URLs already contain utm_source/medium).
+    const advertiser = mockStore.listAdvertisers()[0]!;
+    expect(advertiser.clickThroughUrlSuffix).toBe('utm_content=suffix-%epid!');
+    const campaign = mockStore.listCampaigns({ advertiserId: advertiser.id })[0]!;
+    const ads = mockStore.listAds({ campaignId: campaign.id });
+    const computed = ads[0]?.creativeRotation.creativeAssignments[0]?.clickThroughUrl?.computedClickThroughUrl ?? '';
+    const suffixPos = computed.indexOf('utm_content=suffix-%epid!');
+    expect(suffixPos).toBeGreaterThan(computed.indexOf('?')); // appended after the existing query
+    expect(computed[suffixPos - 1]).toBe('&'); // joined with &, not a second ?
+  });
+});

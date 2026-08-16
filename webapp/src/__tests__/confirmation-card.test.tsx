@@ -57,7 +57,7 @@ describe('ConfirmationCard', () => {
 
     // Approve and Reject buttons should be present
     expect(screen.getByRole('button', { name: /approve/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
   });
 
   it('renders update preview with old to new changes', () => {
@@ -108,7 +108,7 @@ describe('ConfirmationCard', () => {
       <ConfirmationCard action={action} onApprove={onApprove} onReject={onReject} />
     );
 
-    await user.click(screen.getByRole('button', { name: /reject/i }));
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
 
     expect(onReject).toHaveBeenCalledOnce();
     expect(onReject).toHaveBeenCalledWith('act-001');
@@ -145,12 +145,12 @@ describe('ConfirmationCard', () => {
   it('requires typed confirmation for destructive operations', async () => {
     const action = makeAction({
       riskLevel: 'destructive',
-      toolName: 'cm360_delete_event_tag',
-      description: 'Delete event tag',
+      toolName: 'cm360_update_placement',
+      description: 'Permanently archive placement',
       preview: {
-        entityType: 'Event Tag',
-        entityName: 'DV360 Click Tracker',
-        operation: 'delete',
+        entityType: 'Placement',
+        entityName: 'Homepage Takeover',
+        operation: 'archive',
         warnings: ['This action CANNOT be undone.'],
       },
     });
@@ -165,26 +165,26 @@ describe('ConfirmationCard', () => {
     expect(screen.getByText('This action CANNOT be undone.')).toBeInTheDocument();
 
     // Should have text input for typed confirmation
-    const input = screen.getByPlaceholderText(/type DELETE to confirm/i);
+    const input = screen.getByPlaceholderText(/type ARCHIVE to confirm/i);
     expect(input).toBeInTheDocument();
 
-    // Type DELETE and click the delete button
-    await user.type(input, 'DELETE');
-    await user.click(screen.getByRole('button', { name: /delete forever/i }));
+    // Type ARCHIVE and click the archive button
+    await user.type(input, 'ARCHIVE');
+    await user.click(screen.getByRole('button', { name: /^archive/i }));
 
     expect(onApprove).toHaveBeenCalledOnce();
-    expect(onApprove).toHaveBeenCalledWith('act-001', 'DELETE');
+    expect(onApprove).toHaveBeenCalledWith('act-001', 'ARCHIVE');
   });
 
-  it('disables Delete button until correct text typed', async () => {
+  it('disables Archive button until correct text typed', async () => {
     const action = makeAction({
       riskLevel: 'destructive',
-      toolName: 'cm360_delete_event_tag',
-      description: 'Delete event tag',
+      toolName: 'cm360_update_placement',
+      description: 'Permanently archive placement',
       preview: {
-        entityType: 'Event Tag',
-        entityName: 'DV360 Click Tracker',
-        operation: 'delete',
+        entityType: 'Placement',
+        entityName: 'Homepage Takeover',
+        operation: 'archive',
         warnings: ['This action CANNOT be undone.'],
       },
     });
@@ -195,25 +195,25 @@ describe('ConfirmationCard', () => {
       <ConfirmationCard action={action} onApprove={onApprove} onReject={onReject} />
     );
 
-    const deleteButton = screen.getByRole('button', { name: /delete forever/i });
+    const archiveButton = screen.getByRole('button', { name: /^archive/i });
 
     // Initially disabled
-    expect(deleteButton).toBeDisabled();
+    expect(archiveButton).toBeDisabled();
 
     // Type partial text — still disabled
-    const input = screen.getByPlaceholderText(/type DELETE to confirm/i);
-    await user.type(input, 'DEL');
-    expect(deleteButton).toBeDisabled();
+    const input = screen.getByPlaceholderText(/type ARCHIVE to confirm/i);
+    await user.type(input, 'ARCH');
+    expect(archiveButton).toBeDisabled();
 
     // Type wrong text — still disabled
     await user.clear(input);
-    await user.type(input, 'delete');
-    expect(deleteButton).toBeDisabled();
+    await user.type(input, 'archive');
+    expect(archiveButton).toBeDisabled();
 
     // Type correct text — enabled
     await user.clear(input);
-    await user.type(input, 'DELETE');
-    expect(deleteButton).toBeEnabled();
+    await user.type(input, 'ARCHIVE');
+    expect(archiveButton).toBeEnabled();
   });
 
   it('disables buttons after click (prevent double-submit)', async () => {
@@ -225,7 +225,7 @@ describe('ConfirmationCard', () => {
     );
 
     const approveButton = screen.getByRole('button', { name: /approve/i });
-    const rejectButton = screen.getByRole('button', { name: /reject/i });
+    const rejectButton = screen.getByRole('button', { name: /cancel/i });
 
     // Click approve
     await user.click(approveButton);
@@ -247,7 +247,7 @@ describe('ConfirmationCard', () => {
     );
 
     const approveButton = screen.getByRole('button', { name: /approve/i });
-    const rejectButton = screen.getByRole('button', { name: /reject/i });
+    const rejectButton = screen.getByRole('button', { name: /cancel/i });
 
     // Click reject
     await user.click(rejectButton);
@@ -265,12 +265,12 @@ describe('ConfirmationCard', () => {
   it('respects disabled prop — prevents all interactions', async () => {
     const action = makeAction({
       riskLevel: 'destructive',
-      toolName: 'cm360_delete_event_tag',
-      description: 'Delete event tag',
+      toolName: 'cm360_update_placement',
+      description: 'Permanently archive placement',
       preview: {
-        entityType: 'Event Tag',
-        entityName: 'DV360 Click Tracker',
-        operation: 'delete',
+        entityType: 'Placement',
+        entityName: 'Homepage Takeover',
+        operation: 'archive',
         warnings: ['This action CANNOT be undone.'],
       },
     });
@@ -282,20 +282,92 @@ describe('ConfirmationCard', () => {
     );
 
     // All interactive elements should be disabled
-    const deleteButton = screen.getByRole('button', { name: /delete forever/i });
+    const archiveButton = screen.getByRole('button', { name: /^archive/i });
     const cancelButton = screen.getByRole('button', { name: /cancel/i });
-    const input = screen.getByPlaceholderText(/type DELETE to confirm/i);
+    const input = screen.getByPlaceholderText(/type ARCHIVE to confirm/i);
 
-    expect(deleteButton).toBeDisabled();
+    expect(archiveButton).toBeDisabled();
     expect(cancelButton).toBeDisabled();
     expect(input).toBeDisabled();
 
-    // Even typing DELETE should not enable the button when disabled
-    await user.type(input, 'DELETE');
-    expect(deleteButton).toBeDisabled();
+    // Even typing ARCHIVE should not enable the button when disabled
+    await user.type(input, 'ARCHIVE');
+    expect(archiveButton).toBeDisabled();
 
     // Callbacks should not fire
     expect(onApprove).not.toHaveBeenCalled();
     expect(onReject).not.toHaveBeenCalled();
+  });
+});
+
+describe('ConfirmationCard trust surfaces', () => {
+  let onApprove: ReturnType<typeof vi.fn>;
+  let onReject: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    onApprove = vi.fn();
+    onReject = vi.fn();
+  });
+
+  it('places Cancel before the action button for destructive operations', () => {
+    const action = makeAction({
+      riskLevel: 'destructive',
+      preview: {
+        entityType: 'Placement',
+        entityName: 'Homepage Takeover',
+        operation: 'archive',
+      },
+    });
+    render(<ConfirmationCard action={action} onApprove={onApprove} onReject={onReject} />);
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons[0]).toHaveTextContent('Cancel');
+  });
+
+  it('uses plain verb + entity copy instead of "{Verb} Forever"', () => {
+    const action = makeAction({
+      riskLevel: 'destructive',
+      preview: {
+        entityType: 'Placement',
+        entityName: 'Homepage Takeover',
+        operation: 'archive',
+      },
+    });
+    render(<ConfirmationCard action={action} onApprove={onApprove} onReject={onReject} />);
+
+    expect(screen.queryByText(/forever/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Archive Placement' })).toBeInTheDocument();
+  });
+
+  it('places Cancel before Approve for standard operations', () => {
+    const action = makeAction();
+    render(<ConfirmationCard action={action} onApprove={onApprove} onReject={onReject} />);
+
+    const buttons = screen.getAllByRole('button');
+    expect(buttons[0]).toHaveTextContent('Cancel');
+  });
+
+  it('moves focus to the card when it appears', () => {
+    const action = makeAction();
+    render(<ConfirmationCard action={action} onApprove={onApprove} onReject={onReject} />);
+
+    const card = screen.getByRole('region');
+    expect(document.activeElement).toBe(card);
+  });
+
+  it('shows the data mode inside the card', () => {
+    const action = makeAction();
+    render(
+      <ConfirmationCard action={action} onApprove={onApprove} onReject={onReject} mode="demo" />
+    );
+    expect(screen.getByText('Demo data')).toBeInTheDocument();
+  });
+
+  it('shows live mode when connected', () => {
+    const action = makeAction();
+    render(
+      <ConfirmationCard action={action} onApprove={onApprove} onReject={onReject} mode="live" />
+    );
+    expect(screen.getByText(/live/i)).toBeInTheDocument();
   });
 });

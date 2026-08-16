@@ -371,7 +371,7 @@ describe('tool gating', () => {
       'cm360_create_creative',
       'cm360_update_campaign', 'cm360_update_placement', 'cm360_update_ad', 'cm360_update_creative', 'cm360_update_landing_page',
       'cm360_associate_creative_campaign', 'cm360_upload_creative_asset',
-      'cm360_create_event_tag', 'cm360_update_event_tag', 'cm360_delete_event_tag',
+      'cm360_create_event_tag', 'cm360_update_event_tag',
       'cm360_create_placement_group', 'cm360_update_placement_group',
       'cm360_insert_directory_site',
       'cm360_create_floodlight_activity', 'cm360_create_floodlight_activity_group',

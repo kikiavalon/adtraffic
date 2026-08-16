@@ -30,13 +30,21 @@ const mockGetMyRequests = vi.fn();
 const mockGetApprovalById = vi.fn();
 const mockApproveRequest = vi.fn();
 const mockRejectRequest = vi.fn();
+const mockRecordExecutionResult = vi.fn();
 vi.mock('../approval/approval-service.js', () => ({
   getPendingApprovals: (...args: unknown[]) => mockGetPendingApprovals(...args),
   getMyRequests: (...args: unknown[]) => mockGetMyRequests(...args),
   getApprovalById: (...args: unknown[]) => mockGetApprovalById(...args),
   approveRequest: (...args: unknown[]) => mockApproveRequest(...args),
   rejectRequest: (...args: unknown[]) => mockRejectRequest(...args),
+  recordExecutionResult: (...args: unknown[]) => mockRecordExecutionResult(...args),
   submitForApproval: vi.fn(),
+}));
+
+// Mock tool executor — approving a queued request must execute the stored action
+const mockExecuteTool = vi.fn();
+vi.mock('../cm360/tool-executor.js', () => ({
+  executeTool: (...args: unknown[]) => mockExecuteTool(...args),
 }));
 
 // Mock audit logger
@@ -90,9 +98,12 @@ vi.mock('../claude/usage-tracker.js', () => ({
 
 import app from '../index.js';
 
-/** Create a mock ApprovalItem for testing */
+/** Create a mock ApprovalItem for testing.
+ * The stored payload mirrors what confirmations.ts actually serializes — a
+ * StoredPendingAction including toolInput/userId/conversationId, not just
+ * the bare PendingAction. */
 function makeApprovalItem(overrides: Record<string, unknown> = {}) {
-  const action: PendingAction = {
+  const action: PendingAction & { toolInput: Record<string, unknown>; userId: string; conversationId: string } = {
     actionId: 'action-abc',
     toolName: 'cm360_create_campaign',
     description: 'Create campaign "Q1 Display"',
@@ -105,6 +116,9 @@ function makeApprovalItem(overrides: Record<string, unknown> = {}) {
     riskLevel: 'standard',
     proposedAt: Date.now(),
     expiresAt: Date.now() + 300_000,
+    toolInput: { advertiserId: 'adv-1', name: 'Q1 Display' },
+    userId: 'junior-user-1',
+    conversationId: 'conv-123',
   };
 
   return {
@@ -192,6 +206,26 @@ describe('GET /api/v1/approvals/my-requests', () => {
     expect(mockGetMyRequests).toHaveBeenCalledWith('approver-1', undefined);
   });
 
+  it('includes the execution result so the requester can see the outcome', async () => {
+    const items = [
+      makeApprovalItem({
+        status: 'approved',
+        resolvedAt: new Date('2026-02-27T11:00:00Z'),
+        executionResult: { result: { campaign: { id: 'camp-99' } }, isError: false, executedAt: '2026-02-27T11:00:01.000Z' },
+      }),
+    ];
+    mockGetMyRequests.mockResolvedValue(items);
+
+    const res = await request(app).get('/api/v1/approvals/my-requests');
+
+    expect(res.status).toBe(200);
+    expect(res.body.requests[0].executionResult).toEqual({
+      result: { campaign: { id: 'camp-99' } },
+      isError: false,
+      executedAt: '2026-02-27T11:00:01.000Z',
+    });
+  });
+
   it('filters by status query param', async () => {
     mockGetMyRequests.mockResolvedValue([]);
 
@@ -222,6 +256,11 @@ describe('POST /api/v1/approvals/:id/approve', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUserRole = 'senior';
+    mockExecuteTool.mockResolvedValue({
+      result: { campaign: { id: 'camp-99', name: 'Q1 Display' } },
+      isError: false,
+    });
+    mockRecordExecutionResult.mockResolvedValue(undefined);
   });
 
   it('approves a pending request successfully', async () => {
@@ -236,22 +275,142 @@ describe('POST /api/v1/approvals/:id/approve', () => {
     expect(res.status).toBe(200);
     expect(res.body.approvalId).toBe('approval-001');
     expect(res.body.status).toBe('approved');
-    expect(res.body.message).toBe('Request approved.');
+    expect(res.body.message).toBe('Request approved and executed.');
     expect(res.body.executedAt).toBeDefined();
 
     expect(mockApproveRequest).toHaveBeenCalledWith('approval-001', 'approver-1', 'Approved for Q1 launch');
+  });
+
+  it('executes the stored tool action as the requester on approve', async () => {
+    const approval = makeApprovalItem();
+    mockGetApprovalById.mockResolvedValue(approval);
+    mockApproveRequest.mockResolvedValue(undefined);
+
+    const res = await request(app)
+      .post('/api/v1/approvals/approval-001/approve')
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(mockExecuteTool).toHaveBeenCalledTimes(1);
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'cm360_create_campaign',
+      { advertiserId: 'adv-1', name: 'Q1 Display' },
+      'junior-user-1',
+      'conv-123',
+    );
+    expect(res.body.isError).toBe(false);
+    expect(res.body.result).toEqual({ campaign: { id: 'camp-99', name: 'Q1 Display' } });
+  });
+
+  it('records the execution result on the approval row', async () => {
+    const approval = makeApprovalItem();
+    mockGetApprovalById.mockResolvedValue(approval);
+    mockApproveRequest.mockResolvedValue(undefined);
+
+    await request(app)
+      .post('/api/v1/approvals/approval-001/approve')
+      .send({});
+
+    expect(mockRecordExecutionResult).toHaveBeenCalledTimes(1);
+    expect(mockRecordExecutionResult).toHaveBeenCalledWith(
+      'approval-001',
+      expect.objectContaining({
+        result: { campaign: { id: 'camp-99', name: 'Q1 Display' } },
+        isError: false,
+        executedAt: expect.any(String),
+      }),
+    );
+  });
+
+  it('still approves but reports failure when tool execution fails', async () => {
+    const approval = makeApprovalItem();
+    mockGetApprovalById.mockResolvedValue(approval);
+    mockApproveRequest.mockResolvedValue(undefined);
+    mockExecuteTool.mockResolvedValue({
+      result: null,
+      isError: true,
+      errorMessage: 'CM360 API rejected the request',
+    });
+
+    const res = await request(app)
+      .post('/api/v1/approvals/approval-001/approve')
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('approved');
+    expect(res.body.isError).toBe(true);
+    expect(res.body.errorMessage).toBe('CM360 API rejected the request');
+    expect(res.body.message).toBe('Request approved, but execution failed.');
+    expect(mockRecordExecutionResult).toHaveBeenCalledWith(
+      'approval-001',
+      expect.objectContaining({ isError: true, errorMessage: 'CM360 API rejected the request' }),
+    );
+  });
+
+  it('records an error when the tool executor throws', async () => {
+    const approval = makeApprovalItem();
+    mockGetApprovalById.mockResolvedValue(approval);
+    mockApproveRequest.mockResolvedValue(undefined);
+    mockExecuteTool.mockRejectedValue(new Error('connection reset'));
+
+    const res = await request(app)
+      .post('/api/v1/approvals/approval-001/approve')
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('approved');
+    expect(res.body.isError).toBe(true);
+    expect(mockRecordExecutionResult).toHaveBeenCalledWith(
+      'approval-001',
+      expect.objectContaining({ isError: true }),
+    );
+  });
+
+  it('records an error without executing when the stored payload has no toolInput', async () => {
+    const base = makeApprovalItem();
+    const { toolInput: _toolInput, ...payloadWithoutInput } = base.actionPayload;
+    const approval = { ...base, actionPayload: payloadWithoutInput as PendingAction };
+    mockGetApprovalById.mockResolvedValue(approval);
+    mockApproveRequest.mockResolvedValue(undefined);
+
+    const res = await request(app)
+      .post('/api/v1/approvals/approval-001/approve')
+      .send({});
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('approved');
+    expect(res.body.isError).toBe(true);
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+    expect(mockRecordExecutionResult).toHaveBeenCalledWith(
+      'approval-001',
+      expect.objectContaining({ isError: true }),
+    );
+  });
+
+  it('does not execute when the approval row was already resolved (atomic race guard)', async () => {
+    const approval = makeApprovalItem();
+    mockGetApprovalById.mockResolvedValue(approval);
+    mockApproveRequest.mockRejectedValue(new Error('Approval request not found or already resolved'));
+
+    const res = await request(app)
+      .post('/api/v1/approvals/approval-001/approve')
+      .send({});
+
+    expect(res.status).toBe(404);
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+    expect(mockRecordExecutionResult).not.toHaveBeenCalled();
   });
 
   it('requires typed confirmation for destructive operations', async () => {
     const approval = makeApprovalItem({
       actionPayload: {
         actionId: 'action-abc',
-        toolName: 'cm360_update_campaign',
-        description: 'Delete campaign',
+        toolName: 'cm360_update_placement',
+        description: 'Permanently archive placement',
         preview: {
-          entityType: 'campaign',
-          entityName: 'Old Campaign',
-          operation: 'delete',
+          entityType: 'placement',
+          entityName: 'Old Placement',
+          operation: 'archive',
           fields: [],
         },
         riskLevel: 'destructive',
@@ -266,7 +425,7 @@ describe('POST /api/v1/approvals/:id/approve', () => {
       .send({});
 
     expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Type "DELETE" to confirm this destructive action');
+    expect(res.body.error).toBe('Type "ARCHIVE" to confirm this destructive action');
     expect(mockApproveRequest).not.toHaveBeenCalled();
   });
 
@@ -291,7 +450,7 @@ describe('POST /api/v1/approvals/:id/approve', () => {
 
     const res = await request(app)
       .post('/api/v1/approvals/approval-001/approve')
-      .send({ typedConfirmation: 'DELETE' });
+      .send({ typedConfirmation: 'WRONG' });
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Type "ARCHIVE" to confirm this destructive action');
@@ -400,9 +559,14 @@ describe('Audit logging', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUserRole = 'senior';
+    mockExecuteTool.mockResolvedValue({
+      result: { campaign: { id: 'camp-99' } },
+      isError: false,
+    });
+    mockRecordExecutionResult.mockResolvedValue(undefined);
   });
 
-  it('logs audit event on approve', async () => {
+  it('logs approval and execution audit events on approve', async () => {
     const approval = makeApprovalItem();
     mockGetApprovalById.mockResolvedValue(approval);
     mockApproveRequest.mockResolvedValue(undefined);
@@ -411,7 +575,7 @@ describe('Audit logging', () => {
       .post('/api/v1/approvals/approval-001/approve')
       .send({});
 
-    expect(mockLogRequestAuditEvent).toHaveBeenCalledTimes(1);
+    expect(mockLogRequestAuditEvent).toHaveBeenCalledTimes(2);
     expect(mockLogRequestAuditEvent).toHaveBeenCalledWith(
       expect.anything(), // req object
       'confirmation_approved',
@@ -422,6 +586,35 @@ describe('Audit logging', () => {
         riskLevel: 'standard',
         requesterId: 'junior-user-1',
       }),
+    );
+    expect(mockLogRequestAuditEvent).toHaveBeenCalledWith(
+      expect.anything(), // req object
+      'tool_executed',
+      'conv-123',
+      expect.objectContaining({
+        approvalId: 'approval-001',
+        toolName: 'cm360_create_campaign',
+        requesterId: 'junior-user-1',
+        success: true,
+      }),
+    );
+  });
+
+  it('logs tool_executed with success false when execution fails', async () => {
+    const approval = makeApprovalItem();
+    mockGetApprovalById.mockResolvedValue(approval);
+    mockApproveRequest.mockResolvedValue(undefined);
+    mockExecuteTool.mockResolvedValue({ result: null, isError: true, errorMessage: 'boom' });
+
+    await request(app)
+      .post('/api/v1/approvals/approval-001/approve')
+      .send({});
+
+    expect(mockLogRequestAuditEvent).toHaveBeenCalledWith(
+      expect.anything(),
+      'tool_executed',
+      'conv-123',
+      expect.objectContaining({ success: false, errorMessage: 'boom' }),
     );
   });
 

@@ -1,13 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createPendingAction, getPendingAction, consumePendingAction, cleanupExpired } from '../cm360/pending-actions.js';
 
-describe('pending-actions', () => {
-  beforeEach(() => {
-    cleanupExpired(); // clear state
+describe('pending-actions', async () => {
+  beforeEach(async () => {
+    await cleanupExpired(); // clear state
   });
 
-  it('creates and retrieves a pending action', () => {
-    const action = createPendingAction({
+  it('creates and retrieves a pending action', async () => {
+    const action = await createPendingAction({
       userId: 'user-1',
       conversationId: 'conv-1',
       toolName: 'cm360_create_campaign',
@@ -25,13 +25,13 @@ describe('pending-actions', () => {
     expect(action.actionId).toBeDefined();
     expect(action.expiresAt).toBeGreaterThan(Date.now());
 
-    const retrieved = getPendingAction(action.actionId, 'user-1');
+    const retrieved = await getPendingAction(action.actionId, 'user-1');
     expect(retrieved).toBeDefined();
     expect(retrieved!.toolName).toBe('cm360_create_campaign');
   });
 
-  it('returns null for wrong user (IDOR protection)', () => {
-    const action = createPendingAction({
+  it('returns null for wrong user (IDOR protection)', async () => {
+    const action = await createPendingAction({
       userId: 'user-1',
       conversationId: 'conv-1',
       toolName: 'cm360_create_campaign',
@@ -41,11 +41,11 @@ describe('pending-actions', () => {
       riskLevel: 'standard',
     });
 
-    expect(getPendingAction(action.actionId, 'user-2')).toBeNull();
+    expect(await getPendingAction(action.actionId, 'user-2')).toBeNull();
   });
 
-  it('consumes a pending action (one-time use)', () => {
-    const action = createPendingAction({
+  it('consumes a pending action (one-time use)', async () => {
+    const action = await createPendingAction({
       userId: 'user-1',
       conversationId: 'conv-1',
       toolName: 'cm360_create_campaign',
@@ -55,16 +55,16 @@ describe('pending-actions', () => {
       riskLevel: 'standard',
     });
 
-    const consumed = consumePendingAction(action.actionId, 'user-1');
+    const consumed = await consumePendingAction(action.actionId, 'user-1');
     expect(consumed).toBeDefined();
     expect(consumed!.toolInput).toEqual({ name: 'test' });
 
     // Second consume returns null (already used)
-    expect(consumePendingAction(action.actionId, 'user-1')).toBeNull();
+    expect(await consumePendingAction(action.actionId, 'user-1')).toBeNull();
   });
 
-  it('expires actions after TTL', () => {
-    const action = createPendingAction({
+  it('expires actions after TTL', async () => {
+    const action = await createPendingAction({
       userId: 'user-1',
       conversationId: 'conv-1',
       toolName: 'cm360_create_campaign',
@@ -76,7 +76,7 @@ describe('pending-actions', () => {
     });
 
     // Wait a tick
-    const retrieved = getPendingAction(action.actionId, 'user-1');
+    const retrieved = await getPendingAction(action.actionId, 'user-1');
     expect(retrieved).toBeNull();
   });
 });

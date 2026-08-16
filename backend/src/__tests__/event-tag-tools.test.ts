@@ -116,29 +116,13 @@ describe('cm360_update_event_tag', () => {
   });
 });
 
-describe('cm360_delete_event_tag', () => {
-  it('deletes event tag', async () => {
-    const campaigns = mockStore.listCampaigns();
-    const tags = mockStore.listEventTags(campaigns[0]!.id);
-    const tagId = tags[0]!.id;
+describe('delete is not available', () => {
+  it('rejects cm360_delete_event_tag as an unknown tool — the product ships zero delete operations', async () => {
     const result = await executeTool('cm360_delete_event_tag', {
       profileId: PROFILE_ID,
-      eventTagId: tagId,
-    });
-    expect(result.isError).toBe(false);
-    // Verify deleted
-    const getResult = await executeTool('cm360_get_event_tag', {
-      profileId: PROFILE_ID,
-      eventTagId: tagId,
-    });
-    expect(getResult.isError).toBe(true);
-  });
-
-  it('returns error for nonexistent tag', async () => {
-    const result = await executeTool('cm360_delete_event_tag', {
-      profileId: PROFILE_ID,
-      eventTagId: 'nonexistent',
+      eventTagId: '5001',
     });
     expect(result.isError).toBe(true);
+    expect(result.errorMessage).toContain('Unknown tool');
   });
 });

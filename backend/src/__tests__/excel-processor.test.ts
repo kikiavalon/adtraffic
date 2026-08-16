@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
+import ExcelJS from 'exceljs';
 import { processExcel } from '../io/excel-processor.js';
 
 describe('Excel/CSV Processor', () => {
-  // Helper: create a minimal XLSX file as base64 using xlsx library
+  // Helper: create a minimal XLSX file as base64 using exceljs
   async function createTestWorkbook(rows: string[][]): Promise<string> {
-    const XLSX = await import('xlsx');
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Sheet1');
+    ws.addRows(rows);
+    const buffer = await wb.xlsx.writeBuffer();
     return Buffer.from(buffer).toString('base64');
   }
 
@@ -19,7 +19,7 @@ describe('Excel/CSV Processor', () => {
       ['NYT.com', '728x90', '2026-04-15', '2026-05-31', '18', 'CPM'],
     ]);
 
-    const result = processExcel(data, 'test.xlsx');
+    const result = await processExcel(data, 'test.xlsx');
 
     expect(result).toContain('ESPN.com');
     expect(result).toContain('NYT.com');
@@ -29,16 +29,15 @@ describe('Excel/CSV Processor', () => {
   });
 
   it('handles multiple sheets', async () => {
-    const XLSX = await import('xlsx');
-    const ws1 = XLSX.utils.aoa_to_sheet([['Campaign Info'], ['Nike Q2 2026']]);
-    const ws2 = XLSX.utils.aoa_to_sheet([['Placements'], ['ESPN.com', '300x250']]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws1, 'Campaign');
-    XLSX.utils.book_append_sheet(wb, ws2, 'Placements');
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+    const wb = new ExcelJS.Workbook();
+    const ws1 = wb.addWorksheet('Campaign');
+    ws1.addRows([['Campaign Info'], ['Nike Q2 2026']]);
+    const ws2 = wb.addWorksheet('Placements');
+    ws2.addRows([['Placements'], ['ESPN.com', '300x250']]);
+    const buffer = await wb.xlsx.writeBuffer();
     const data = Buffer.from(buffer).toString('base64');
 
-    const result = processExcel(data, 'test.xlsx');
+    const result = await processExcel(data, 'test.xlsx');
 
     expect(result).toContain('Campaign');
     expect(result).toContain('Placements');
@@ -50,19 +49,28 @@ describe('Excel/CSV Processor', () => {
     const csvContent = 'Site,Size,Rate\nESPN.com,300x250,12\n';
     const data = Buffer.from(csvContent).toString('base64');
 
-    const result = processExcel(data, 'test.csv');
+    const result = await processExcel(data, 'test.csv');
 
     expect(result).toContain('ESPN.com');
     expect(result).toContain('300x250');
   });
 
+  it('handles quoted CSV fields containing commas', async () => {
+    const csvContent = 'Site,Notes\nESPN.com,"takeover, homepage"\n';
+    const data = Buffer.from(csvContent).toString('base64');
+
+    const result = await processExcel(data, 'test.csv');
+
+    expect(result).toContain('takeover, homepage');
+  });
+
   it('handles empty workbook gracefully', async () => {
     const data = await createTestWorkbook([]);
-    const result = processExcel(data, 'empty.xlsx');
+    const result = await processExcel(data, 'empty.xlsx');
     expect(typeof result).toBe('string');
   });
 
-  it('throws on invalid base64 data', () => {
-    expect(() => processExcel('not-valid-base64!!!', 'bad.xlsx')).toThrow();
+  it('throws on invalid base64 data', async () => {
+    await expect(processExcel('not-valid-base64!!!', 'bad.xlsx')).rejects.toThrow();
   });
 });

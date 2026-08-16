@@ -4,12 +4,14 @@
  *
  * In CM360, the click-through URL lives on the ad's creative assignment
  * (ClickThroughUrl: landingPageId | customClickThroughUrl | defaultLandingPage)
- * and per-ad UTM tracking parameters attach via the ad-level click-through
- * URL suffix (clickThroughUrlSuffixProperties, must be under 128 chars).
+ * and per-ad UTM tracking parameters attach via the ad-level
+ * clickThroughUrlSuffixProperties (suffix must be under 128 chars; setting it
+ * from the tool surface implies overrideInheritedSuffix — CM360 suffixes
+ * override, never append).
  *
  * Covers:
  * - Zod input validation (mutual exclusivity, URL format, suffix limits)
- * - Mock data store create/update semantics
+ * - Mock data store create/update semantics (incl. computed click-through URLs)
  * - Tool executor mock path (executeTool)
  * - Tool definitions expose the new fields
  * - CM360 client request body construction + response mapping
@@ -143,17 +145,21 @@ describe('UpdateAdInputSchema click-through fields', () => {
 describe('mockStore.createAd click-through support', () => {
   it('sets a landing page click-through on the creative assignment', () => {
     const campaign = mockStore.listCampaigns()[0]!;
+    const landingPage = mockStore.listLandingPages({ advertiserId: campaign.advertiserId })[0]!;
     const ad = mockStore.createAd({
       campaignId: campaign.id,
       name: 'test ad',
       placementIds: ['301'],
       creativeId: '801',
-      landingPageId: '501',
+      landingPageId: landingPage.id,
     });
-    expect(ad.creativeRotation.creativeAssignments[0]).toEqual({
-      creativeId: '801',
-      clickThroughUrl: { defaultLandingPage: false, landingPageId: '501' },
-    });
+    const assignment = ad.creativeRotation.creativeAssignments[0]!;
+    expect(assignment.creativeId).toBe('801');
+    expect(assignment.clickThroughUrl).toMatchObject({ landingPageId: landingPage.id });
+    // The resolver computes the final URL from the referenced landing page
+    expect(assignment.clickThroughUrl!.computedClickThroughUrl).toContain(
+      landingPage.url.split('?')[0],
+    );
   });
 
   it('sets a custom click-through URL on the creative assignment', () => {
@@ -165,16 +171,17 @@ describe('mockStore.createAd click-through support', () => {
       creativeId: '801',
       customClickThroughUrl: 'https://apexmotors.com/offers/spring',
     });
-    expect(ad.creativeRotation.creativeAssignments[0]).toEqual({
-      creativeId: '801',
-      clickThroughUrl: {
-        defaultLandingPage: false,
-        customClickThroughUrl: 'https://apexmotors.com/offers/spring',
-      },
+    const assignment = ad.creativeRotation.creativeAssignments[0]!;
+    expect(assignment.creativeId).toBe('801');
+    expect(assignment.clickThroughUrl).toMatchObject({
+      customClickThroughUrl: 'https://apexmotors.com/offers/spring',
     });
+    expect(assignment.clickThroughUrl!.computedClickThroughUrl).toContain(
+      'https://apexmotors.com/offers/spring',
+    );
   });
 
-  it('sets the ad-level clickThroughUrlSuffix', () => {
+  it('sets the ad-level suffix as an overriding clickThroughUrlSuffixProperties', () => {
     const campaign = mockStore.listCampaigns()[0]!;
     const ad = mockStore.createAd({
       campaignId: campaign.id,
@@ -183,10 +190,16 @@ describe('mockStore.createAd click-through support', () => {
       creativeId: '801',
       clickThroughUrlSuffix: 'utm_source=cm360&utm_medium=display',
     });
-    expect(ad.clickThroughUrlSuffix).toBe('utm_source=cm360&utm_medium=display');
+    expect(ad.clickThroughUrlSuffixProperties).toEqual({
+      clickThroughUrlSuffix: 'utm_source=cm360&utm_medium=display',
+      overrideInheritedSuffix: true,
+    });
+    // The suffix flows into the computed click-through URL
+    expect(ad.creativeRotation.creativeAssignments[0]!.clickThroughUrl!.computedClickThroughUrl)
+      .toContain('utm_source=cm360&utm_medium=display');
   });
 
-  it('leaves click-through fields undefined when not provided', () => {
+  it('defaults to the campaign landing page with no suffix when not provided', () => {
     const campaign = mockStore.listCampaigns()[0]!;
     const ad = mockStore.createAd({
       campaignId: campaign.id,
@@ -194,8 +207,10 @@ describe('mockStore.createAd click-through support', () => {
       placementIds: ['301'],
       creativeId: '801',
     });
-    expect(ad.creativeRotation.creativeAssignments[0]!.clickThroughUrl).toBeUndefined();
-    expect(ad.clickThroughUrlSuffix).toBeUndefined();
+    expect(ad.creativeRotation.creativeAssignments[0]!.clickThroughUrl).toMatchObject({
+      defaultLandingPage: true,
+    });
+    expect(ad.clickThroughUrlSuffixProperties).toBeUndefined();
   });
 });
 
@@ -213,10 +228,9 @@ describe('mockStore.updateAd click-through support', () => {
   it('sets a landing page click-through while preserving the assigned creative', () => {
     const ad = seedAd();
     const updated = mockStore.updateAd(ad.id, { landingPageId: '501' })!;
-    expect(updated.creativeRotation.creativeAssignments[0]).toEqual({
-      creativeId: '801',
-      clickThroughUrl: { defaultLandingPage: false, landingPageId: '501' },
-    });
+    const assignment = updated.creativeRotation.creativeAssignments[0]!;
+    expect(assignment.creativeId).toBe('801');
+    expect(assignment.clickThroughUrl).toMatchObject({ landingPageId: '501' });
   });
 
   it('sets a custom click-through URL while preserving the assigned creative', () => {
@@ -224,23 +238,28 @@ describe('mockStore.updateAd click-through support', () => {
     const updated = mockStore.updateAd(ad.id, {
       customClickThroughUrl: 'https://apexmotors.com/offers/spring',
     })!;
-    expect(updated.creativeRotation.creativeAssignments[0]).toEqual({
-      creativeId: '801',
-      clickThroughUrl: {
-        defaultLandingPage: false,
-        customClickThroughUrl: 'https://apexmotors.com/offers/spring',
-      },
+    const assignment = updated.creativeRotation.creativeAssignments[0]!;
+    expect(assignment.creativeId).toBe('801');
+    expect(assignment.clickThroughUrl).toMatchObject({
+      customClickThroughUrl: 'https://apexmotors.com/offers/spring',
     });
   });
 
-  it('updates the clickThroughUrlSuffix without touching other fields', () => {
+  it('updates the suffix without touching other fields', () => {
     const ad = seedAd();
     const updated = mockStore.updateAd(ad.id, {
       clickThroughUrlSuffix: 'utm_source=cm360&utm_medium=display',
     })!;
-    expect(updated.clickThroughUrlSuffix).toBe('utm_source=cm360&utm_medium=display');
+    expect(updated.clickThroughUrlSuffixProperties).toEqual({
+      clickThroughUrlSuffix: 'utm_source=cm360&utm_medium=display',
+      overrideInheritedSuffix: true,
+    });
     expect(updated.name).toBe(ad.name);
-    expect(updated.creativeRotation).toEqual(ad.creativeRotation);
+    // Click-through source fields are untouched (computed URL may change with the suffix)
+    const before = ad.creativeRotation.creativeAssignments[0]!;
+    const after = updated.creativeRotation.creativeAssignments[0]!;
+    expect(after.creativeId).toBe(before.creativeId);
+    expect(after.clickThroughUrl).toMatchObject({ defaultLandingPage: true });
   });
 
   it('applies a new click-through URL when swapping the creative in the same update', () => {
@@ -249,20 +268,18 @@ describe('mockStore.updateAd click-through support', () => {
       creativeId: '802',
       landingPageId: '502',
     })!;
-    expect(updated.creativeRotation.creativeAssignments[0]).toEqual({
-      creativeId: '802',
-      clickThroughUrl: { defaultLandingPage: false, landingPageId: '502' },
-    });
+    const assignment = updated.creativeRotation.creativeAssignments[0]!;
+    expect(assignment.creativeId).toBe('802');
+    expect(assignment.clickThroughUrl).toMatchObject({ landingPageId: '502' });
   });
 
   it('preserves the existing click-through URL when only swapping the creative', () => {
     const ad = seedAd();
     mockStore.updateAd(ad.id, { landingPageId: '501' });
     const updated = mockStore.updateAd(ad.id, { creativeId: '802' })!;
-    expect(updated.creativeRotation.creativeAssignments[0]).toEqual({
-      creativeId: '802',
-      clickThroughUrl: { defaultLandingPage: false, landingPageId: '501' },
-    });
+    const assignment = updated.creativeRotation.creativeAssignments[0]!;
+    expect(assignment.creativeId).toBe('802');
+    expect(assignment.clickThroughUrl).toMatchObject({ landingPageId: '501' });
   });
 });
 
@@ -284,12 +301,14 @@ describe('cm360_create_ad executor click-through support', () => {
     });
     expect(result.isError).toBe(false);
     const ad = result.result as {
-      clickThroughUrlSuffix?: string;
-      creativeRotation: { creativeAssignments: Array<{ clickThroughUrl?: object }> };
+      clickThroughUrlSuffixProperties?: { clickThroughUrlSuffix?: string; overrideInheritedSuffix?: boolean };
+      creativeRotation: { creativeAssignments: Array<{ clickThroughUrl?: { landingPageId?: string } }> };
     };
-    expect(ad.clickThroughUrlSuffix).toBe('utm_source=cm360&utm_medium=display');
-    expect(ad.creativeRotation.creativeAssignments[0]!.clickThroughUrl).toEqual({
-      defaultLandingPage: false,
+    expect(ad.clickThroughUrlSuffixProperties).toEqual({
+      clickThroughUrlSuffix: 'utm_source=cm360&utm_medium=display',
+      overrideInheritedSuffix: true,
+    });
+    expect(ad.creativeRotation.creativeAssignments[0]!.clickThroughUrl).toMatchObject({
       landingPageId: '501',
     });
   });
@@ -326,12 +345,14 @@ describe('cm360_update_ad executor click-through support', () => {
     });
     expect(result.isError).toBe(false);
     const updated = result.result as {
-      clickThroughUrlSuffix?: string;
-      creativeRotation: { creativeAssignments: Array<{ clickThroughUrl?: object }> };
+      clickThroughUrlSuffixProperties?: { clickThroughUrlSuffix?: string; overrideInheritedSuffix?: boolean };
+      creativeRotation: { creativeAssignments: Array<{ clickThroughUrl?: { customClickThroughUrl?: string } }> };
     };
-    expect(updated.clickThroughUrlSuffix).toBe('utm_content=%epid!&utm_term=%eaid!');
-    expect(updated.creativeRotation.creativeAssignments[0]!.clickThroughUrl).toEqual({
-      defaultLandingPage: false,
+    expect(updated.clickThroughUrlSuffixProperties).toEqual({
+      clickThroughUrlSuffix: 'utm_content=%epid!&utm_term=%eaid!',
+      overrideInheritedSuffix: true,
+    });
+    expect(updated.creativeRotation.creativeAssignments[0]!.clickThroughUrl).toMatchObject({
       customClickThroughUrl: 'https://apexmotors.com/offers/spring',
     });
   });
@@ -394,7 +415,6 @@ describe('CM360Client ad click-through support', () => {
       requestBody: dfareporting_v5.Schema$Ad;
     };
     expect(call.requestBody.creativeRotation?.creativeAssignments?.[0]?.clickThroughUrl).toEqual({
-      defaultLandingPage: false,
       landingPageId: '501',
     });
     expect(call.requestBody.clickThroughUrlSuffixProperties).toEqual({
@@ -403,7 +423,7 @@ describe('CM360Client ad click-through support', () => {
     });
   });
 
-  it('createAd omits click-through fields when not provided', async () => {
+  it('createAd defaults to the campaign landing page and omits the suffix when not provided', async () => {
     (mockApi.ads.insert as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { id: '1' } });
     await client.createAd('12345', {
       campaignId: '201',
@@ -414,7 +434,9 @@ describe('CM360Client ad click-through support', () => {
     const call = (mockApi.ads.insert as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
       requestBody: dfareporting_v5.Schema$Ad;
     };
-    expect(call.requestBody.creativeRotation?.creativeAssignments?.[0]).not.toHaveProperty('clickThroughUrl');
+    expect(call.requestBody.creativeRotation?.creativeAssignments?.[0]?.clickThroughUrl).toEqual({
+      defaultLandingPage: true,
+    });
     expect(call.requestBody).not.toHaveProperty('clickThroughUrlSuffixProperties');
   });
 
@@ -451,30 +473,37 @@ describe('CM360Client ad click-through support', () => {
       type: 'CREATIVE_ROTATION_TYPE_SEQUENTIAL',
       creativeAssignments: [{
         creativeId: '801',
-        active: true,
-        clickThroughUrl: { defaultLandingPage: false, landingPageId: '501' },
+        clickThroughUrl: { landingPageId: '501' },
       }],
     });
   });
 
   it('patchAd applies the new click-through URL when creativeId is also provided', async () => {
+    (mockApi.ads.get as ReturnType<typeof vi.fn>).mockResolvedValue({
+      data: {
+        id: '1',
+        creativeRotation: {
+          type: 'CREATIVE_ROTATION_TYPE_RANDOM',
+          creativeAssignments: [{ creativeId: '801' }],
+        },
+      },
+    });
     (mockApi.ads.patch as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { id: '1' } });
     await client.patchAd('12345', '1', {
       creativeId: '802',
       customClickThroughUrl: 'https://apexmotors.com/x',
     });
-    expect(mockApi.ads.get).not.toHaveBeenCalled();
     const call = (mockApi.ads.patch as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
       requestBody: dfareporting_v5.Schema$Ad;
     };
     expect(call.requestBody.creativeRotation?.creativeAssignments).toEqual([{
       creativeId: '802',
       active: true,
-      clickThroughUrl: { defaultLandingPage: false, customClickThroughUrl: 'https://apexmotors.com/x' },
+      clickThroughUrl: { customClickThroughUrl: 'https://apexmotors.com/x' },
     }]);
   });
 
-  it('maps clickThroughUrl and suffix from API responses', async () => {
+  it('maps clickThroughUrl and suffix properties from API responses', async () => {
     (mockApi.ads.get as ReturnType<typeof vi.fn>).mockResolvedValue({
       data: {
         id: '1',
@@ -499,7 +528,10 @@ describe('CM360Client ad click-through support', () => {
       },
     });
     const ad = await client.getAd('12345', '1');
-    expect(ad?.clickThroughUrlSuffix).toBe('utm_source=cm360');
+    expect(ad?.clickThroughUrlSuffixProperties).toEqual({
+      clickThroughUrlSuffix: 'utm_source=cm360',
+      overrideInheritedSuffix: true,
+    });
     expect(ad?.creativeRotation.creativeAssignments[0]).toEqual({
       creativeId: '801',
       clickThroughUrl: {

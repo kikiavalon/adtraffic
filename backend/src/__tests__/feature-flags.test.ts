@@ -121,6 +121,11 @@ describe('flag-registry', () => {
     expect(isBooleanFlag('limits.daily_api_requests' as any)).toBe(false);
   });
 
+  it('registers the Trafficking QA flags with safe defaults', () => {
+    expect(BOOLEAN_FLAGS['qa.enabled'].default).toBe(false);
+    expect(NUMERIC_FLAGS['qa.retention_days'].default).toBe(30);
+  });
+
   it('includes compliance feature flags', () => {
     expect(ALL_FLAG_NAMES).toContain('compliance.eu_ai_act_disclosure');
     expect(ALL_FLAG_NAMES).toContain('compliance.ai_attribution_in_exports');

@@ -83,12 +83,12 @@ function verifyState(state: string): { userId: string } | null {
 }
 
 /**
- * GET /api/auth/google/connect
+ * GET /api/v1/auth/google/connect
  *
  * Generate a Google OAuth authorization URL and return it.
  * The frontend redirects the user's browser to this URL.
  */
-router.get('/api/auth/google/connect', oauthLimiter, requireAuth, featureFlagsMiddleware, (req, res) => {
+router.get('/auth/google/connect', oauthLimiter, requireAuth, featureFlagsMiddleware, (req, res) => {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
@@ -114,13 +114,13 @@ router.get('/api/auth/google/connect', oauthLimiter, requireAuth, featureFlagsMi
 });
 
 /**
- * GET /api/auth/google/callback
+ * GET /api/v1/auth/google/callback
  *
  * Handles Google's redirect with the authorization code.
  * Exchanges the code for tokens, encrypts and stores them,
  * then redirects to the webapp Settings page.
  */
-router.get('/api/auth/google/callback', async (req, res) => {
+router.get('/auth/google/callback', async (req, res) => {
   const { code, state, error: oauthError } = req.query;
 
   // Handle user denying consent
@@ -210,11 +210,11 @@ router.get('/api/auth/google/callback', async (req, res) => {
 });
 
 /**
- * GET /api/auth/google/status
+ * GET /api/v1/auth/google/status
  *
  * Returns the current CM360 connection status for the authenticated user.
  */
-router.get('/api/auth/google/status', requireAuth, featureFlagsMiddleware, async (req, res) => {
+router.get('/auth/google/status', requireAuth, featureFlagsMiddleware, async (req, res) => {
   const rows = await db
     .select()
     .from(schema.oauthTokens)
@@ -234,11 +234,11 @@ router.get('/api/auth/google/status', requireAuth, featureFlagsMiddleware, async
 });
 
 /**
- * POST /api/auth/google/disconnect
+ * POST /api/v1/auth/google/disconnect
  *
  * Revoke CM360 tokens at Google and delete them from our database.
  */
-router.post('/api/auth/google/disconnect', oauthLimiter, requireAuth, featureFlagsMiddleware, async (req, res) => {
+router.post('/auth/google/disconnect', oauthLimiter, requireAuth, featureFlagsMiddleware, async (req, res) => {
   const rows = await db
     .select()
     .from(schema.oauthTokens)

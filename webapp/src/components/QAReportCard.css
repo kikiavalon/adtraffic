@@ -1,0 +1,56 @@
+.qa-report-card {
+  border: 1px solid var(--border-color, #d0d5dd);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 4px 0;
+  background: var(--card-bg, #fff);
+  font-size: 0.9rem;
+}
+.qa-report-card--passed { border-left-color: #12b76a; }
+.qa-report-card--warned { border-left-color: #f79009; }
+.qa-report-card--failed { border-left-color: #f04438; }
+.qa-report-card--error { border-left-color: #98a2b3; }
+
+.qa-report-card__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.qa-report-card__title { font-weight: 600; }
+.qa-report-card__advisory {
+  font-size: 0.75rem;
+  color: #667085;
+  white-space: nowrap;
+}
+.qa-report-card__counts {
+  color: #475467;
+  margin: 4px 0 8px;
+  font-size: 0.8rem;
+}
+.qa-report-card__category-title {
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #667085;
+  margin-top: 8px;
+}
+.qa-report-card__checks {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.qa-report-card__check {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  align-items: baseline;
+}
+.qa-report-card__check-icon { flex: none; width: 1em; text-align: center; }
+.qa-report-card__check--pass .qa-report-card__check-icon { color: #12b76a; }
+.qa-report-card__check--warn .qa-report-card__check-icon { color: #f79009; }
+.qa-report-card__check--fail .qa-report-card__check-icon { color: #f04438; }
+.qa-report-card__check--skipped .qa-report-card__check-icon { color: #98a2b3; }

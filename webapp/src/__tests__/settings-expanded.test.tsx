@@ -435,6 +435,126 @@ describe('Settings — Toast', () => {
   });
 });
 
+describe('Settings — Per-API Usage Cards', () => {
+  beforeEach(() => {
+    mockAuthFetch.mockReset();
+    mockLogout.mockReset();
+    mockFeatureFlags = null;
+  });
+
+  it('labels both measured APIs: Claude and Google CM360', async () => {
+    mockAuthFetch
+      .mockResolvedValueOnce(createOkResponse(mockUsage))
+      .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected));
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText('Claude API')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Google CM360 API')).toBeInTheDocument();
+  });
+
+  it('shows Google CM360 call count and active token when connected', async () => {
+    mockAuthFetch
+      .mockResolvedValueOnce(createOkResponse({ ...mockUsage, google: { date: '2026-02-19', requests: 17 } }))
+      .mockResolvedValueOnce(createOkResponse(mockCM360Connected));
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText('CM360 calls today')).toBeInTheDocument();
+    });
+    expect(screen.getByText('17')).toBeInTheDocument();
+    expect(screen.getByText('Google sign-in token')).toBeInTheDocument();
+    expect(screen.getByText('Active')).toBeInTheDocument();
+  });
+
+  it('explains that no Google calls happen while disconnected', async () => {
+    mockAuthFetch
+      .mockResolvedValueOnce(createOkResponse(mockUsage))
+      .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected));
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText(/no calls are made to\s+Google/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText('CM360 calls today')).not.toBeInTheDocument();
+  });
+});
+
+describe('Settings — CM360 Connect Walkthrough', () => {
+  beforeEach(() => {
+    mockAuthFetch.mockReset();
+    mockLogout.mockReset();
+    mockFeatureFlags = null;
+  });
+
+  it('shows numbered connect steps when disconnected', async () => {
+    mockAuthFetch
+      .mockResolvedValueOnce(createOkResponse(mockUsage))
+      .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected));
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText(/How connecting works/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Choose the Google account/)).toBeInTheDocument();
+    expect(screen.getByText(/Review and allow access/)).toBeInTheDocument();
+  });
+
+  it('shows server setup instructions when connect returns 503', async () => {
+    mockAuthFetch
+      .mockResolvedValueOnce(createOkResponse(mockUsage))
+      .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected))
+      .mockResolvedValueOnce({ ok: false, status: 503 }); // OAuth not configured
+
+    const user = userEvent.setup();
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText('Connect CM360 Account')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText('Connect CM360 Account'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/One-time server setup needed/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/GOOGLE_CLIENT_ID/)).toBeInTheDocument();
+    expect(
+      screen.queryByText('Failed to start connection. Check that Google OAuth is configured.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows a toast when the user cancels at Google (?cm360=denied)', async () => {
+    mockAuthFetch
+      .mockResolvedValueOnce(createOkResponse(mockUsage))
+      .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected));
+
+    renderSettings(['/settings?cm360=denied']);
+
+    await waitFor(() => {
+      expect(screen.getByText('Google connection canceled — nothing was changed.')).toBeInTheDocument();
+    });
+  });
+
+  it('explains the Disconnect button when connected', async () => {
+    mockAuthFetch
+      .mockResolvedValueOnce(createOkResponse(mockUsage))
+      .mockResolvedValueOnce(createOkResponse(mockCM360Connected));
+
+    renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText('Disconnect…')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/switches back to demo data/)).toBeInTheDocument();
+  });
+});
+
 describe('Settings — Usage Error States', () => {
   beforeEach(() => {
     mockAuthFetch.mockReset();

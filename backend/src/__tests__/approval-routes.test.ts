@@ -47,6 +47,22 @@ vi.mock('../cm360/tool-executor.js', () => ({
   executeTool: (...args: unknown[]) => mockExecuteTool(...args),
 }));
 
+// Mock Trafficking QA service
+const mockRunTurnQa = vi.fn();
+vi.mock('../qa/qa-service.js', () => ({
+  runTurnQa: (...args: unknown[]) => mockRunTurnQa(...args),
+}));
+
+// Mock flag service (other named exports required by routes/feature-flags.ts)
+const mockResolveFlags = vi.fn();
+vi.mock('../feature-flags/flag-service.js', () => ({
+  resolveFlags: (...args: unknown[]) => mockResolveFlags(...args),
+  setFlagOverride: vi.fn(),
+  clearFlagOverride: vi.fn(),
+  isValidFlagName: vi.fn().mockReturnValue(true),
+  isBooleanFlag: vi.fn().mockReturnValue(true),
+}));
+
 // Mock audit logger
 const mockLogRequestAuditEvent = vi.fn();
 vi.mock('../middleware/audit-logger.js', () => ({
@@ -639,5 +655,34 @@ describe('Audit logging', () => {
         requesterId: 'junior-user-1',
       }),
     );
+  });
+});
+
+
+describe('POST /api/v1/approvals/:id/approve — Trafficking QA', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUserRole = 'senior';
+  });
+
+  it('runs QA as the REQUESTER with trigger approval and returns qaReport in the approve response', async () => {
+    // actionPayload shaped like the chat-submission / confirmations→approval
+    // routing paths both produce: a full payload including toolInput.
+    mockGetApprovalById.mockResolvedValue(makeApprovalItem({ id: 'appr-1', requesterId: 'junior-1', conversationId: 'conv-qa' }));
+    mockApproveRequest.mockResolvedValue(undefined);
+    mockExecuteTool.mockResolvedValue({ result: { id: '2001' }, isError: false });
+    mockResolveFlags.mockResolvedValue({ 'qa.enabled': true });
+    mockRunTurnQa.mockResolvedValue({
+      runId: 'run-2', status: 'warned', trigger: 'approval', advisory: true,
+      touched: [], checks: [], startedAt: Date.now(),
+    });
+
+    const res = await request(app).post('/api/v1/approvals/appr-1/approve').send({});
+    expect(res.status).toBe(200);
+    expect(res.body.qaReport).toMatchObject({ runId: 'run-2', advisory: true });
+    expect(mockRunTurnQa).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: 'conv-qa', userId: 'junior-1', trigger: 'approval',
+    }));
+    expect(mockResolveFlags).toHaveBeenCalledWith('junior-1'); // requester's flags, not the approver's
   });
 });

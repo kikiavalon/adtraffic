@@ -99,9 +99,20 @@ export type {
   StreamRetrying,
   StreamConfirmationRequired,
   StreamApprovalSubmitted,
+  StreamQAReport,
   StreamError,
   StreamDone,
 } from './types/streaming.js';
+
+export type {
+  QACheckStatus,
+  QACheckCategory,
+  QACheckResult,
+  QARunStatus,
+  QARunTrigger,
+  QATouchedEntity,
+  QARunReport,
+} from './types/qa.js';
 
 export type {
   PendingAction,
@@ -131,3 +142,4 @@ export { TraffickingPlanSchema } from './schemas/trafficking-plan.js';
 export type { ValidatedTraffickingPlan } from './schemas/trafficking-plan.js';
 
 export * from './qa/resolve-click-through.js';
+export * from './qa/url-validator.js';

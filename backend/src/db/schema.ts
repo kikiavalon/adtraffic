@@ -105,6 +105,45 @@ export const pendingActions = pgTable('pending_actions', {
   expiresIdx: index('pending_actions_expires_at_idx').on(table.expiresAt),
 }));
 
+/** Trafficking QA runs — one row per end-of-turn validation (design doc §7).
+ * The audit log deliberately strips URLs/names, so QA keeps its own record
+ * of what was implemented in `scope`. No qa_evidence table in Phase 1. */
+export const qaRuns = pgTable('qa_runs', {
+  id: uuid('id').primaryKey(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  conversationId: text('conversation_id'),
+  campaignId: text('campaign_id'),
+  advertiserId: text('advertiser_id'),
+  trigger: text('trigger', { enum: ['auto', 'manual', 'approval'] }).notNull().default('auto'),
+  status: text('status', { enum: ['pending', 'running', 'passed', 'warned', 'failed', 'error'] }).notNull().default('pending'),
+  /** JSON: QATouchedEntity[] — the writes this run validates (Phase 2's runner clicks these) */
+  scope: text('scope').notNull().default('[]'),
+  startedAt: timestamp('started_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+  /** Retention boundary (qa.retention_days flag, default 30) — swept opportunistically */
+  expiresAt: timestamp('expires_at').notNull(),
+}, (table) => ({
+  userStartedIdx: index('qa_runs_user_started_idx').on(table.userId, table.startedAt),
+  conversationIdx: index('qa_runs_conversation_id_idx').on(table.conversationId),
+  expiresIdx: index('qa_runs_expires_at_idx').on(table.expiresAt),
+}));
+
+/** Individual QA check results — idempotent upserts keyed on (run_id, check_key) */
+export const qaChecks = pgTable('qa_checks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  runId: uuid('run_id').notNull().references(() => qaRuns.id, { onDelete: 'cascade' }),
+  category: text('category', { enum: ['clickthrough', 'landing', 'tracking', 'config'] }).notNull(),
+  checkKey: text('check_key').notNull(),
+  status: text('status', { enum: ['pass', 'warn', 'fail', 'skipped'] }).notNull(),
+  expected: text('expected'),
+  actual: text('actual'),
+  /** JSON detail: { message } in Phase 1; Phase 2 adds redirect chains and param diffs */
+  detail: text('detail'),
+}, (table) => ({
+  uniqueRunCheck: unique().on(table.runId, table.checkKey),
+  runIdx: index('qa_checks_run_id_idx').on(table.runId),
+}));
+
 /** OAuth tokens — encrypted CM360 tokens (future) */
 export const oauthTokens = pgTable('oauth_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),

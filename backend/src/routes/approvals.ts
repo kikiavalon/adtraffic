@@ -12,7 +12,9 @@ import {
 import { executeTool, type ToolResult } from '../cm360/tool-executor.js';
 import { logRequestAuditEvent } from '../middleware/audit-logger.js';
 import { logger } from '../lib/logger.js';
-import type { PendingAction } from '@adtraffic/shared';
+import { resolveFlags } from '../feature-flags/flag-service.js';
+import { runTurnQa } from '../qa/qa-service.js';
+import type { PendingAction, QARunReport } from '@adtraffic/shared';
 
 const router = Router();
 
@@ -208,6 +210,25 @@ router.post('/approvals/:id/approve', requireAuth, requirePermission('canApprove
       );
     }
 
+    // Trafficking QA — advisory; the run is attributed to the REQUESTER (the
+    // planner whose work is being checked), using the requester's flags.
+    // Guard on conversationId: it is nullable here, RunTurnQaOptions requires it,
+    // and that is semantically correct — the recorder is keyed by conversationId
+    // and the executeTool hook only records when a conversationId was passed, so
+    // with none there is nothing to drain or validate.
+    let qaReport: QARunReport | null = null;
+    if (!toolResult.isError && approval.conversationId) {
+      try {
+        const flags = await resolveFlags(approval.requesterId);
+        qaReport = await runTurnQa({
+          conversationId: approval.conversationId,
+          userId: approval.requesterId,
+          flags,
+          trigger: 'approval',
+        });
+      } catch { /* advisory — never block the approval response */ }
+    }
+
     logRequestAuditEvent(req, 'tool_executed', approval.conversationId ?? undefined, {
       approvalId,
       toolName: approval.actionPayload.toolName,
@@ -225,6 +246,7 @@ router.post('/approvals/:id/approve', requireAuth, requirePermission('canApprove
       isError: toolResult.isError,
       errorMessage: toolResult.errorMessage,
       message: toolResult.isError ? 'Request approved, but execution failed.' : 'Request approved and executed.',
+      ...(qaReport ? { qaReport } : {}),
     });
   } catch (error) {
     logger.error(

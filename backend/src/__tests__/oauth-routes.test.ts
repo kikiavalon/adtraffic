@@ -68,7 +68,9 @@ const MOCK_REFRESH_TOKEN = 'mock-refresh-token-not-real';
 function createApp() {
   const app = express();
   app.use(express.json());
-  app.use(oauthRouter);
+  // Mount under /api/v1 to mirror production (index.ts) — the router paths
+  // must resolve at /api/v1/auth/google/*, which is what the webapp calls.
+  app.use('/api/v1', oauthRouter);
   return app;
 }
 
@@ -87,7 +89,7 @@ describe('OAuth Routes', () => {
       JWT_SECRET: 'test-secret-at-least-32-characters-long',
       GOOGLE_CLIENT_ID: 'test-client-id',
       GOOGLE_CLIENT_SECRET: 'test-client-secret',
-      GOOGLE_REDIRECT_URI: 'http://localhost:3001/api/auth/google/callback',
+      GOOGLE_REDIRECT_URI: 'http://localhost:3001/api/v1/auth/google/callback',
       WEBAPP_URL: 'http://localhost:5173',
       NODE_ENV: 'test',
     };
@@ -97,10 +99,10 @@ describe('OAuth Routes', () => {
     process.env = originalEnv;
   });
 
-  describe('GET /api/auth/google/connect', () => {
+  describe('GET /api/v1/auth/google/connect', () => {
     it('should return 401 without auth', async () => {
       const app = createApp();
-      const res = await request(app).get('/api/auth/google/connect');
+      const res = await request(app).get('/api/v1/auth/google/connect');
       expect(res.status).toBe(401);
     });
 
@@ -109,7 +111,7 @@ describe('OAuth Routes', () => {
       const token = generateTestToken('user-123');
 
       const res = await request(app)
-        .get('/api/auth/google/connect')
+        .get('/api/v1/auth/google/connect')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
@@ -124,7 +126,7 @@ describe('OAuth Routes', () => {
       const token = generateTestToken('user-123');
 
       const res = await request(app)
-        .get('/api/auth/google/connect')
+        .get('/api/v1/auth/google/connect')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(503);
@@ -136,7 +138,7 @@ describe('OAuth Routes', () => {
       const token = generateTestToken('user-123');
 
       await request(app)
-        .get('/api/auth/google/connect')
+        .get('/api/v1/auth/google/connect')
         .set('Authorization', `Bearer ${token}`);
 
       // Verify generateAuthUrl was called with a state parameter
@@ -150,12 +152,12 @@ describe('OAuth Routes', () => {
     });
   });
 
-  describe('GET /api/auth/google/callback', () => {
+  describe('GET /api/v1/auth/google/callback', () => {
     it('should redirect on user denial (error param)', async () => {
       const app = createApp();
 
       const res = await request(app)
-        .get('/api/auth/google/callback?error=access_denied');
+        .get('/api/v1/auth/google/callback?error=access_denied');
 
       expect(res.status).toBe(302);
       expect(res.headers.location).toContain('cm360=denied');
@@ -165,7 +167,7 @@ describe('OAuth Routes', () => {
       const app = createApp();
 
       const res = await request(app)
-        .get('/api/auth/google/callback?code=test');
+        .get('/api/v1/auth/google/callback?code=test');
 
       expect(res.status).toBe(400);
     });
@@ -174,17 +176,17 @@ describe('OAuth Routes', () => {
       const app = createApp();
 
       const res = await request(app)
-        .get('/api/auth/google/callback?code=test&state=tampered.payload');
+        .get('/api/v1/auth/google/callback?code=test&state=tampered.payload');
 
       expect(res.status).toBe(403);
       expect(res.body.error).toContain('tampered');
     });
   });
 
-  describe('GET /api/auth/google/status', () => {
+  describe('GET /api/v1/auth/google/status', () => {
     it('should return 401 without auth', async () => {
       const app = createApp();
-      const res = await request(app).get('/api/auth/google/status');
+      const res = await request(app).get('/api/v1/auth/google/status');
       expect(res.status).toBe(401);
     });
 
@@ -194,7 +196,7 @@ describe('OAuth Routes', () => {
       const token = generateTestToken('user-123');
 
       const res = await request(app)
-        .get('/api/auth/google/status')
+        .get('/api/v1/auth/google/status')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
@@ -211,7 +213,7 @@ describe('OAuth Routes', () => {
       const token = generateTestToken('user-123');
 
       const res = await request(app)
-        .get('/api/auth/google/status')
+        .get('/api/v1/auth/google/status')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
@@ -221,10 +223,10 @@ describe('OAuth Routes', () => {
     });
   });
 
-  describe('POST /api/auth/google/disconnect', () => {
+  describe('POST /api/v1/auth/google/disconnect', () => {
     it('should return 401 without auth', async () => {
       const app = createApp();
-      const res = await request(app).post('/api/auth/google/disconnect');
+      const res = await request(app).post('/api/v1/auth/google/disconnect');
       expect(res.status).toBe(401);
     });
 
@@ -234,7 +236,7 @@ describe('OAuth Routes', () => {
       const token = generateTestToken('user-123');
 
       const res = await request(app)
-        .post('/api/auth/google/disconnect')
+        .post('/api/v1/auth/google/disconnect')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
@@ -253,7 +255,7 @@ describe('OAuth Routes', () => {
       const token = generateTestToken('user-123');
 
       const res = await request(app)
-        .post('/api/auth/google/disconnect')
+        .post('/api/v1/auth/google/disconnect')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
@@ -274,7 +276,7 @@ describe('OAuth Routes', () => {
       const token = generateTestToken('user-123');
 
       const res = await request(app)
-        .post('/api/auth/google/disconnect')
+        .post('/api/v1/auth/google/disconnect')
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);

@@ -411,3 +411,38 @@ describe('Chat SSE streaming', () => {
     expect(screen.getByRole('button', { name: /send/i })).toBeDisabled();
   });
 });
+
+describe('Chat SSE qa_report event', () => {
+  beforeEach(() => {
+    mockAuthFetch.mockReset();
+    mockLogout.mockReset();
+    sessionStorage.clear();
+  });
+
+  it('renders a Trafficking QA card when the stream carries a qa_report event', async () => {
+    const report = {
+      runId: 'run-sse-1', status: 'warned', trigger: 'auto', advisory: true,
+      touched: [{ toolName: 'cm360_update_ad', entityType: 'ad', entityId: '2001' }],
+      checks: [
+        { checkKey: 'config.click_through.ad:2001', category: 'config', status: 'pass', message: 'Click-through resolves via landing_page' },
+      ],
+      startedAt: Date.now(),
+    };
+    const events = [
+      `data: ${JSON.stringify({ type: 'content_delta', delta: 'Updated the ad.' })}\n\n`,
+      `data: ${JSON.stringify({ type: 'qa_report', report })}\n\n`,
+      `data: ${JSON.stringify({ type: 'message_end', message: { id: 'r1', role: 'assistant', content: 'Updated the ad.', timestamp: Date.now() } })}\n\n`,
+      `data: ${JSON.stringify({ type: 'done' })}\n\n`,
+    ];
+    mockAuthFetch.mockResolvedValue(createSSEResponse(events));
+
+    const user = userEvent.setup();
+    renderChat();
+    await sendTestMessage(user);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Trafficking QA/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Click-through resolves/)).toBeInTheDocument();
+  });
+});

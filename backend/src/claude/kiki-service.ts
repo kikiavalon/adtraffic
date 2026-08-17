@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
-import type { ChatMessage, StreamEvent, FileAttachment, ActionPreview } from '@adtraffic/shared';
+import type { ChatMessage, StreamEvent, FileAttachment, ActionPreview, QARunReport } from '@adtraffic/shared';
 import { getSystemPrompt } from './system-prompt.js';
 import { CM360_TOOLS, getEnabledTools, STUBBED_TOOLS } from './tool-definitions.js';
 import type { ResolvedFlags } from '../feature-flags/flag-registry.js';
@@ -17,6 +17,29 @@ import { prepareIOContent } from '../io/io-parser.js';
 import { getExtractionPrompt } from '../io/extraction-prompt.js';
 import { logger } from '../lib/logger.js';
 import { withRetry } from './retry.js';
+import { runTurnQa } from '../qa/qa-service.js';
+import { drainQaWrites } from '../qa/qa-recorder.js';
+
+/**
+ * Trafficking QA end-of-turn trigger — advisory, never throws, never blocks the reply.
+ * Returns the report for SSE emission; the non-streaming path persists silently.
+ */
+async function maybeRunTurnQa(
+  conversationId: string,
+  userId: string | undefined,
+  flags: ResolvedFlags | undefined,
+): Promise<QARunReport | null> {
+  if (!userId) return null;
+  try {
+    return await runTurnQa({ conversationId, userId, flags, trigger: 'auto' });
+  } catch (err) {
+    logger.warn(
+      { err: { message: err instanceof Error ? err.message : 'Unknown' }, conversationId },
+      'Trafficking QA end-of-turn trigger failed',
+    );
+    return null;
+  }
+}
 
 const anthropic = new Anthropic();
 
@@ -176,6 +199,8 @@ export async function chat(
         );
         const responseText = textBlocks.map((b) => b.text).join('\n') || 'I need a moment to think about that.';
 
+        await maybeRunTurnQa(conversationId, userId, flags);
+
         return {
           id: uuidv4(),
           role: 'assistant',
@@ -281,6 +306,7 @@ export async function chat(
     }
 
     // If we hit the max rounds, extract whatever text we have
+    await maybeRunTurnQa(conversationId, userId, flags);
     return {
       id: uuidv4(),
       role: 'assistant',
@@ -290,6 +316,11 @@ export async function chat(
   } finally {
     // Always persist history — even on errors, timeouts, or early returns
     await saveHistory(conversationId, history);
+    // Discard any writes recorded this turn that the end-of-turn trigger did not
+    // consume (mid-stream abort, error, or a path that skipped QA). A leftover
+    // entry would otherwise be inherited — and misattributed — by the next turn
+    // of this conversation that happens to land on this replica.
+    drainQaWrites(conversationId);
   }
 }
 
@@ -477,6 +508,8 @@ export async function chatStream(
 
       if (toolUseBlocks.length === 0 || finalMessage.stop_reason === 'end_turn') {
         // No tools — emit final message
+        const qaReport = await maybeRunTurnQa(conversationId, userId, flags);
+        if (qaReport) emit({ type: 'qa_report', report: qaReport });
         const responseText = accumulatedText || 'I need a moment to think about that.';
         const chatMessage: ChatMessage = {
           id: messageId,
@@ -608,6 +641,8 @@ export async function chatStream(
     }
 
     // Hit max rounds — emit whatever we have
+    const maxRoundsQaReport = await maybeRunTurnQa(conversationId, userId, flags);
+    if (maxRoundsQaReport) emit({ type: 'qa_report', report: maxRoundsQaReport });
     const maxRoundsText = accumulatedText ||
       'I ran into a limit processing your request. Could you try rephrasing or breaking it into smaller steps?';
     const maxRoundsMessage: ChatMessage = {
@@ -621,6 +656,11 @@ export async function chatStream(
   } finally {
     // Always persist history — even on errors, timeouts, or early returns
     await saveHistory(conversationId, history);
+    // Discard any writes recorded this turn that the end-of-turn trigger did not
+    // consume (mid-stream abort, error, or a path that skipped QA). A leftover
+    // entry would otherwise be inherited — and misattributed — by the next turn
+    // of this conversation that happens to land on this replica.
+    drainQaWrites(conversationId);
   }
 }
 

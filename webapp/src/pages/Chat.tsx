@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { ChatMessage, StreamEvent, PendingAction } from '@adtraffic/shared';
+import type { ChatMessage, StreamEvent, PendingAction, QARunReport } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { PluggableList } from 'unified';
@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
 import ConversationSidebar from '../components/ConversationSidebar.js';
 import ConfirmationCard from '../components/ConfirmationCard.js';
+import QAReportCard from '../components/QAReportCard.js';
 import { parseQuickReplies, generateConversationId } from '../utils/chat-utils.js';
 import type { QuickReplyOption } from '../utils/chat-utils.js';
 import { trackInteraction, setAuthFetch, startAutoFlush, flushInteractions } from '../utils/interaction-tracker.js';
@@ -327,6 +328,7 @@ function Chat() {
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [toolStatus, setToolStatus] = useState<{ toolName: string; status: 'running' } | null>(null);
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
+  const [qaReports, setQaReports] = useState<QARunReport[]>([]);
   const [processingActionId, setProcessingActionId] = useState<string | null>(null);
   const { user, logout, authFetch, cm360Connected } = useAuth();
   const dataMode: 'live' | 'demo' = cm360Connected === true ? 'live' : 'demo';
@@ -389,7 +391,7 @@ function Chat() {
     } else {
       setShowJumpToLatest(true);
     }
-  }, [messages, pendingActions, isNearBottom]);
+  }, [messages, pendingActions, qaReports, isNearBottom]);
 
   const handleMessagesScroll = useCallback(() => {
     if (isNearBottom()) setShowJumpToLatest(false);
@@ -619,6 +621,10 @@ function Chat() {
               setPendingActions((prev) => [...prev, event.action]);
               break;
 
+            case 'qa_report':
+              setQaReports((prev) => [...prev, event.report]);
+              break;
+
             case 'done':
               // Stream complete — no action needed
               break;
@@ -665,6 +671,7 @@ function Chat() {
     }]);
     setInput('');
     setPendingActions([]);
+    setQaReports([]);
     setProcessingActionId(null);
     setSidebarRefresh((n) => n + 1);
   }, []);
@@ -706,6 +713,8 @@ function Chat() {
           timestamp: Date.now(),
         };
         setMessages((prev) => [...prev, resultMessage]);
+        const approvedQaReport = (data as { qaReport?: QARunReport }).qaReport;
+        if (approvedQaReport) setQaReports((prev) => [...prev, approvedQaReport]);
       } else {
         // Add error as assistant message
         const errorText = data.errorMessage || data.error || 'Failed to execute action';
@@ -967,6 +976,16 @@ function Chat() {
                   disabled={processingActionId === action.actionId}
                   mode={dataMode}
                 />
+              </div>
+            </div>
+          </div>
+        ))}
+        {qaReports.map((report) => (
+          <div key={report.runId} className="chat-message chat-message-assistant">
+            <div className="chat-message-row">
+              <div className="kiki-avatar">K</div>
+              <div className="chat-message-bubble qa-report-card-container">
+                <QAReportCard report={report} />
               </div>
             </div>
           </div>

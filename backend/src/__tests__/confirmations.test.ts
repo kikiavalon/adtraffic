@@ -23,6 +23,22 @@ vi.mock('../cm360/tool-executor.js', () => ({
   executeTool: (...args: unknown[]) => mockExecuteTool(...args),
 }));
 
+// Mock Trafficking QA service
+const mockRunTurnQa = vi.fn();
+vi.mock('../qa/qa-service.js', () => ({
+  runTurnQa: (...args: unknown[]) => mockRunTurnQa(...args),
+}));
+
+// Mock flag service (other named exports required by routes/feature-flags.ts)
+const mockResolveFlags = vi.fn();
+vi.mock('../feature-flags/flag-service.js', () => ({
+  resolveFlags: (...args: unknown[]) => mockResolveFlags(...args),
+  setFlagOverride: vi.fn(),
+  clearFlagOverride: vi.fn(),
+  isValidFlagName: vi.fn().mockReturnValue(true),
+  isBooleanFlag: vi.fn().mockReturnValue(true),
+}));
+
 // Mock DB (required by index.ts)
 vi.mock('../db/index.js', () => ({
   db: {},
@@ -264,5 +280,56 @@ describe('POST /api/v1/confirmations/:actionId/reject', () => {
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Action not found or expired');
+  });
+});
+
+describe('POST /api/v1/confirmations/:actionId/approve — Trafficking QA', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const QA_REPORT = {
+    runId: 'run-1', status: 'passed', trigger: 'auto', advisory: true,
+    touched: [], checks: [], startedAt: Date.now(),
+  };
+
+  it('runs QA after a successful write and returns the advisory report', async () => {
+    mockConsumePendingAction.mockResolvedValue(makeStoredPendingAction({ conversationId: 'conv-qa' }));
+    mockExecuteTool.mockResolvedValue({ result: { id: 'c1' }, isError: false });
+    mockResolveFlags.mockResolvedValue({ 'qa.enabled': true });
+    mockRunTurnQa.mockResolvedValue(QA_REPORT);
+
+    const res = await request(app).post('/api/v1/confirmations/action-123/approve').send({});
+    expect(res.status).toBe(200);
+    expect(res.body.qaReport).toMatchObject({ runId: 'run-1', advisory: true });
+    expect(mockRunTurnQa).toHaveBeenCalledWith(expect.objectContaining({
+      conversationId: 'conv-qa', userId: 'test-user-id', trigger: 'auto',
+    }));
+  });
+
+  it('omits qaReport when the QA run returns null (flag off / nothing to check)', async () => {
+    mockConsumePendingAction.mockResolvedValue(makeStoredPendingAction());
+    mockExecuteTool.mockResolvedValue({ result: { id: 'c1' }, isError: false });
+    mockResolveFlags.mockResolvedValue({ 'qa.enabled': false });
+    mockRunTurnQa.mockResolvedValue(null);
+
+    const res = await request(app).post('/api/v1/confirmations/action-123/approve').send({});
+    expect(res.status).toBe(200);
+    expect(res.body.qaReport).toBeUndefined();
+  });
+
+  it('does not run QA when the write failed, and a QA error never breaks the response', async () => {
+    mockConsumePendingAction.mockResolvedValue(makeStoredPendingAction());
+    mockExecuteTool.mockResolvedValue({ result: null, isError: true, errorMessage: 'boom' });
+    const res = await request(app).post('/api/v1/confirmations/action-123/approve').send({});
+    expect(res.status).toBe(200);
+    expect(mockRunTurnQa).not.toHaveBeenCalled();
+
+    mockExecuteTool.mockResolvedValue({ result: { id: 'c1' }, isError: false });
+    mockConsumePendingAction.mockResolvedValue(makeStoredPendingAction());
+    mockResolveFlags.mockRejectedValue(new Error('flags down'));
+    const res2 = await request(app).post('/api/v1/confirmations/action-123/approve').send({});
+    expect(res2.status).toBe(200); // advisory: approve response unaffected
+    expect(res2.body.qaReport).toBeUndefined();
   });
 });

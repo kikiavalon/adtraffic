@@ -18,7 +18,9 @@ import { logger } from '../lib/logger.js';
 import type { CM360Client } from './cm360-client.js';
 import { CM360NotConnectedError, CM360TokenRevokedError, CM360APIError } from './errors.js';
 import { checkCM360RateLimit, recordCM360Request } from './api-rate-limiter.js';
+import { recordGoogleApiRequest } from './google-usage-tracker.js';
 import { logAuditEvent } from '../audit/audit-service.js';
+import { recordQaWrite } from '../qa/qa-recorder.js';
 import { getCached, setCached, invalidateEntity } from './session-cache.js';
 import { isWriteTool } from './write-classifier.js';
 import {
@@ -351,6 +353,7 @@ export async function executeTool(
       const client = new CM360ClientClass(api);
       toolResult = await executeToolReal(toolName, toolInput, client, userId);
       recordCM360Request(userId);
+      void recordGoogleApiRequest();
     }
   } catch (err) {
     // Not connected → fall back to mock
@@ -413,6 +416,12 @@ export async function executeTool(
         : {}),
     },
   });
+
+  // Trafficking QA: record successful writes for the end-of-turn advisory QA run.
+  // Recording is cheap and in-memory; the qa.enabled flag gates the run itself.
+  if (isWrite && !toolResult.isError && conversationId) {
+    recordQaWrite(conversationId, { toolName, toolInput, result: toolResult.result, recordedAt: Date.now() });
+  }
 
   return toolResult;
 }

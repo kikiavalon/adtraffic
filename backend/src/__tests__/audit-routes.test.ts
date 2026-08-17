@@ -459,5 +459,7 @@ describe('VALID_EVENT_TYPES single source of truth', () => {
     expect(VALID_EVENT_TYPES.length).toBeGreaterThanOrEqual(13);
     expect(VALID_EVENT_TYPES).toContain('message_sent');
     expect(VALID_EVENT_TYPES).toContain('daily_limit_reached');
+    expect(VALID_EVENT_TYPES).toContain('qa_run_started');
+    expect(VALID_EVENT_TYPES).toContain('qa_run_completed');
   });
 });

@@ -12,11 +12,10 @@ export const BOOLEAN_FLAGS = {
   'cm360.read_operations': { default: true, description: 'Gate all list/get CM360 tools' },
   'chat.enabled': { default: true, description: 'Master switch for chat functionality' },
   'chat.file_upload': { default: true, description: 'Gate file upload in chat' },
-  'beta.advanced_trafficking': { default: false, description: 'Advanced trafficking features (macros, Adobe/Demandbase)' },
-  'beta.video_trafficking': { default: false, description: 'Video trafficking features (VAST/VPAID)' },
   'cm360.user_management': { default: true, description: 'Enable CM360 user & role management tools' },
   'compliance.eu_ai_act_disclosure': { default: true, description: 'Show AI disclosure badges and metadata (EU AI Act Article 50)' },
   'compliance.ai_attribution_in_exports': { default: true, description: 'Include AI attribution in generated tag code and reports' },
+  'qa.enabled': { default: false, description: 'Trafficking QA — advisory post-write validation runs' },
 } as const;
 
 /** Numeric feature flags — configurable limits */
@@ -24,6 +23,7 @@ export const NUMERIC_FLAGS = {
   'limits.daily_api_requests': { default: 100, description: 'Per-user daily API request cap' },
   'limits.max_tool_rounds': { default: 10, description: 'Max agentic loop iterations per chat' },
   'limits.chat_rate_per_minute': { default: 20, description: 'Per-user chat rate limit' },
+  'qa.retention_days': { default: 30, description: 'Days to retain Trafficking QA runs and checks' },
 } as const;
 
 /** Union type of all boolean flag names */

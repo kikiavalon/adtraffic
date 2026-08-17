@@ -32,6 +32,8 @@ export const VALID_EVENT_TYPES = [
   'session_ended',         // User closed/navigated away
   'rate_limited',          // User hit rate limit
   'daily_limit_reached',   // User hit daily API limit
+  'qa_run_started',        // Trafficking QA run began for a chat turn's writes
+  'qa_run_completed',      // Trafficking QA run finished (status in metadata)
 ] as const;
 
 /** Union type derived from VALID_EVENT_TYPES array */

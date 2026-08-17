@@ -7,6 +7,7 @@
 
 import type { ChatMessage } from './chat.js';
 import type { PendingAction } from './confirmation.js';
+import type { QARunReport } from './qa.js';
 
 /** Discriminated union of all SSE event types */
 export type StreamEvent =
@@ -18,6 +19,7 @@ export type StreamEvent =
   | StreamRetrying
   | StreamConfirmationRequired
   | StreamApprovalSubmitted
+  | StreamQAReport
   | StreamError
   | StreamDone;
 
@@ -73,6 +75,14 @@ export interface StreamConfirmationRequired {
 export interface StreamApprovalSubmitted {
   type: 'approval_submitted';
   action: PendingAction;
+}
+
+/** Advisory Trafficking QA report — emitted at the end of a chat turn that executed
+ * writes. The same QARunReport shape also rides in the JSON responses of the
+ * confirmation/approval approve routes (which have no SSE channel). */
+export interface StreamQAReport {
+  type: 'qa_report';
+  report: QARunReport;
 }
 
 /** Error during streaming */

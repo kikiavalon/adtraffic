@@ -6,6 +6,9 @@ import { executeTool } from '../cm360/tool-executor.js';
 import { submitForApproval } from '../approval/approval-service.js';
 import { logger } from '../lib/logger.js';
 import { logRequestAuditEvent } from '../middleware/audit-logger.js';
+import { resolveFlags } from '../feature-flags/flag-service.js';
+import { runTurnQa } from '../qa/qa-service.js';
+import type { QARunReport } from '@adtraffic/shared';
 
 const router = Router();
 
@@ -99,11 +102,24 @@ router.post('/confirmations/:actionId/approve', requireAuth, async (req, res) =>
 
     const toolResult = await executeTool(action.toolName, action.toolInput, action.userId, action.conversationId);
 
+    // Trafficking QA — the write executed here is the tail of the chat turn that
+    // proposed it. Advisory only: a QA failure never affects the approval outcome.
+    let qaReport: QARunReport | null = null;
+    if (!toolResult.isError) {
+      try {
+        const flags = await resolveFlags(action.userId);
+        qaReport = await runTurnQa({
+          conversationId: action.conversationId, userId: action.userId, flags, trigger: 'auto',
+        });
+      } catch { /* advisory — never block the approval response */ }
+    }
+
     res.json({
       actionId,
       result: toolResult.result,
       isError: toolResult.isError,
       errorMessage: toolResult.errorMessage,
+      ...(qaReport ? { qaReport } : {}),
     });
   } catch (error) {
     logger.error(

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth/middleware.js';
 import { hasPermission, isValidRole } from '../auth/roles.js';
-import { getRunWithChecks, listRuns, runToReport } from '../qa/qa-store.js';
+import { getEvidence, getRunWithChecks, listRuns, runToReport } from '../qa/qa-store.js';
 import { logger } from '../lib/logger.js';
 
 const router = Router();
@@ -72,6 +72,36 @@ router.get('/qa/runs/:id', requireAuth, async (req, res) => {
       'Error fetching QA run',
     );
     res.status(500).json({ error: 'Failed to fetch QA run' });
+  }
+});
+
+/** GET /qa/runs/:id/evidence/:evidenceId — click-test screenshot bytes.
+ * Same RBAC as the run detail; the run in the path must own the evidence.
+ * (The report's checks carry evidenceId — checkKeys are not URL-safe.) */
+router.get('/qa/runs/:id/evidence/:evidenceId', requireAuth, async (req, res) => {
+  try {
+    const runId = req.params['id'] as string;
+    const evidenceId = req.params['evidenceId'] as string;
+    const found = await getRunWithChecks(runId);
+    if (!found || (found.run.userId !== req.user!.userId && !callerCanViewOthers(req.user!.role))) {
+      res.status(404).json({ error: 'QA run not found' });
+      return;
+    }
+    const evidence = await getEvidence(evidenceId);
+    if (!evidence || evidence.runId !== runId) {
+      res.status(404).json({ error: 'Evidence not found' });
+      return;
+    }
+    res.setHeader('Content-Type', evidence.contentType);
+    res.setHeader('Content-Security-Policy', "default-src 'none'");
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(evidence.data);
+  } catch (error) {
+    logger.error(
+      { err: { message: error instanceof Error ? error.message : 'Unknown error' }, requestId: req.requestId },
+      'Error serving QA evidence',
+    );
+    res.status(500).json({ error: 'Failed to serve QA evidence' });
   }
 });
 

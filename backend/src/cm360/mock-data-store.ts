@@ -10,6 +10,7 @@
  */
 
 import { faker } from '@faker-js/faker';
+import { demoFixtureBase } from '../qa/demo-base.js';
 import type {
   CM360UserProfile,
   CM360Advertiser,
@@ -206,17 +207,15 @@ class MockDataStore {
       const pageIds: string[] = [];
 
       const pageSuffixes = ['', '/offers', '/products', '/signup', '/promo', '/landing'];
-      // Advertisers 0-2 (Apex, Luminance, Meridian) get UTM parameters on landing page URLs
-      const utmAdvertiserIndices = [0, 1, 2];
+      // ALL advertisers get UTM parameters on landing-page URLs — the QA demo
+      // click chain (Phase 2) diffs final-URL params against these.
       const advSlug = advName.toLowerCase().replace(/\s+/g, '-');
       for (let p = 0; p < count; p++) {
         const id = this.genId();
         pageIds.push(id);
         const suffix = pageSuffixes[p] ?? `/${faker.lorem.slug(1)}`;
         const baseUrl = `https://www.${domain}${suffix}`;
-        const utmSuffix = utmAdvertiserIndices.includes(ai)
-          ? `?utm_source=cm360&utm_medium=display&utm_campaign=${advSlug}${suffix ? suffix.replace('/', '-') : '-homepage'}`
-          : '';
+        const utmSuffix = `?utm_source=cm360&utm_medium=display&utm_campaign=${advSlug}${suffix ? suffix.replace('/', '-') : '-homepage'}`;
         this.landingPages.set(id, {
           id,
           name: p === 0 ? `${advName} Homepage` : `${advName} ${suffix.slice(1).charAt(0).toUpperCase() + suffix.slice(2)}`,
@@ -1661,9 +1660,14 @@ class MockDataStore {
             impressionTag: isVast
               ? `<VAST version="2.0"><Ad id="${pid}"><InLine><AdSystem>CM360</AdSystem><AdTitle>${placement?.name ?? 'Unknown'}</AdTitle><Impression><![CDATA[https://ad.doubleclick.net/ddm/trackimp/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_cid=${campaignId};ord=[timestamp]]]></Impression><Creatives><Creative><Linear><MediaFiles></MediaFiles></Linear></Creative></Creatives></InLine></Ad></VAST>`
               : `<script src="https://ad.doubleclick.net/ddm/trackimp/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_aid=${placement?.id ?? 'unknown'};dc_trk_cid=${campaignId};ord=[timestamp]"></script>`,
-            clickTag: isVast
-              ? `https://ad.doubleclick.net/ddm/trackclk/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_cid=${campaignId}`
-              : `https://ad.doubleclick.net/ddm/trackclk/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_aid=${placement?.id ?? 'unknown'};dc_trk_cid=${campaignId}`,
+            clickTag: process.env.DEMO_MODE === 'true'
+              // DEMO_MODE: point at the local fixture so a generated tag dropped
+              // into any page actually resolves offline (design §4 demo mode).
+              // Gated at call time — tests never set DEMO_MODE (they pin doubleclick.net).
+              ? `${demoFixtureBase()}/demo/click/${pid}`
+              : isVast
+                ? `https://ad.doubleclick.net/ddm/trackclk/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_cid=${campaignId}`
+                : `https://ad.doubleclick.net/ddm/trackclk/N${ACCOUNT_ID}.DEMO/${pid};dc_trk_aid=${placement?.id ?? 'unknown'};dc_trk_cid=${campaignId}`,
           };
         }),
       };

@@ -112,6 +112,11 @@ export type {
   QARunTrigger,
   QATouchedEntity,
   QARunReport,
+  QARedirectHop,
+  QAChainTrace,
+  QAClickTestJob,
+  QAClickTestEvidence,
+  QAClickTestResult,
 } from './types/qa.js';
 
 export type {

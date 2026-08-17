@@ -93,7 +93,7 @@ describe('flag-registry', () => {
 
   it('flag names follow dot-notation convention', () => {
     for (const name of ALL_FLAG_NAMES) {
-      expect(name).toMatch(/^[a-z0-9]+\.[a-z_]+$/);
+      expect(name).toMatch(/^[a-z0-9]+(\.[a-z_]+)+$/);
     }
   });
 
@@ -124,6 +124,10 @@ describe('flag-registry', () => {
   it('registers the Trafficking QA flags with safe defaults', () => {
     expect(BOOLEAN_FLAGS['qa.enabled'].default).toBe(false);
     expect(NUMERIC_FLAGS['qa.retention_days'].default).toBe(30);
+  });
+
+  it('registers the click-test flag defaulting off (independent Layer 3 rollout)', () => {
+    expect(BOOLEAN_FLAGS['qa.click_test.enabled'].default).toBe(false);
   });
 
   it('includes compliance feature flags', () => {

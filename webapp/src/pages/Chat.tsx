@@ -985,7 +985,13 @@ function Chat() {
             <div className="chat-message-row">
               <div className="kiki-avatar">K</div>
               <div className="chat-message-bubble qa-report-card-container">
-                <QAReportCard report={report} />
+                <QAReportCard
+                  report={report}
+                  authFetch={authFetch}
+                  onReportUpdate={(updated) =>
+                    setQaReports((prev) => prev.map((r) => (r.runId === updated.runId ? updated : r)))
+                  }
+                />
               </div>
             </div>
           </div>

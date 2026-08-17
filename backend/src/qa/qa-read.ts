@@ -22,6 +22,12 @@ export const QA_READ_ALLOWLIST: ReadonlySet<string> = new Set([
   'cm360_list_creatives',
 ]);
 
+/** Read-only tools that don't match the list/get name shape but mutate nothing:
+ * cm360_generate_tags only EXPORTS tag strings (executor cases tool-executor.ts:714/1683;
+ * isMutatingTool's regex covers create/update/delete/upload/associate only).
+ * Phase 2's live click test needs the real exported clickTag. Keep this set tiny. */
+export const QA_READ_EXTRA: ReadonlySet<string> = new Set(['cm360_generate_tags']);
+
 export class QAReadOnlyViolationError extends Error {
   constructor(toolName: string) {
     super(`QA is strictly read-only: refusing to execute "${toolName}" (not on the QA read allowlist)`);
@@ -35,7 +41,8 @@ export async function qaRead(
   userId?: string,
   conversationId?: string,
 ): Promise<ToolResult> {
-  if (!QA_READ_ALLOWLIST.has(toolName) || !/^cm360_(list|get)_/.test(toolName)) {
+  const isAllowlistedRead = QA_READ_ALLOWLIST.has(toolName) && /^cm360_(list|get)_/.test(toolName);
+  if (!isAllowlistedRead && !QA_READ_EXTRA.has(toolName)) {
     throw new QAReadOnlyViolationError(toolName);
   }
   return executeTool(toolName, toolInput, userId, conversationId);

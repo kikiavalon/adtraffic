@@ -9,12 +9,14 @@
 import { logAuditEvent } from '../audit/audit-service.js';
 import { logger } from '../lib/logger.js';
 import type { ResolvedFlags } from '../feature-flags/flag-registry.js';
-import type { QACheckResult, QARunReport, QARunTrigger, QATouchedEntity } from '@adtraffic/shared';
+import type { QACheckResult, QAClickTestJob, QARunReport, QARunTrigger, QATouchedEntity } from '@adtraffic/shared';
 import { validateConfiguredUrl, findUnresolvedMacros, validateSourceConsistency } from '@adtraffic/shared';
 import { drainQaWrites, type RecordedWrite } from './qa-recorder.js';
 import { qaRead } from './qa-read.js';
 import { assessAd, fetchCampaignContext, type CampaignContext } from './click-resolver.js';
-import { cleanupExpiredRuns, completeRun, createRun, runToReport, saveChecks } from './qa-store.js';
+import { runClickLayer } from './qa-click.js';
+import { enqueueClickTests } from './qa-queue.js';
+import { cleanupExpiredRuns, completeRun, createRun, markStalledRuns, runToReport, saveChecks } from './qa-store.js';
 
 const DEFAULT_RETENTION_DAYS = 30;
 
@@ -217,6 +219,7 @@ export async function runTurnQa(options: RunTurnQaOptions): Promise<QARunReport 
   const trigger = options.trigger ?? 'auto';
 
   void cleanupExpiredRuns(); // opportunistic retention sweep
+  void markStalledRuns(); // design §4: runs stuck running > 15 min → error
 
   try {
     const scope = await resolveScope(writes, userId, conversationId);
@@ -231,11 +234,20 @@ export async function runTurnQa(options: RunTurnQaOptions): Promise<QARunReport 
       metadata: { runId: run.id, trigger, writeCount: writes.length, campaignId: scope.campaignId },
     });
 
+    const toRow = (c: QACheckResult) => ({
+      checkKey: c.checkKey, category: c.category, status: c.status,
+      expected: c.expected ?? null, actual: c.actual ?? null,
+      detail: JSON.stringify({ message: c.message, ...(c.detail ?? {}) }),
+      evidenceId: c.evidenceId ?? null,
+    });
+
     let checks: QACheckResult[] = [];
     let status: QARunReport['status'];
+    let clickJobs: QAClickTestJob[] = [];
     try {
+      let ctx: CampaignContext | null = null;
       if (scope.campaignId) {
-        const ctx = await fetchCampaignContext(scope.profileId, scope.campaignId, userId, conversationId);
+        ctx = await fetchCampaignContext(scope.profileId, scope.campaignId, userId, conversationId);
         if (ctx) {
           checks = sweepCampaign(ctx);
         } else {
@@ -251,6 +263,15 @@ export async function runTurnQa(options: RunTurnQaOptions): Promise<QARunReport 
         });
       }
       checks.push(...checkScopelessWrites(writes));
+
+      // Layer 3 — headless click tests for the touched ads (design §4 scope tier 1).
+      // DEMO results come back in checks; live returns jobs + queued placeholders.
+      const clickLayer = await runClickLayer({
+        runId: run.id, profileId: scope.profileId, touched: scope.touched,
+        ctx, userId, conversationId, ...(options.flags ? { flags: options.flags } : {}),
+      });
+      checks.push(...clickLayer.checks);
+      clickJobs = clickLayer.jobs;
       status = worstOf(checks);
     } catch (err) {
       status = 'error';
@@ -260,19 +281,41 @@ export async function runTurnQa(options: RunTurnQaOptions): Promise<QARunReport 
       });
     }
 
+    // Persist BEFORE enqueueing — a fast worker completion must find the full
+    // check set (incl. queued placeholders) or finalizeRunIfSettled could
+    // complete the run against an incomplete snapshot.
     await saveChecks(run.id, checks);
+    if (clickJobs.length > 0) {
+      if (await enqueueClickTests(clickJobs)) {
+        // Jobs in flight: leave the run `running` — qa-queue finalizes + audits
+        // qa_run_completed when the last result lands; the 15-min stalled sweep
+        // backstops lost jobs. The report renders as in-progress in the card.
+        return runToReport({ ...run, status: 'running' }, checks.map(toRow));
+      }
+      // Queue down/absent (bounded fail-fast in enqueueClickTests): degrade the
+      // persisted placeholders to plain skipped and complete the run normally.
+      const degraded: QACheckResult[] = clickJobs.map((job) => ({
+        checkKey: `clickthrough.click_test.ad:${job.adId}`,
+        category: 'clickthrough',
+        status: 'skipped',
+        message: 'Click-test queue unavailable — ensure Redis and the qa-runner service (compose profile "qa") are running',
+      }));
+      await saveChecks(run.id, degraded);
+      checks = checks.map((c) => degraded.find((d) => d.checkKey === c.checkKey) ?? c);
+      status = worstOf(checks);
+    }
     await completeRun(run.id, status);
+    // Await the completion audit so the run's terminal state is durably recorded
+    // before the report is returned (audit-ready). The opportunistic markStalledRuns
+    // sweep above shares the connection pool, so a fire-and-forget insert here could
+    // otherwise land after a caller reads the audit trail.
     await logAuditEvent({
       userId, conversationId, eventType: 'qa_run_completed',
       metadata: { runId: run.id, status, checkCount: checks.length },
     });
 
     const completed = { ...run, status, completedAt: new Date() };
-    return runToReport(completed, checks.map((c) => ({
-      checkKey: c.checkKey, category: c.category, status: c.status,
-      expected: c.expected ?? null, actual: c.actual ?? null,
-      detail: JSON.stringify({ message: c.message }),
-    })));
+    return runToReport(completed, checks.map(toRow));
   } catch (err) {
     logger.warn(
       { err: { message: err instanceof Error ? err.message : 'Unknown' }, conversationId },

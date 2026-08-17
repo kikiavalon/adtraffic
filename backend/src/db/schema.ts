@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, bigint, unique, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, bigint, unique, index, customType } from 'drizzle-orm/pg-core';
 
 /**
  * Database schema for AdTraffic.ai
@@ -107,7 +107,7 @@ export const pendingActions = pgTable('pending_actions', {
 
 /** Trafficking QA runs — one row per end-of-turn validation (design doc §7).
  * The audit log deliberately strips URLs/names, so QA keeps its own record
- * of what was implemented in `scope`. No qa_evidence table in Phase 1. */
+ * of what was implemented in `scope`. */
 export const qaRuns = pgTable('qa_runs', {
   id: uuid('id').primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
@@ -128,6 +128,29 @@ export const qaRuns = pgTable('qa_runs', {
   expiresIdx: index('qa_runs_expires_at_idx').on(table.expiresAt),
 }));
 
+/** Drizzle has no built-in bytea — minimal custom type (Buffer in/out). */
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+});
+
+/** Trafficking QA evidence (Phase 2) — click-test screenshots, ~100–300 KB
+ * PNG each (design §4 evidence storage). Deleted by the qa_runs retention
+ * sweep via cascade. source_key (e.g. `click:ad:2001`) makes persistence
+ * idempotent when both backend replicas hear the same QueueEvents completion. */
+export const qaEvidence = pgTable('qa_evidence', {
+  id: uuid('id').primaryKey(), // app-generated (memory-fallback parity, like qa_runs.id)
+  runId: uuid('run_id').notNull().references(() => qaRuns.id, { onDelete: 'cascade' }),
+  sourceKey: text('source_key').notNull(),
+  contentType: text('content_type').notNull(),
+  data: bytea('data').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  uniqueRunSource: unique().on(table.runId, table.sourceKey),
+  runIdx: index('qa_evidence_run_id_idx').on(table.runId),
+}));
+
 /** Individual QA check results — idempotent upserts keyed on (run_id, check_key) */
 export const qaChecks = pgTable('qa_checks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -139,6 +162,8 @@ export const qaChecks = pgTable('qa_checks', {
   actual: text('actual'),
   /** JSON detail: { message } in Phase 1; Phase 2 adds redirect chains and param diffs */
   detail: text('detail'),
+  /** Phase 2: screenshot evidence for click tests (null for config/tracking checks) */
+  evidenceId: uuid('evidence_id').references(() => qaEvidence.id, { onDelete: 'set null' }),
 }, (table) => ({
   uniqueRunCheck: unique().on(table.runId, table.checkKey),
   runIdx: index('qa_checks_run_id_idx').on(table.runId),

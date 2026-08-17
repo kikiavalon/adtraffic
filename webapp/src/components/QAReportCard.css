@@ -11,6 +11,7 @@
 .qa-report-card--warned { border-left-color: #f79009; }
 .qa-report-card--failed { border-left-color: #f04438; }
 .qa-report-card--error { border-left-color: #98a2b3; }
+.qa-report-card--running, .qa-report-card--pending { border-left-color: #2e90fa; }
 
 .qa-report-card__header {
   display: flex;
@@ -54,3 +55,15 @@
 .qa-report-card__check--warn .qa-report-card__check-icon { color: #f79009; }
 .qa-report-card__check--fail .qa-report-card__check-icon { color: #f04438; }
 .qa-report-card__check--skipped .qa-report-card__check-icon { color: #98a2b3; }
+.qa-report-card__evidence {
+  margin-left: 8px;
+  font-size: 0.75rem;
+  padding: 1px 8px;
+  border: 1px solid var(--border-color, #d0d5dd);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.qa-report-card__chain { margin: 2px 0 2px 1.6em; font-size: 0.78rem; color: #475467; }
+.qa-report-card__chain ol { margin: 4px 0 4px 18px; padding: 0; }
+.qa-report-card__chain code { font-size: 0.72rem; }

@@ -291,3 +291,30 @@ describe('MockDataStore', () => {
     });
   });
 });
+
+describe('Phase 2 demo wiring', () => {
+  it('seeds UTM parameters on landing pages for EVERY advertiser', () => {
+    for (const advertiser of mockStore.listAdvertisers()) {
+      const pages = mockStore.listLandingPages({ advertiserId: advertiser.id });
+      expect(pages.length).toBeGreaterThan(0);
+      for (const pageEntity of pages) {
+        expect(pageEntity.url, `${advertiser.name} ${pageEntity.name}`).toContain('utm_source=cm360');
+      }
+    }
+  });
+
+  it('rewires clickTag to the demo fixture only when DEMO_MODE=true', () => {
+    const campaign = mockStore.listCampaigns()[0]!;
+    const placement = mockStore.listPlacements({ campaignId: campaign.id })[0]!;
+    process.env.DEMO_MODE = 'true';
+    try {
+      const tags = mockStore.generateTags(campaign.id, [placement.id]);
+      expect(tags[0]!.tagData[0]!.clickTag).toContain(`/demo/click/${placement.id}`);
+    } finally {
+      delete process.env.DEMO_MODE;
+    }
+    // Without the env, the synthetic CM360 URL is unchanged (pinned by the tests above)
+    const tags = mockStore.generateTags(campaign.id, [placement.id]);
+    expect(tags[0]!.tagData[0]!.clickTag).toContain('doubleclick.net');
+  });
+});

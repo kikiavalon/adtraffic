@@ -31,6 +31,7 @@ import uploadRouter from './routes/upload.js';
 import approvalsRouter from './routes/approvals.js';
 import qaRouter from './routes/qa.js';
 import agentRouter from './routes/agent.js';
+import demoFixturesRouter from './routes/demo-fixtures.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { requestLoggerMiddleware } from './middleware/request-logger.js';
@@ -38,6 +39,7 @@ import { metricsCollectorMiddleware } from './middleware/metrics-collector.js';
 import { logger } from './lib/logger.js';
 import { sql } from './db/index.js';
 import { initRedis, closeRedis, getRedis } from './db/redis.js';
+import { initQaQueueEvents, closeQaQueue } from './qa/qa-queue.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -97,6 +99,11 @@ app.use('/api/v1', approvalsRouter);
 app.use('/api/v1', qaRouter);
 app.use('/api/v1', agentRouter);
 
+// Demo-mode fixtures for offline click-through testing (never mounted live)
+if (process.env.DEMO_MODE === 'true') {
+  app.use(demoFixturesRouter);
+}
+
 // Sentry error handler (captures exceptions before our custom error handler)
 Sentry.setupExpressErrorHandler(app);
 
@@ -105,6 +112,9 @@ app.use(errorHandler);
 
 // Initialize Redis (no-op in test mode)
 initRedis();
+
+// Initialize Trafficking QA click-test QueueEvents listener (no-op in test/DEMO/no-Redis)
+initQaQueueEvents();
 
 /**
  * Validate that external dependencies are reachable before accepting traffic.
@@ -163,6 +173,7 @@ if (process.env.NODE_ENV !== 'test') {
         void (async () => {
           // 2. Close Redis connection
           try {
+            await closeQaQueue();
             await closeRedis();
             logger.info({ instance: INSTANCE_ID }, 'Redis disconnected');
           } catch (err) {

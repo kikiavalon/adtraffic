@@ -16,6 +16,7 @@ export const BOOLEAN_FLAGS = {
   'compliance.eu_ai_act_disclosure': { default: true, description: 'Show AI disclosure badges and metadata (EU AI Act Article 50)' },
   'compliance.ai_attribution_in_exports': { default: true, description: 'Include AI attribution in generated tag code and reports' },
   'qa.enabled': { default: false, description: 'Trafficking QA — advisory post-write validation runs' },
+  'qa.click_test.enabled': { default: false, description: 'Trafficking QA Layer 3 — headless click-through tests (beta in live mode)' },
 } as const;
 
 /** Numeric feature flags — configurable limits */

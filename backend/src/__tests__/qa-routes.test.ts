@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import express from 'express';
 import { db, schema } from '../db/index.js';
-import { createRun, saveChecks } from '../qa/qa-store.js';
+import { createRun, saveChecks, saveEvidence } from '../qa/qa-store.js';
 
 // Switchable authenticated caller — real roles module stays in play.
 let currentUser = { userId: '', role: 'junior' };
@@ -35,8 +35,13 @@ async function makeUser(): Promise<string> {
 
 beforeEach(async () => {
   await db.delete(schema.qaChecks);
+  await db.delete(schema.qaEvidence);
   await db.delete(schema.qaRuns);
   await db.delete(schema.auditLogs);
+  // conversations.userId → users.id is NOT ON DELETE cascade, so any conversation
+  // left by another test file (e.g. pagination) blocks `delete from users`. Wipe
+  // conversations first, matching every other global-wipe suite. (messages cascade.)
+  await db.delete(schema.conversations);
   await db.delete(schema.users);
   ownerId = await makeUser();
   otherId = await makeUser();
@@ -108,6 +113,34 @@ describe('GET /api/v1/qa/runs/:id', () => {
   it('404s an unknown id', async () => {
     currentUser = { userId: ownerId, role: 'senior' };
     const res = await request(app).get(`/api/v1/qa/runs/${randomUUID()}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /api/v1/qa/runs/:id/evidence/:evidenceId', () => {
+  let evidenceId: string;
+  beforeEach(async () => {
+    evidenceId = await saveEvidence(ownerRunId, 'click:ad:2001', 'image/png', Buffer.from('png-bytes'));
+  });
+
+  it('serves the bytes with the stored content type for the owner', async () => {
+    currentUser = { userId: ownerId, role: 'junior' };
+    const res = await request(app).get(`/api/v1/qa/runs/${ownerRunId}/evidence/${evidenceId}`);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('image/png');
+    expect(res.body.toString()).toBe('png-bytes');
+  });
+
+  it('404s another user\'s evidence for a junior; 200 for a senior', async () => {
+    currentUser = { userId: otherId, role: 'junior' };
+    expect((await request(app).get(`/api/v1/qa/runs/${ownerRunId}/evidence/${evidenceId}`)).status).toBe(404);
+    currentUser = { userId: otherId, role: 'senior' };
+    expect((await request(app).get(`/api/v1/qa/runs/${ownerRunId}/evidence/${evidenceId}`)).status).toBe(200);
+  });
+
+  it('404s when the evidence does not belong to the run in the path', async () => {
+    currentUser = { userId: ownerId, role: 'junior' };
+    const res = await request(app).get(`/api/v1/qa/runs/${randomUUID()}/evidence/${evidenceId}`);
     expect(res.status).toBe(404);
   });
 });

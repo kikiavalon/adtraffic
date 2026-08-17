@@ -128,5 +128,33 @@ services:
       - /var/cache/nginx
       - /var/run
 
+  # Trafficking QA click-test worker — OPTIONAL: enable with `docker compose --profile qa up`.
+  # The default quickstart never builds or starts this (open-source quickstart stays light).
+  qa-runner:
+    profiles: ["qa"]
+    build:
+      context: .
+      dockerfile: qa-runner/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - QA_RUNNER_NO_SANDBOX=true
+      # Chromium crashpad writes under $HOME; the fs is read_only, so point it at the tmpfs
+      - HOME=/tmp
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+    read_only: true
+    tmpfs:
+      - /tmp
+    shm_size: "512m"
+
 volumes:
   postgres-data:

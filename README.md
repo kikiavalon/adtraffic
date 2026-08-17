@@ -19,6 +19,7 @@ Add an `ANTHROPIC_API_KEY` to `backend/.env` to enable live Claude AI responses.
 webapp/      → React 19 web app (chat, auth, settings)
 backend/     → Express API (Claude integration, CM360 tools, auth, DB)
 companion/   → Chrome extension (CM360 context detection, quick-launch)
+qa-runner/   → Headless Playwright click-test worker (Trafficking QA)
 shared/      → Shared TypeScript types + Zod schemas
 ```
 
@@ -44,6 +45,37 @@ Navigate to `http://localhost:5173/mock-cm360.html` to test extension context de
 
 ```bash
 docker compose up --build
+```
+
+## Trafficking QA click tests
+
+Trafficking QA is advisory post-write validation. Phase 2 adds optional headless
+**click-through tests** (Playwright): touched ads' tags are clicked, the redirect
+chain traced, and the landing page verified with a stored screenshot. Two feature
+flags gate it, both **off by default**: `qa.enabled` and `qa.click_test.enabled`.
+
+**Demo mode** — click tests run in-process against local `/demo/*` fixtures. Install
+the browser once, then build the worker workspace:
+
+```bash
+npx playwright install chromium
+npm run build --workspace=qa-runner
+```
+
+Without a browser installed, click checks report `skipped` with a hint (nothing breaks).
+
+**Live (beta)** — the click-test worker runs as an optional compose service behind the
+`qa` profile, so the default quickstart is unaffected:
+
+```bash
+docker compose --profile qa up
+```
+
+**Tests** — the qa-runner end-to-end suite auto-skips when no browser is present
+(`describe.skipIf`) and touches only localhost fixtures:
+
+```bash
+npm test --workspace=qa-runner
 ```
 
 ## Status

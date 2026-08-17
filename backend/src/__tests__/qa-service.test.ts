@@ -1,11 +1,30 @@
 import { randomUUID } from 'crypto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { QAClickTestJob, QAClickTestResult } from '@adtraffic/shared';
 import { db, schema } from '../db/index.js';
 import { runTurnQa, sweepCampaign } from '../qa/qa-service.js';
 import { recordQaWrite } from '../qa/qa-recorder.js';
 import { fetchCampaignContext } from '../qa/click-resolver.js';
 import { mockStore } from '../cm360/mock-data-store.js';
 import { getDefaultFlags } from '../feature-flags/flag-registry.js';
+import { handleClickTestResult } from '../qa/qa-queue.js';
+import { getRunWithChecks } from '../qa/qa-store.js';
+
+const mockLoad = vi.fn();
+vi.mock('../qa/qa-runner-loader.js', () => ({ loadClickTestRunner: () => mockLoad() }));
+const mockEnqueue = vi.fn();
+vi.mock('../qa/qa-queue.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../qa/qa-queue.js')>()),
+  enqueueClickTests: (jobs: unknown) => mockEnqueue(jobs),
+}));
+
+function fakeRunner(): (job: QAClickTestJob) => Promise<QAClickTestResult> {
+  return (job) => Promise.resolve({
+    runId: job.runId, adId: job.adId,
+    checks: [{ checkKey: `clickthrough.click_test.ad:${job.adId}`, category: 'clickthrough', status: 'pass', message: 'ok' }],
+    evidence: { contentType: 'image/png', dataBase64: Buffer.from('x').toString('base64'), forCheckKey: `landing.renders.ad:${job.adId}` },
+  });
+}
 
 let testUserId: string;
 
@@ -121,5 +140,90 @@ describe('runTurnQa', () => {
     expect(await runTurnQa({ conversationId, userId: testUserId, flags: qaFlags() })).toBeNull();
     const runs = await db.select().from(schema.qaRuns);
     expect(runs.length).toBe(0); // no near-empty "sweep skipped" run rows
+  });
+});
+
+describe('runTurnQa — Layer 3 (Phase 2)', () => {
+  beforeEach(() => {
+    mockLoad.mockReset();
+    mockEnqueue.mockReset();
+    delete process.env.DEMO_MODE;
+  });
+
+  function clickFlags() {
+    return { ...getDefaultFlags(), 'qa.enabled': true, 'qa.click_test.enabled': true };
+  }
+
+  function recordAdWrite(conversationId: string) {
+    const campaign = mockStore.listCampaigns()[0]!;
+    const ad = mockStore.listAds({ campaignId: campaign.id })[0]!;
+    recordQaWrite(conversationId, {
+      toolName: 'cm360_update_ad', toolInput: { profileId: 'p', adId: ad.id }, result: ad, recordedAt: Date.now(),
+    });
+    return { campaign, ad };
+  }
+
+  it('DEMO in-process: click checks land in the report and the run completes', async () => {
+    process.env.DEMO_MODE = 'true';
+    try {
+      mockLoad.mockResolvedValue(fakeRunner());
+      const conversationId = `conv-${randomUUID()}`;
+      const { ad } = recordAdWrite(conversationId);
+      const report = await runTurnQa({ conversationId, userId: testUserId, flags: clickFlags() });
+      expect(report!.checks.some((c) => c.checkKey === `clickthrough.click_test.ad:${ad.id}`)).toBe(true);
+      expect(['passed', 'warned', 'failed']).toContain(report!.status);
+    } finally {
+      delete process.env.DEMO_MODE;
+    }
+  });
+
+  it('live: placeholders are PERSISTED before enqueue, the run stays running, then finalizes via the queue handler', async () => {
+    let placeholderPersistedAtEnqueue = false;
+    const conversationId = `conv-${randomUUID()}`;
+    const { ad } = recordAdWrite(conversationId);
+    mockEnqueue.mockImplementation(async () => {
+      // The race-closer: by the time enqueue runs, the queued placeholder must
+      // already be readable (a fast worker completion depends on it).
+      const runs = await db.select().from(schema.qaRuns);
+      const rows = await db.select().from(schema.qaChecks);
+      placeholderPersistedAtEnqueue = runs.length === 1 &&
+        rows.some((r) => r.checkKey === `clickthrough.click_test.ad:${ad.id}`);
+      return true;
+    });
+    const report = await runTurnQa({ conversationId, userId: testUserId, flags: clickFlags() });
+    expect(mockEnqueue).toHaveBeenCalledOnce();
+    expect(placeholderPersistedAtEnqueue).toBe(true);
+    expect(report!.status).toBe('running');
+    const placeholder = report!.checks.find((c) => c.checkKey === `clickthrough.click_test.ad:${ad.id}`);
+    expect(placeholder?.detail?.['queued']).toBe(true);
+
+    // Simulate the worker completing (QueueEvents path):
+    await handleClickTestResult({
+      runId: report!.runId, adId: ad.id,
+      checks: [{ checkKey: `clickthrough.click_test.ad:${ad.id}`, category: 'clickthrough', status: 'pass', message: 'ok' }],
+    });
+    const found = await getRunWithChecks(report!.runId);
+    expect(['passed', 'warned', 'failed']).toContain(found!.run.status);
+    expect(found!.run.status).not.toBe('running');
+  });
+
+  it('live: an unavailable queue degrades the placeholders to skipped and completes the run', async () => {
+    mockEnqueue.mockResolvedValue(false);
+    const conversationId = `conv-${randomUUID()}`;
+    const { ad } = recordAdWrite(conversationId);
+    const report = await runTurnQa({ conversationId, userId: testUserId, flags: clickFlags() });
+    expect(report!.status).not.toBe('running');
+    const check = report!.checks.find((c) => c.checkKey === `clickthrough.click_test.ad:${ad.id}`);
+    expect(check?.status).toBe('skipped');
+    expect(check?.message).toContain('qa-runner');
+    expect(check?.detail?.['queued']).toBeUndefined(); // nothing left to finalize against
+  });
+
+  it('flag off leaves Phase 1 behavior byte-identical (no clickthrough checks, run completes)', async () => {
+    const conversationId = `conv-${randomUUID()}`;
+    recordAdWrite(conversationId);
+    const report = await runTurnQa({ conversationId, userId: testUserId, flags: qaFlags() });
+    expect(report!.checks.some((c) => c.category === 'clickthrough' && !c.checkKey.startsWith('config.'))).toBe(false);
+    expect(report!.status).not.toBe('running');
   });
 });

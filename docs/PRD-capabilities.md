@@ -106,7 +106,7 @@ All 70 are live-implemented and feature-flag-gated. Grouped by area:
 - **Zero delete tools.** CM360 has no delete methods for core trafficking entities — archiving is the terminal state. The product ships no delete tools at all, including for ancillary resources (like event tags) that technically support deletion. Kiki cannot delete anything.
 - **Read is always safe; writes are gated.** Read operations run freely; create/update operations are individually switchable per user and pass through the confirmation gate.
 
-The canonical, numbered tool list lives in `CLAUDE.md` under "Tool Inventory." Tool definitions are in `backend/src/claude/tool-definitions.ts`; input validation in `backend/src/cm360/tool-input-schemas.ts` (one Zod schema per tool).
+The canonical tool list lives in `backend/src/claude/tool-definitions.ts` (the `CM360_TOOLS` array). Tool definitions are in `backend/src/claude/tool-definitions.ts`; input validation in `backend/src/cm360/tool-input-schemas.ts` (one Zod schema per tool).
 
 ### 4.4 Write safety and risk classification
 

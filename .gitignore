@@ -54,3 +54,9 @@ backend/data/
 internal-docs/
 docs/plans/
 docs/marketing/
+
+# Local working docs — not part of the public distribution
+CLAUDE.md
+session-buffer.md
+project-context.rtfd/
+archive/

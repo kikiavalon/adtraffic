@@ -1,6 +1,6 @@
 # AdTraffic.ai
 
-The first conversational AI trafficking tool for Google Campaign Manager 360.
+An open-source conversational trafficking assistant for Google Campaign Manager 360 — a full agent with built-in CM360/UTM domain expertise, write-safety confirmation, and automated QA, and one of the few open tools that can *write* to CM360 (create and update campaigns, placements, ads, creatives), not just read it. It fills the gap Google left when it sunset Bulkdozer in 2023.
 
 **Kiki** is an AI-powered chat assistant that automates CM360 ad trafficking through natural language. Built as a web platform with a companion Chrome extension.
 

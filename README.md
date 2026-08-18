@@ -25,6 +25,12 @@ qa-runner/   → Headless Playwright click-test worker (Trafficking QA)
 shared/      → Shared TypeScript types + Zod schemas
 ```
 
+## Tool coverage
+
+70 tools, all live-implemented · 0 verified against a real CM360 account — the
+live path has not been and will not be exercised against Google's live API; use
+demo mode for the verified experience.
+
 ## Tests
 
 ```bash

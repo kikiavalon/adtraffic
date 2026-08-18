@@ -222,6 +222,17 @@
   margin: 8px 0;
 }
 
+.cm360-connected-caveat {
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: #fffbeb;
+  border: 1px solid #f59e0b;
+  border-radius: var(--radius);
+}
+
 /* Shown when the backend has no Google OAuth credentials configured */
 .cm360-setup-needed {
   background: #fffbeb;

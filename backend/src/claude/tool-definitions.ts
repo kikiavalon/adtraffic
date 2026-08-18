@@ -106,24 +106,12 @@ export const TOOL_FLAG_MAP: Record<string, BooleanFlagName> = {
 };
 
 /**
- * Tools that only work in demo mode (stubbed implementation).
- * These should NOT be presented to Claude when the user has a live CM360 connection.
+ * Tools presented ONLY in demo mode and withheld from Claude on a live CM360
+ * connection (see kiki-service). Intentionally empty — all 70 tools are
+ * live-implemented, so nothing is withheld in live mode. NOTE: the live path is
+ * unverified against a real CM360 API; live mode is offered but not proven.
  */
-export const STUBBED_TOOLS = new Set([
-  'cm360_list_event_tags',
-  'cm360_get_event_tag',
-  'cm360_create_event_tag',
-  'cm360_update_event_tag',
-  'cm360_list_placement_groups',
-  'cm360_get_placement_group',
-  'cm360_create_placement_group',
-  'cm360_update_placement_group',
-  'cm360_list_directory_sites',
-  'cm360_get_directory_site',
-  'cm360_insert_directory_site',
-  'cm360_list_change_logs',
-  'cm360_get_change_log',
-]);
+export const STUBBED_TOOLS = new Set<string>([]);
 
 /**
  * Filter CM360_TOOLS based on the user's resolved feature flags.

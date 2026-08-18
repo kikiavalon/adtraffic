@@ -496,7 +496,7 @@ function isValidToolName(name: string): boolean {
  * This adds one extra API call but simplifies the tool interface — users
  * don't need to know or provide their profileId.
  */
-async function executeToolReal(
+export async function executeToolReal(
   toolName: string,
   toolInput: Record<string, unknown>,
   client: CM360Client,
@@ -925,8 +925,12 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      // TODO: Implement real CM360 API call — client.listEventTags()
-      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const eventTags = await client.listEventTags(profileId, parsed.data.campaignId, {
+        advertiserId: parsed.data.advertiserId,
+        searchString: parsed.data.searchString,
+      });
+      return { result: { eventTags }, isError: false };
     }
 
     case 'cm360_get_event_tag': {
@@ -934,7 +938,12 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const eventTag = await client.getEventTag(profileId, parsed.data.eventTagId);
+      if (!eventTag) {
+        return { result: null, isError: true, errorMessage: `Event tag ${parsed.data.eventTagId} not found` };
+      }
+      return { result: eventTag, isError: false };
     }
 
     case 'cm360_create_event_tag': {
@@ -942,7 +951,8 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      return { result: await client.createEventTag(profileId, parsed.data), isError: false };
     }
 
     case 'cm360_update_event_tag': {
@@ -950,7 +960,8 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Event tag tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      return { result: await client.updateEventTag(profileId, parsed.data.eventTagId, parsed.data), isError: false };
     }
 
     case 'cm360_list_placement_groups': {
@@ -958,8 +969,13 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      // TODO: Implement real CM360 API call — client.listPlacementGroups()
-      return { result: null, isError: true, errorMessage: 'Placement group tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const placementGroups = await client.listPlacementGroups(profileId, parsed.data.campaignId, {
+        advertiserId: parsed.data.advertiserId,
+        searchString: parsed.data.searchString,
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { placementGroups }, isError: false };
     }
 
     case 'cm360_get_placement_group': {
@@ -967,7 +983,12 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Placement group tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const placementGroup = await client.getPlacementGroup(profileId, parsed.data.placementGroupId);
+      if (!placementGroup) {
+        return { result: null, isError: true, errorMessage: `Placement group ${parsed.data.placementGroupId} not found` };
+      }
+      return { result: placementGroup, isError: false };
     }
 
     case 'cm360_create_placement_group': {
@@ -975,7 +996,31 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Placement group tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      // B3 caveat: createPlacementGroup omits the API-"required" advertiserId — it is
+      // presumed derived server-side from campaignId (mirroring createPlacement, which
+      // also omits it). This is UNVERIFIABLE without a live CM360 account; flagged for
+      // the later honesty-labeling task.
+      const group = await client.createPlacementGroup(profileId, parsed.data);
+      // Real grouping: membership lives on each placement's placementGroupId, so set the
+      // group on every requested placement. Never silently drop a failure — any placement
+      // that fails to group is reported in failedToGroup with its error.
+      const grouped: string[] = [];
+      const failedToGroup: Array<{ id: string; error: string }> = [];
+      for (const pid of parsed.data.placementIds ?? []) {
+        try {
+          await client.setPlacementGroup(profileId, pid, group.id);
+          grouped.push(pid);
+        } catch (err) {
+          failedToGroup.push({ id: pid, error: err instanceof Error ? err.message : 'Unknown error' });
+        }
+      }
+      // Re-read so the returned group reports TRUTHFUL membership reflecting the
+      // per-placement patches — symmetry with update, which also re-reads. The
+      // insert response's placementIds is stale/empty until the group is re-read.
+      // If the re-read returns null for any reason, fall back to the insert response.
+      const createdGroup = (await client.getPlacementGroup(profileId, group.id)) ?? group;
+      return { result: { group: createdGroup, grouped, failedToGroup }, isError: false };
     }
 
     case 'cm360_update_placement_group': {
@@ -983,7 +1028,66 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Placement group tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const groupId = parsed.data.placementGroupId;
+      const reconcile = parsed.data.placementIds !== undefined;
+      // Group-level fields are the only things the group patch carries — membership
+      // (childPlacementIds) is OUTPUT-ONLY and reconciled per-placement below. If ONLY
+      // placementIds was supplied, the group body would be empty, so skip the patch.
+      const hasGroupFields =
+        parsed.data.name !== undefined ||
+        parsed.data.activeStatus !== undefined ||
+        parsed.data.startDate !== undefined ||
+        parsed.data.endDate !== undefined;
+
+      // Snapshot current membership BEFORE reconciling, so we can diff added vs. removed.
+      const before = reconcile
+        ? await client.getPlacementGroup(profileId, groupId)
+        : null;
+
+      if (hasGroupFields) {
+        await client.updatePlacementGroup(profileId, groupId, parsed.data);
+      }
+
+      const added: string[] = [];
+      const removed: string[] = [];
+      const failed: Array<{ id: string; error: string }> = [];
+
+      if (reconcile) {
+        const desired = parsed.data.placementIds!;
+        const currentIds = before?.placementIds ?? [];
+        const toAdd = desired.filter((id) => !currentIds.includes(id));
+        const toRemove = currentIds.filter((id) => !desired.includes(id));
+        for (const pid of toAdd) {
+          try {
+            await client.setPlacementGroup(profileId, pid, groupId);
+            added.push(pid);
+          } catch (err) {
+            failed.push({ id: pid, error: err instanceof Error ? err.message : 'Unknown error' });
+          }
+        }
+        // Additive-only is NOT acceptable — removed placements must be unset (null clears
+        // the placement's group), and any failure to unset is reported, never dropped.
+        for (const pid of toRemove) {
+          try {
+            await client.setPlacementGroup(profileId, pid, null);
+            removed.push(pid);
+          } catch (err) {
+            failed.push({ id: pid, error: err instanceof Error ? err.message : 'Unknown error' });
+          }
+        }
+      }
+
+      // Re-read so the returned group reports TRUTHFUL membership reflecting the actual
+      // per-placement patches — not a stale pre-reconciliation object.
+      const group = await client.getPlacementGroup(profileId, groupId);
+      if (!group) {
+        return { result: null, isError: true, errorMessage: `Placement group ${groupId} not found` };
+      }
+      if (!reconcile) {
+        return { result: { group }, isError: false };
+      }
+      return { result: { group, added, removed, failed }, isError: false };
     }
 
     // --- Directory Sites ---
@@ -993,7 +1097,12 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Directory site tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const directorySites = await client.listDirectorySites(profileId, {
+        searchString: parsed.data.searchString,
+        active: parsed.data.active,
+      });
+      return { result: { directorySites }, isError: false };
     }
 
     case 'cm360_get_directory_site': {
@@ -1001,7 +1110,12 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Directory site tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const directorySite = await client.getDirectorySite(profileId, parsed.data.directorySiteId);
+      if (!directorySite) {
+        return { result: null, isError: true, errorMessage: `Directory site ${parsed.data.directorySiteId} not found` };
+      }
+      return { result: directorySite, isError: false };
     }
 
     case 'cm360_insert_directory_site': {
@@ -1009,7 +1123,9 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Directory site tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const directorySite = await client.insertDirectorySite(profileId, parsed.data.siteId);
+      return { result: directorySite, isError: false };
     }
 
     // --- Change Logs ---
@@ -1019,7 +1135,17 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Change log tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const changeLogs = await client.listChangeLogs(profileId, {
+        objectType: parsed.data.objectType,
+        objectId: parsed.data.objectId,
+        action: parsed.data.action,
+        minChangeTime: parsed.data.minChangeTime,
+        maxChangeTime: parsed.data.maxChangeTime,
+        searchString: parsed.data.searchString,
+        maxResults: parsed.data.maxResults,
+      });
+      return { result: { changeLogs }, isError: false };
     }
 
     case 'cm360_get_change_log': {
@@ -1027,7 +1153,12 @@ async function executeToolReal(
       if (!parsed.success) {
         return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
       }
-      return { result: null, isError: true, errorMessage: 'Change log tools are not implemented in live mode yet. Please use demo mode.' };
+      const profileId = await resolveProfileId(client);
+      const changeLog = await client.getChangeLog(profileId, parsed.data.changeLogId);
+      if (!changeLog) {
+        return { result: null, isError: true, errorMessage: `Change log ${parsed.data.changeLogId} not found` };
+      }
+      return { result: changeLog, isError: false };
     }
 
     // --- Reports ---

@@ -168,13 +168,17 @@ describe('cm360_create_placement_group', () => {
       endDate: '2026-06-30',
     });
     expect(result.isError).toBe(false);
-    const pg = result.result as Record<string, unknown>;
+    // Live-parity shape: { group, grouped, failedToGroup }.
+    const created = result.result as { group: Record<string, unknown>; grouped: string[]; failedToGroup: unknown[] };
+    const pg = created.group;
     expect(pg.name).toBe('Test Package Group');
     expect(pg.placementGroupType).toBe('PLACEMENT_PACKAGE');
     expect(pg.campaignId).toBe(camp.id);
     expect(pg.siteId).toBe(site.id);
     expect(pg.activeStatus).toBe('ACTIVE');
     expect(pg).toHaveProperty('id');
+    expect(created.grouped).toEqual([]);
+    expect(created.failedToGroup).toEqual([]);
   });
 
   it('creates a PLACEMENT_ROADBLOCK group', async () => {
@@ -192,7 +196,7 @@ describe('cm360_create_placement_group', () => {
       endDate: '2026-06-30',
     });
     expect(result.isError).toBe(false);
-    const pg = result.result as Record<string, unknown>;
+    const pg = (result.result as { group: Record<string, unknown> }).group;
     expect(pg.placementGroupType).toBe('PLACEMENT_ROADBLOCK');
   });
 
@@ -214,8 +218,11 @@ describe('cm360_create_placement_group', () => {
       endDate: '2026-06-30',
     });
     expect(result.isError).toBe(false);
-    const pg = result.result as { placementIds: string[] };
-    expect(pg.placementIds).toEqual(placementIds);
+    const created = result.result as { group: { placementIds: string[] }; grouped: string[]; failedToGroup: unknown[] };
+    expect(created.group.placementIds).toEqual(placementIds);
+    // Demo groups every requested placement cleanly (live reports per-placement).
+    expect(created.grouped).toEqual(placementIds);
+    expect(created.failedToGroup).toEqual([]);
   });
 
   it('rejects missing required fields', async () => {
@@ -303,7 +310,8 @@ describe('cm360_update_placement_group', () => {
       name: 'Renamed Group',
     });
     expect(result.isError).toBe(false);
-    const updated = result.result as Record<string, unknown>;
+    // No placementIds supplied → live-parity shape is { group } only.
+    const updated = (result.result as { group: Record<string, unknown> }).group;
     expect(updated.name).toBe('Renamed Group');
     // Other fields unchanged
     expect(updated.placementGroupType).toBe(target.placementGroupType);
@@ -322,7 +330,7 @@ describe('cm360_update_placement_group', () => {
       activeStatus: 'ARCHIVED',
     });
     expect(result.isError).toBe(false);
-    const updated = result.result as Record<string, unknown>;
+    const updated = (result.result as { group: Record<string, unknown> }).group;
     expect(updated.activeStatus).toBe('ARCHIVED');
   });
 
@@ -339,7 +347,7 @@ describe('cm360_update_placement_group', () => {
       endDate: '2026-12-31',
     });
     expect(result.isError).toBe(false);
-    const updated = result.result as { pricingSchedule: { startDate: string; endDate: string } };
+    const updated = (result.result as { group: { pricingSchedule: { startDate: string; endDate: string } } }).group;
     expect(updated.pricingSchedule.startDate).toBe('2026-07-01');
     expect(updated.pricingSchedule.endDate).toBe('2026-12-31');
   });
@@ -356,7 +364,7 @@ describe('cm360_update_placement_group', () => {
       name: 'Only Name Changed',
     });
     expect(result.isError).toBe(false);
-    const updated = result.result as Record<string, unknown>;
+    const updated = (result.result as { group: Record<string, unknown> }).group;
     expect(updated.name).toBe('Only Name Changed');
     expect(updated.siteId).toBe(target.siteId);
     expect(updated.advertiserId).toBe(target.advertiserId);
@@ -406,7 +414,7 @@ describe('Placement group round trips', () => {
       endDate: '2026-06-30',
     });
     expect(createResult.isError).toBe(false);
-    const created = createResult.result as { id: string };
+    const created = (createResult.result as { group: { id: string } }).group;
 
     // Get
     const getResult = await executeTool('cm360_get_placement_group', {

@@ -787,6 +787,11 @@ export class CM360Client {
   }
 
   async createPlacementGroup(profileId: string, input: CM360CreatePlacementGroupInput): Promise<CM360PlacementGroup> {
+    // NOTE: childPlacementIds is OUTPUT-ONLY on the CM360 API — a placement's group
+    // membership is established solely by patching each placement's placementGroupId
+    // (see setPlacementGroup). Never send childPlacementIds in the group body: on the
+    // live path it is at best dead payload and at worst rejected by the API. The
+    // executor groups the requested placements via setPlacementGroup after this returns.
     const res = await this.api.placementGroups.insert({
       profileId,
       requestBody: {
@@ -794,7 +799,6 @@ export class CM360Client {
         siteId: input.siteId,
         name: input.name,
         placementGroupType: input.placementGroupType,
-        childPlacementIds: input.placementIds,
         pricingSchedule: {
           startDate: input.startDate,
           endDate: input.endDate,
@@ -805,13 +809,15 @@ export class CM360Client {
   }
 
   async updatePlacementGroup(profileId: string, placementGroupId: string, input: CM360UpdatePlacementGroupInput): Promise<CM360PlacementGroup> {
+    // childPlacementIds is OUTPUT-ONLY (see createPlacementGroup). Membership changes are
+    // reconciled by the executor via setPlacementGroup, never written here. Only
+    // group-level fields (name, activeStatus, pricing dates) are patched.
     const res = await this.api.placementGroups.patch({
       profileId,
       id: placementGroupId,
       requestBody: {
         ...(input.name !== undefined && { name: input.name }),
         ...(input.activeStatus !== undefined && { activeStatus: input.activeStatus }),
-        ...(input.placementIds !== undefined && { childPlacementIds: input.placementIds }),
         ...((input.startDate !== undefined || input.endDate !== undefined) && {
           pricingSchedule: {
             ...(input.startDate !== undefined && { startDate: input.startDate }),
@@ -821,6 +827,20 @@ export class CM360Client {
       },
     });
     return mapPlacementGroup(res.data);
+  }
+
+  /**
+   * Set (or clear) a placement's parent placement group by patching the placement.
+   * `Schema$Placement.placementGroupId` is writable; passing `null` removes the
+   * placement from its group. This is the real grouping mechanism in CM360 —
+   * membership lives on each placement, not only on the group's childPlacementIds.
+   */
+  async setPlacementGroup(profileId: string, placementId: string, placementGroupId: string | null): Promise<void> {
+    await this.api.placements.patch({
+      profileId,
+      id: placementId,
+      requestBody: { placementGroupId },
+    });
   }
 
   // ---------- Tag Generation ----------
@@ -877,23 +897,21 @@ export class CM360Client {
   }
 
   /**
-   * Insert a directory site — this approves the site and creates a trafficking-ready CM360 Site.
-   * The CM360 API returns the directory site entry (not the new site).
+   * Insert a directory site into the account's site directory. The CM360
+   * `directorySites.insert` method returns the created directory-site entry
+   * (a Schema$DirectorySite) — it does not approve anything or return a Site.
    */
-  async insertDirectorySite(profileId: string, directorySiteId: string): Promise<CM360Site> {
+  async insertDirectorySite(profileId: string, directorySiteId: string): Promise<{
+    id: string; name: string; url: string; active: boolean;
+    interstitialTagFormats: string[]; inpageTagFormats: string[];
+  }> {
     const res = await this.api.directorySites.insert({
       profileId,
       requestBody: {
         id: directorySiteId,
       },
     });
-    const ds = res.data;
-    return {
-      id: String(ds.id ?? ''),
-      name: ds.name ?? '',
-      accountId: '',
-      approved: true,
-    };
+    return mapDirectorySite(res.data);
   }
 
   // ---------------------------------------------------------------------------
@@ -1558,6 +1576,9 @@ function mapDirectorySite(ds: any): {
   id: string; name: string; url: string; active: boolean;
   interstitialTagFormats: string[]; inpageTagFormats: string[];
 } {
+  // Schema$DirectorySite.interstitialTagFormats / inpageTagFormats are plain
+  // string[] (e.g. 'STANDARD', 'JAVASCRIPT_INPAGE'), not objects — pass them
+  // through as-is rather than reading a nonexistent `.type` field.
   const interstitialFormats = ds.interstitialTagFormats ?? [];
   const inpageFormats = ds.inpageTagFormats ?? [];
   return {
@@ -1565,14 +1586,8 @@ function mapDirectorySite(ds: any): {
     name: ds.name ?? '',
     url: ds.url ?? '',
     active: ds.active ?? true,
-    interstitialTagFormats: (interstitialFormats as unknown[]).map((f: unknown) => {
-      const obj = f as { type?: string };
-      return obj.type ?? 'PLACEMENT_TAG_STANDARD';
-    }),
-    inpageTagFormats: (inpageFormats as unknown[]).map((f: unknown) => {
-      const obj = f as { type?: string };
-      return obj.type ?? 'PLACEMENT_TAG_STANDARD';
-    }),
+    interstitialTagFormats: (interstitialFormats as unknown[]).map(String),
+    inpageTagFormats: (inpageFormats as unknown[]).map(String),
   };
 }
 

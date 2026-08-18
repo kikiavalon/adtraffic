@@ -393,7 +393,6 @@ export interface CM360CreateEventTagInput {
 }
 
 export interface CM360UpdateEventTagInput {
-  id: string;
   name?: string;
   url?: string;
   status?: CM360EventTagStatus;
@@ -441,16 +440,6 @@ export interface CM360ChangeLog {
 // ---------------------------------------------------------------------------
 // Directory Sites — Google's publisher catalog for site discovery
 // ---------------------------------------------------------------------------
-
-/** A site entry from Google's publisher directory. */
-export interface CM360DirectorySite {
-  id: string;
-  name: string;
-  url: string;
-  active: boolean;
-  interstitialTagFormats: CM360TagFormat[];
-  inpageTagFormats: CM360TagFormat[];
-}
 
 /** Input for inserting (approving) a directory site as a CM360 trafficking target. */
 export interface CM360InsertDirectorySiteInput {

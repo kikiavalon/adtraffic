@@ -18,9 +18,8 @@ describe('cm360_list_directory_sites', () => {
       profileId: PROFILE_ID,
     });
     expect(result.isError).toBe(false);
-    const data = result.result as { directorySites: unknown[]; totalResults: number };
+    const data = result.result as { directorySites: unknown[] };
     expect(data.directorySites.length).toBe(15);
-    expect(data.totalResults).toBe(15);
   });
 
   it('filters directory sites by search string', async () => {
@@ -98,7 +97,7 @@ describe('cm360_get_directory_site', () => {
 // ---------------------------------------------------------------------------
 
 describe('cm360_insert_directory_site', () => {
-  it('inserts a directory site, creating an approved CM360 site', async () => {
+  it('inserts a directory site, returning the DirectorySite entry (not a Site)', async () => {
     // Get a directory site ID
     const listResult = await executeTool('cm360_list_directory_sites', {
       profileId: PROFILE_ID,
@@ -106,7 +105,8 @@ describe('cm360_insert_directory_site', () => {
     const data = listResult.result as { directorySites: Array<{ id: string; name: string }> };
     const dirSite = data.directorySites[0]!;
 
-    // Count existing sites
+    // CM360 directorySites.insert does not approve or create a Site — it returns
+    // the DirectorySite entry. So the account's site catalog is unchanged.
     const sitesBefore = mockStore.listSites();
     const countBefore = sitesBefore.length;
 
@@ -116,17 +116,23 @@ describe('cm360_insert_directory_site', () => {
       siteId: dirSite.id,
     });
     expect(result.isError).toBe(false);
-    const resultData = result.result as { message: string; site: { id: string; name: string; approved: boolean } };
-    expect(resultData.message).toContain('approved');
-    expect(resultData.site.name).toBe(dirSite.name);
-    expect(resultData.site.approved).toBe(true);
+    const resultData = result.result as {
+      id: string; name: string; url: string; active: boolean;
+      interstitialTagFormats: string[]; inpageTagFormats: string[];
+    };
+    // Same shape as the live path: an inline DirectorySite, no false "approved" flag.
+    expect(resultData.id).toBe(dirSite.id);
+    expect(resultData.name).toBe(dirSite.name);
+    expect(resultData).not.toHaveProperty('approved');
+    expect(Array.isArray(resultData.interstitialTagFormats)).toBe(true);
+    expect(Array.isArray(resultData.inpageTagFormats)).toBe(true);
 
-    // Verify a new site was added
+    // No new Site was created
     const sitesAfter = mockStore.listSites();
-    expect(sitesAfter.length).toBe(countBefore + 1);
+    expect(sitesAfter.length).toBe(countBefore);
   });
 
-  it('is idempotent — inserting the same directory site twice returns the same site', async () => {
+  it('is idempotent — inserting the same directory site twice returns the same entry', async () => {
     const listResult = await executeTool('cm360_list_directory_sites', {
       profileId: PROFILE_ID,
     });
@@ -143,9 +149,10 @@ describe('cm360_insert_directory_site', () => {
       siteId: dirSiteId,
     });
 
-    const site1 = (result1.result as { site: { id: string } }).site;
-    const site2 = (result2.result as { site: { id: string } }).site;
-    expect(site1.id).toBe(site2.id); // Same site returned
+    const site1 = result1.result as { id: string };
+    const site2 = result2.result as { id: string };
+    expect(site1.id).toBe(site2.id); // Same entry returned
+    expect(site1.id).toBe(dirSiteId);
   });
 
   it('rejects nonexistent directory site ID', async () => {

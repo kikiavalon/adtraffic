@@ -566,7 +566,6 @@ export function executeToolMock(
           return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
         }
         const updated = mockStore.updateEventTag(parsed.data.eventTagId, {
-          id: parsed.data.eventTagId,
           name: parsed.data.name,
           url: parsed.data.url,
           status: parsed.data.status,
@@ -609,7 +608,7 @@ export function executeToolMock(
         if (!parsed.success) {
           return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
         }
-        const placementGroup = mockStore.createPlacementGroup({
+        const group = mockStore.createPlacementGroup({
           campaignId: parsed.data.campaignId,
           siteId: parsed.data.siteId,
           name: parsed.data.name,
@@ -618,7 +617,14 @@ export function executeToolMock(
           startDate: parsed.data.startDate,
           endDate: parsed.data.endDate,
         });
-        return { result: placementGroup, isError: false };
+        // Shape parity with the live path: grouping is multi-call there (each
+        // placement's placementGroupId is patched), so it reports which placements
+        // were grouped and which failed. In demo every requested placement groups
+        // cleanly, so failedToGroup is always empty.
+        return {
+          result: { group, grouped: parsed.data.placementIds ?? [], failedToGroup: [] },
+          isError: false,
+        };
       }
 
       case 'cm360_update_placement_group': {
@@ -626,17 +632,32 @@ export function executeToolMock(
         if (!parsed.success) {
           return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
         }
-        const updated = mockStore.updatePlacementGroup(parsed.data.placementGroupId, {
+        // Snapshot membership BEFORE updating so we can diff added vs. removed —
+        // mirrors the live path, where membership is reconciled per-placement.
+        const reconcile = parsed.data.placementIds !== undefined;
+        const before = reconcile
+          ? mockStore.getPlacementGroup(parsed.data.placementGroupId)
+          : null;
+        const group = mockStore.updatePlacementGroup(parsed.data.placementGroupId, {
           name: parsed.data.name,
           activeStatus: parsed.data.activeStatus,
           placementIds: parsed.data.placementIds,
           startDate: parsed.data.startDate,
           endDate: parsed.data.endDate,
         });
-        if (!updated) {
+        if (!group) {
           return { result: null, isError: true, errorMessage: `Placement group ${parsed.data.placementGroupId} not found` };
         }
-        return { result: updated, isError: false };
+        // Shape parity with the live path: when membership is reconciled, report
+        // which placements were added/removed (and any that failed — never in demo).
+        if (!reconcile) {
+          return { result: { group }, isError: false };
+        }
+        const desired = parsed.data.placementIds!;
+        const currentIds = before?.placementIds ?? [];
+        const added = desired.filter((id) => !currentIds.includes(id));
+        const removed = currentIds.filter((id) => !desired.includes(id));
+        return { result: { group, added, removed, failed: [] }, isError: false };
       }
 
       // --- Directory Sites ---
@@ -650,7 +671,7 @@ export function executeToolMock(
           searchString: parsed.data.searchString,
           active: parsed.data.active,
         });
-        return { result: { directorySites: dirSites, totalResults: dirSites.length }, isError: false };
+        return { result: { directorySites: dirSites }, isError: false };
       }
 
       case 'cm360_get_directory_site': {
@@ -670,8 +691,10 @@ export function executeToolMock(
         if (!parsed.success) {
           return { result: { error: 'Invalid input', details: formatZodErrors(parsed.error) }, isError: true };
         }
-        const site = mockStore.insertDirectorySite(parsed.data.siteId);
-        return { result: { message: `Directory site approved and added as trafficking target`, site }, isError: false };
+        // CM360 `directorySites.insert` returns the created DirectorySite entry —
+        // it does NOT approve anything or return a Site. Match the live shape exactly.
+        const directorySite = mockStore.insertDirectorySite(parsed.data.siteId);
+        return { result: directorySite, isError: false };
       }
 
       // --- Change Logs ---
@@ -690,7 +713,7 @@ export function executeToolMock(
           searchString: parsed.data.searchString,
           maxResults: parsed.data.maxResults,
         });
-        return { result: { changeLogs, totalResults: changeLogs.length }, isError: false };
+        return { result: { changeLogs }, isError: false };
       }
 
       case 'cm360_get_change_log': {

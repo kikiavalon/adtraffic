@@ -45,7 +45,6 @@ export type {
   CM360ChangeLogObjectType,
   CM360ChangeLogAction,
   CM360ChangeLog,
-  CM360DirectorySite,
   CM360InsertDirectorySiteInput,
   CM360ReportType,
   CM360Report,

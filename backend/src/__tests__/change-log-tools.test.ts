@@ -32,9 +32,8 @@ describe('cm360_list_change_logs', () => {
       profileId: PROFILE_ID,
     });
     expect(result.isError).toBe(false);
-    const data = result.result as { changeLogs: unknown[]; totalResults: number };
+    const data = result.result as { changeLogs: unknown[] };
     expect(data.changeLogs.length).toBeGreaterThanOrEqual(10);
-    expect(data.totalResults).toBe(data.changeLogs.length);
   });
 
   it('filters by objectType', async () => {

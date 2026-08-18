@@ -390,6 +390,10 @@ function Settings() {
                 Kiki is working with your live CM360 campaign data. Every change still
                 requires your confirmation in chat before it happens.
               </p>
+              <p className="cm360-connected-caveat">
+                Heads up: live CM360 mode has not been verified against a real CM360
+                account. Demo mode is the tested experience — try changes in demo first.
+              </p>
               {confirmingDisconnect ? (
                 <div className="cm360-disconnect-confirm">
                   <p>Disconnect CM360? Kiki returns to demo data until you reconnect.</p>

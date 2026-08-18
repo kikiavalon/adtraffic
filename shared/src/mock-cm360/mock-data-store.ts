@@ -2067,29 +2067,28 @@ class MockDataStore {
   }
 
   /**
-   * "Insert" a directory site — this creates an approved CM360Site from the
-   * directory entry, mirroring the real CM360 directorySites.insert behavior.
+   * "Insert" a directory site. Mirrors the real CM360 `directorySites.insert`,
+   * which returns the created DirectorySite entry (a Schema$DirectorySite). It
+   * does NOT approve anything and does NOT create/return a Site — the older
+   * "insert approves a site" framing was a misconception. The entry is already
+   * in the seeded directory, so insert is idempotent and simply echoes it back.
    */
-  insertDirectorySite(directorySiteId: string): CM360Site {
+  insertDirectorySite(directorySiteId: string): {
+    id: string; name: string; url: string; active: boolean;
+    interstitialTagFormats: string[]; inpageTagFormats: string[];
+  } {
     const ds = this.directorySites.get(directorySiteId);
     if (!ds) {
       throw new Error(`Directory site ${directorySiteId} not found`);
     }
-    // Check if already approved as a site
-    for (const site of this.sites.values()) {
-      if (site.name === ds.name) {
-        return site; // Idempotent — return existing site
-      }
-    }
-    const siteId = this.genId();
-    const site: CM360Site = {
-      id: siteId,
+    return {
+      id: ds.id,
       name: ds.name,
-      accountId: ACCOUNT_ID,
-      approved: true,
+      url: ds.url,
+      active: ds.active,
+      interstitialTagFormats: [...ds.interstitialTagFormats],
+      inpageTagFormats: [...ds.inpageTagFormats],
     };
-    this.sites.set(siteId, site);
-    return site;
   }
 
   // --- Change Logs ---

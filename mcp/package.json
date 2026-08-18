@@ -2,8 +2,18 @@
   "name": "@adtraffic/mcp",
   "version": "0.1.0",
   "private": true,
+  "description": "Zero-credential stdio MCP server exposing 70 Google Campaign Manager 360 tools against seeded mock data. Mock-only: never talks to Google. See DISCLAIMER in README.",
+  "keywords": ["mcp", "model-context-protocol", "cm360", "campaign-manager-360", "ad-trafficking", "adtech"],
+  "homepage": "https://github.com/kikiavalon/adtraffic/tree/main/mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kikiavalon/adtraffic.git",
+    "directory": "mcp"
+  },
+  "bugs": "https://github.com/kikiavalon/adtraffic/issues",
   "license": "Apache-2.0",
   "type": "module",
+  "files": ["dist", "README.md", "LICENSE"],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {

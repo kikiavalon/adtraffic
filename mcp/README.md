@@ -1,62 +1,49 @@
 # @adtraffic/mcp
 
-A zero-credential demo Model Context Protocol (MCP) server for AdTraffic.ai. It exposes Kiki's 70 Campaign Manager 360 (CM360) trafficking tools — campaigns, placements, ads, creatives, event tags, floodlight, reporting, user/role management — against seeded, deterministic mock data. No Google account, OAuth setup, or API keys required.
+A zero-credential stdio [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server exposing all 70 of AdTraffic's Google Campaign Manager 360 (CM360) tools against seeded, deterministic mock data.
 
-## Requirements
+No database, no API keys, no Google account — point any MCP client (Claude Desktop included) at it and drive the full tool surface in about a minute.
 
-- Node.js >= 20
-- macOS or Linux (Windows is untested)
+Part of the [AdTraffic.ai / Kiki](https://github.com/kikiavalon/adtraffic) open-source project.
 
-## Setup
-
-The npm package is private and unpublished, so `npx @adtraffic/mcp` does **not** work yet (publishing is on the roadmap). Run the server from a local checkout instead.
-
-From a clean checkout, build both the `shared` and `mcp` workspaces (the server imports its mock data layer from `@adtraffic/shared/mock-cm360`, so `shared` must be built too — the root build covers both):
+## Quick start
 
 ```bash
-npm ci
-npm run build
+npm install
+npm run build --workspace=shared
+npm run build --workspace=mcp
+node mcp/dist/index.js     # stdio MCP server, 70 tools over mock CM360 data
 ```
 
-### Claude Desktop
+Configure your MCP client to launch that command over stdio.
 
-Add to your Claude Desktop MCP configuration (replace `<absolute path>` with the repository root):
+## What's inside
 
-```json
-{
-  "mcpServers": {
-    "adtraffic-demo": {
-      "command": "node",
-      "args": ["<absolute path>/mcp/dist/index.js"]
-    }
-  }
-}
-```
+- All 70 CM360 tools (read, create, update, tags, reporting, floodlight, event tags, placement groups, user/role management) executing against `@adtraffic/shared/mock-cm360` — a dependency-free, seeded mock of CM360.
+- Zero delete tools, by design: CM360 treats archiving as the terminal state.
+- Flat, consistent error contract; inputs validated with Zod.
 
-### Claude Code
+**This package never talks to Google.** It operates exclusively on mock data. Live CM360 operation is a feature of the full AdTraffic platform, not this server.
 
-```bash
-claude mcp add adtraffic-demo -- node <absolute path>/mcp/dist/index.js
-```
+## Disclaimer — no warranty, use at your own risk
 
-## Behavior notes
+THIS SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
 
-- **Write tools execute immediately.** There is no confirmation step in the MCP path. The AdTraffic.ai webapp's confirmation gates are a webapp feature; MCP clients bring their own tool-approval UX.
-- **All state is in-memory.** Each spawned server process has its own in-memory store, reset on restart.
-- **Demo data only.** Tools operate on seeded mock CM360 data (`@adtraffic/shared/mock-cm360`). Live CM360 access over MCP is a roadmap item, not shipped.
-- **Error contract.** Failed tool calls return a flat JSON payload: `{"error": string, "details"?: string}`.
-- **Protocol hygiene.** stdout carries only MCP protocol messages; diagnostics go to stderr.
+This server operates on mock data only. The wider AdTraffic project includes a
+live Campaign Manager 360 path that is **implemented but unverified** against
+Google's production API; before using any live-capable component of the
+project, read the full
+[DISCLAIMER](https://github.com/kikiavalon/adtraffic/blob/main/DISCLAIMER.md).
+Kiki is an LLM agent and is non-deterministic; review every proposed change
+before confirming it. You are responsible for your own credentials, accounts,
+spend, and compliance.
 
-## Development
+This notice restates, and does not modify or add to, the Disclaimer of Warranty
+and Limitation of Liability in Sections 7 and 8 of the Apache License,
+Version 2.0.
 
-Run the Setup build first — the tests import from `@adtraffic/shared/mock-cm360`, so an unbuilt `shared` workspace fails module collection with a raw resolution error.
+## License & trademarks
 
-```bash
-npm test --workspace=mcp        # vitest (includes an end-to-end stdio test against the built server)
-npm run lint --workspace=mcp
-npm run typecheck --workspace=mcp
-```
-
-## License
-
-Not yet licensed for redistribution — this repository is currently private. The planned public release will be under Apache-2.0.
+[Apache-2.0](https://github.com/kikiavalon/adtraffic/blob/main/LICENSE). "AdTraffic.ai" and "Kiki" are reserved marks — see [TRADEMARKS.md](https://github.com/kikiavalon/adtraffic/blob/main/TRADEMARKS.md). "Google", "Campaign Manager 360", and "CM360" are trademarks of Google LLC; this project is independent and not affiliated with, endorsed by, or sponsored by Google.

@@ -60,7 +60,7 @@ The manifest will be served at `GET /api/v1/agent/manifest` (public, no authenti
   },
 
   "capabilities": {
-    "tool_count": 71,
+    "tool_count": 70,
     "categories": {
       "campaign_management": {
         "description": "Create, read, update campaigns",
@@ -283,7 +283,8 @@ The manifest will be served at `GET /api/v1/agent/manifest` (public, no authenti
     "iab_agent_registry": {
       "status": "pending_registration",
       "agent_type": "MCP",
-      "agent_category": "Campaign Management"
+      "agent_category": "Campaign Management",
+      "mcp_implementation": "@adtraffic/mcp — shipped stdio Model Context Protocol server, run from a local checkout via `node mcp/dist/index.js` (npm publishing / `npx @adtraffic/mcp` on the roadmap), exposing all 70 CM360 tools against seeded demo data (@adtraffic/shared/mock-cm360)"
     },
     "soc2_type2": {
       "status": "in_progress",
@@ -306,7 +307,7 @@ The manifest will be served at `GET /api/v1/agent/manifest` (public, no authenti
       "secrets_management": "Google Secret Manager (no .env files in containers)"
     },
     "application": {
-      "input_validation": "Zod schemas on all 71 tool inputs and API endpoints",
+      "input_validation": "Zod schemas on all 70 tool inputs and API endpoints",
       "rate_limiting": "Per-endpoint sliding window (auth: 10/min, chat: 20/min, register: 5/min)",
       "error_handling": "Structured logging via Pino, PII redaction, no stack traces in production",
       "dependency_management": "All dependencies pinned to exact versions",
@@ -389,7 +390,7 @@ Maps to the regulatory frameworks identified in our IAB compliance plan:
 
 **Companion endpoint:** `GET /api/v1/agent/tools`
 - Public (no authentication required)
-- Returns the list of 71 tools with names, descriptions, and categories
+- Returns the list of 70 tools with names, descriptions, and categories
 - Useful for other systems discovering our agent's capabilities
 
 ---

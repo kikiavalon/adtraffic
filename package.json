@@ -5,6 +5,7 @@
   "description": "AdTraffic.ai — AI-powered CM360 web platform + companion Chrome extension",
   "workspaces": [
     "shared",
+    "mcp",
     "qa-runner",
     "backend",
     "webapp",
@@ -18,7 +19,7 @@
     "test": "npm test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "clean": "rm -rf node_modules shared/node_modules shared/dist qa-runner/node_modules qa-runner/dist backend/node_modules backend/dist webapp/node_modules webapp/dist companion/dist"
+    "clean": "rm -rf node_modules shared/node_modules shared/dist mcp/node_modules mcp/dist qa-runner/node_modules qa-runner/dist backend/node_modules backend/dist webapp/node_modules webapp/dist companion/dist"
   },
   "engines": {
     "node": ">=20.0.0"

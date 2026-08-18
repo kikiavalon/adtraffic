@@ -93,3 +93,17 @@ npm test --workspace=qa-runner
 - Phase 3 (Launch Prep): In progress
 
 See [CLAUDE.md](CLAUDE.md) for full project context.
+
+## Telemetry
+
+AdTraffic collects **no usage data by default**. Optional, anonymous telemetry is
+available and OFF until you run `npm run telemetry`. See [docs/TELEMETRY.md](docs/TELEMETRY.md).
+
+## Using this at an agency?
+
+I'd love to know how AdTraffic is being used in the wild. Two easy ways to help:
+
+- **Star the repo** — it's the signal I watch most.
+- **Get release notifications** (drop your email + agency): BUTTONDOWN_URL_PLACEHOLDER
+
+No account, no gate — the tool is yours to run either way.

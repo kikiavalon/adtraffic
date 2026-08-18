@@ -41,6 +41,8 @@ import { logger } from './lib/logger.js';
 import { sql } from './db/index.js';
 import { initRedis, closeRedis, getRedis } from './db/redis.js';
 import { initQaQueueEvents, closeQaQueue } from './qa/qa-queue.js';
+import { maybeShowFirstBootNotice } from './telemetry/notice.js';
+import { emitStartupEvent } from './telemetry/emitter.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT ?? '3001', 10);
@@ -163,6 +165,10 @@ if (process.env.NODE_ENV !== 'test') {
         { port: PORT, model, maxTokens, dailyLimit, instance: INSTANCE_ID, demoMode: process.env.DEMO_MODE === 'true' },
         'AdTraffic.ai backend started',
       );
+
+      // Opt-in telemetry (both are no-ops unless the user has run `npm run telemetry`).
+      maybeShowFirstBootNotice();
+      emitStartupEvent();
     });
 
     const shutdown = () => {

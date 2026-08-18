@@ -8,14 +8,30 @@ Part of the [AdTraffic.ai / Kiki](https://github.com/kikiavalon/adtraffic) open-
 
 ## Quick start
 
+Run it directly — no clone, no build:
+
+```bash
+npx @adtraffic/mcp
+```
+
+That launches the stdio MCP server with all 70 tools over mock CM360 data. Configure your MCP client to launch `npx @adtraffic/mcp` over stdio — for example, in Claude Desktop's config:
+
+```json
+{
+  "mcpServers": {
+    "adtraffic": { "command": "npx", "args": ["@adtraffic/mcp"] }
+  }
+}
+```
+
+### From source (contributors)
+
 ```bash
 npm install
 npm run build --workspace=shared
 npm run build --workspace=mcp
 node mcp/dist/index.js     # stdio MCP server, 70 tools over mock CM360 data
 ```
-
-Configure your MCP client to launch that command over stdio.
 
 ## What's inside
 

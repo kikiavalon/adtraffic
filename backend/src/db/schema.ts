@@ -181,6 +181,23 @@ export const oauthTokens = pgTable('oauth_tokens', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
+/** Live CM360 connection acknowledgments — append-only record that the user
+ * typed the unverified-live-path warning (DISCLAIMER.md) before the OAuth
+ * connect redirect was allowed. No cascade delete — like audit_logs, this is
+ * a liability/compliance record that must survive. */
+export const cm360LiveAcknowledgments = pgTable('cm360_live_acknowledgments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  /** The phrase the user actually typed */
+  acknowledgedPhrase: text('acknowledged_phrase').notNull(),
+  /** The exact warning text shown at acknowledgment time */
+  warningText: text('warning_text').notNull(),
+  appVersion: text('app_version').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index('cm360_live_acks_user_id_idx').on(table.userId),
+}));
+
 /** Anthropic API credentials — encrypted per-user Claude API keys */
 export const anthropicCredentials = pgTable('anthropic_credentials', {
   id: uuid('id').primaryKey().defaultRandom(),

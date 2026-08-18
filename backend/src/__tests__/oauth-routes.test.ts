@@ -21,6 +21,10 @@ vi.mock('../db/index.js', () => ({
       id: 'id',
       userId: 'user_id',
     },
+    cm360LiveAcknowledgments: {
+      id: 'id',
+      userId: 'user_id',
+    },
   },
 }));
 
@@ -107,6 +111,8 @@ describe('OAuth Routes', () => {
     });
 
     it('should return auth URL with valid JWT', async () => {
+      // Connect is gated on a recorded live-CM360 acknowledgment (DISCLAIMER.md)
+      mockSelect.mockReturnValue([{ id: 'ack-1', userId: 'user-123' }]);
       const app = createApp();
       const token = generateTestToken('user-123');
 
@@ -134,6 +140,7 @@ describe('OAuth Routes', () => {
     });
 
     it('should include state parameter in generated URL', async () => {
+      mockSelect.mockReturnValue([{ id: 'ack-1', userId: 'user-123' }]);
       const app = createApp();
       const token = generateTestToken('user-123');
 

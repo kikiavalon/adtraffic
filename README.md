@@ -33,12 +33,20 @@ demo mode for the verified experience.
 
 ## Tests
 
+2,440 tests across six workspaces, all passing:
+
 ```bash
-npm test                             # All 317 tests
-npm test --workspace=shared          # 18 schema tests
-npm test --workspace=backend         # 290 tests (unit + prompt regression + conversation flows)
-npm test --workspace=companion       # 9 context extractor tests
+npm test                             # All 2,440 tests
+npm test --workspace=shared          # 106 — types + Zod schemas
+npm test --workspace=backend         # 1,770 — API, Claude loop, CM360 tools, Trafficking QA
+npm test --workspace=webapp          # 286 — React app
+npm test --workspace=companion       # 242 — Chrome extension
+npm test --workspace=qa-runner       # 29 — headless click-test runner (5 e2e need Chromium)
+npm test --workspace=mcp             # 7 — stdio MCP server
 ```
+
+The backend suite needs a PostgreSQL test database (`adtraffic_test`); the
+qa-runner and mcp suites auto-skip or need a one-time build — see CLAUDE.md.
 
 ## Chrome Extension
 

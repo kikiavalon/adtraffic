@@ -4,7 +4,7 @@
 
 If you discover a security vulnerability in AdTraffic.ai, please report it responsibly.
 
-**Email:** security@adtraffic.ai
+**Email:** kiki@hammond.ai
 **Response time:** We aim to acknowledge reports within 48 hours and provide a resolution timeline within 5 business days.
 
 ### What to include

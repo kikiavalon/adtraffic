@@ -2,6 +2,8 @@
   "name": "adtraffic",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
+  "license": "Apache-2.0",
   "description": "AdTraffic.ai — AI-powered CM360 web platform + companion Chrome extension",
   "workspaces": [
     "shared",

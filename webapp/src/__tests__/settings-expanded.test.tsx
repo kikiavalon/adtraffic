@@ -15,6 +15,8 @@ vi.mock('../auth/AuthContext.js', () => ({
     logout: mockLogout,
     authFetch: mockAuthFetch,
     featureFlags: mockFeatureFlags,
+    refreshCM360Status: vi.fn(),
+    refreshAnthropicStatus: vi.fn(),
   }),
 }));
 
@@ -123,6 +125,7 @@ describe('Settings — Usage Bar', () => {
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage)) // initial usage
       .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected)) // initial cm360
+      .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
       .mockResolvedValueOnce(createOkResponse({ ...mockUsage, requests: 50 })); // refreshed usage
 
     const user = userEvent.setup();
@@ -188,6 +191,7 @@ describe('Settings — CM360 Connection', () => {
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected))
+      .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
       .mockResolvedValueOnce(createOkResponse({ url: 'https://accounts.google.com/oauth' }));
 
     // Mock window.location.href assignment
@@ -218,6 +222,7 @@ describe('Settings — CM360 Connection', () => {
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Connected))
+      .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
       .mockResolvedValueOnce(createOkResponse({})); // disconnect response
 
     const user = userEvent.setup();
@@ -258,6 +263,7 @@ describe('Settings — CM360 Connection', () => {
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Connected))
+      .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
       .mockResolvedValueOnce(createErrorResponse()); // disconnect fails
 
     const user = userEvent.setup();
@@ -279,6 +285,7 @@ describe('Settings — CM360 Connection', () => {
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Connected))
+      .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
       .mockReturnValueOnce(new Promise(() => {})); // disconnect hangs
 
     const user = userEvent.setup();
@@ -393,6 +400,7 @@ describe('Settings — Toast', () => {
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Connected))
+      .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
       .mockResolvedValueOnce(createOkResponse(mockCM360Connected)); // re-fetch after toast
 
     renderSettings(['/settings?cm360=connected']);
@@ -408,6 +416,7 @@ describe('Settings — Toast', () => {
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Connected))
+      .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
       .mockResolvedValueOnce(createOkResponse({})); // disconnect
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -509,6 +518,7 @@ describe('Settings — CM360 Connect Walkthrough', () => {
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected))
+      .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
       .mockResolvedValueOnce({ ok: false, status: 503 }); // OAuth not configured
 
     const user = userEvent.setup();

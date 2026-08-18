@@ -39,6 +39,11 @@ vi.mock('@anthropic-ai/sdk', () => ({
   },
 }));
 
+vi.mock('../claude/anthropic-key-service.js', () => ({
+  getDecryptedKey: vi.fn().mockResolvedValue('sk-ant-test-key'),
+  NoAnthropicKeyError: class NoAnthropicKeyError extends Error {},
+}));
+
 // Mock usage tracker — no daily limits in tests
 vi.mock('../claude/usage-tracker.js', () => ({
   checkLimit: vi.fn().mockResolvedValue({ allowed: true }),

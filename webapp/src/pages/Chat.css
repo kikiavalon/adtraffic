@@ -726,6 +726,21 @@ a:focus-visible {
   font-weight: 600;
 }
 
+.key-missing-banner {
+  background: var(--color-warning-tint);
+  color: var(--color-warning-text);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  font-size: var(--font-md);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.key-missing-banner a {
+  color: var(--color-warning-text);
+  font-weight: 600;
+}
+
 .starter-chips {
   display: flex;
   gap: 8px;

@@ -180,3 +180,14 @@ export const oauthTokens = pgTable('oauth_tokens', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
+
+/** Anthropic API credentials — encrypted per-user Claude API keys */
+export const anthropicCredentials = pgTable('anthropic_credentials', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }).unique(),
+  encryptedApiKey: text('encrypted_api_key').notNull(),
+  last4: text('last4').notNull(),
+  verifiedAt: timestamp('verified_at').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+});

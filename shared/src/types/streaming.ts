@@ -89,7 +89,7 @@ export interface StreamQAReport {
 export interface StreamError {
   type: 'error';
   error: string;
-  code?: number;
+  code?: number | 'no_anthropic_key';
 }
 
 /** Stream is finished — frontend can close the connection */

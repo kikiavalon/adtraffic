@@ -18,6 +18,9 @@ interface AuthContextType {
   /** null = unknown (treat as demo), false = demo data, true = live CM360 */
   cm360Connected: boolean | null;
   refreshCM360Status: () => Promise<void>;
+  /** null = unknown, false = no key connected, true = key connected */
+  anthropicConnected: boolean | null;
+  refreshAnthropicStatus: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => void;
@@ -41,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
   const [cm360Connected, setCM360Connected] = useState<boolean | null>(null);
+  const [anthropicConnected, setAnthropicConnected] = useState<boolean | null>(null);
 
   const tokenRef = useRef(token);
   useEffect(() => { tokenRef.current = token; }, [token]);
@@ -79,9 +83,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* status stays unknown — UI treats it as demo */ }
   }, []);
 
+  const refreshAnthropicStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/v1/settings/anthropic/status`, {
+        headers: tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {},
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAnthropicConnected(data.connected === true);
+      }
+    } catch { /* status stays unknown */ }
+  }, []);
+
   // Fetch flags on initial load when user is already authenticated
   useEffect(() => {
-    if (token && user) { fetchFlags(); refreshCM360Status(); }
+    if (token && user) { fetchFlags(); refreshCM360Status(); refreshAnthropicStatus(); }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const login = useCallback(async (email: string, password: string) => {
@@ -105,10 +121,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch feature flags and CM360 connection status after login
       fetchFlags();
       refreshCM360Status();
+      refreshAnthropicStatus();
     } finally {
       setIsLoading(false);
     }
-  }, [fetchFlags, refreshCM360Status]);
+  }, [fetchFlags, refreshCM360Status, refreshAnthropicStatus]);
 
   const register = useCallback(async (email: string, password: string, name: string) => {
     setIsLoading(true);
@@ -131,16 +148,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Fetch feature flags and CM360 connection status after registration
       fetchFlags();
       refreshCM360Status();
+      refreshAnthropicStatus();
     } finally {
       setIsLoading(false);
     }
-  }, [fetchFlags, refreshCM360Status]);
+  }, [fetchFlags, refreshCM360Status, refreshAnthropicStatus]);
 
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     setFeatureFlags(null);
     setCM360Connected(null);
+    setAnthropicConnected(null);
     sessionStorage.clear();
   }, []);
 
@@ -163,7 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return res;
   }, []);
 
-  const value = useMemo(() => ({ user, token, featureFlags, cm360Connected, refreshCM360Status, login, register, logout, isLoading, authFetch }), [user, token, featureFlags, cm360Connected, refreshCM360Status, login, register, logout, isLoading, authFetch]);
+  const value = useMemo(() => ({ user, token, featureFlags, cm360Connected, refreshCM360Status, anthropicConnected, refreshAnthropicStatus, login, register, logout, isLoading, authFetch }), [user, token, featureFlags, cm360Connected, refreshCM360Status, anthropicConnected, refreshAnthropicStatus, login, register, logout, isLoading, authFetch]);
 
   return (
     <AuthContext.Provider value={value}>

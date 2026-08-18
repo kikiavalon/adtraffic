@@ -19,6 +19,7 @@ import { logger } from '../lib/logger.js';
 import { withRetry } from './retry.js';
 import { runTurnQa } from '../qa/qa-service.js';
 import { drainQaWrites } from '../qa/qa-recorder.js';
+import { getDecryptedKey, NoAnthropicKeyError } from './anthropic-key-service.js';
 
 /**
  * Trafficking QA end-of-turn trigger — advisory, never throws, never blocks the reply.
@@ -41,14 +42,29 @@ async function maybeRunTurnQa(
   }
 }
 
-const anthropic = new Anthropic();
-
 const DEFAULT_MAX_TOOL_ROUNDS = 5;
 
 // Configurable via env vars — defaults are cost-conscious for testing
 const CLAUDE_MODEL = process.env.CLAUDE_MODEL ?? 'claude-haiku-4-5-20251001';
 const CLAUDE_MAX_TOKENS = parseInt(process.env.CLAUDE_MAX_TOKENS ?? '1024', 10);
 const CLAUDE_IO_MODEL = process.env.CLAUDE_IO_MODEL ?? CLAUDE_MODEL;
+
+/**
+ * Build an Anthropic client from the requesting user's own encrypted API key.
+ * Each request sources its client per-user rather than sharing one process-wide
+ * client, so users are billed on their own key and a missing key fails fast.
+ *
+ * @throws NoAnthropicKeyError when no userId is provided or the user has no key.
+ */
+export async function getUserAnthropicClient(userId: string | undefined): Promise<Anthropic> {
+  // Always consult the key service. In production the chat route always passes a
+  // real userId; an absent one resolves to null (getDecryptedKey short-circuits an
+  // empty id) and throws NoAnthropicKeyError below. Either way the server-wide key
+  // never enters the chat path.
+  const key = await getDecryptedKey(userId ?? '');
+  if (!key) throw new NoAnthropicKeyError();
+  return new Anthropic({ apiKey: key });
+}
 
 /**
  * Send a message to Kiki and get a response.
@@ -95,6 +111,10 @@ export async function chat(
       timestamp: Date.now(),
     };
   }
+
+  // Build the per-user Anthropic client (throws NoAnthropicKeyError if the user
+  // has no connected key). Placed after the friendly short-circuit returns above.
+  const anthropic = await getUserAnthropicClient(userId);
 
   // Determine if user has live CM360 connection (lightweight DB check, no decryption)
   let isLiveData = false;
@@ -376,6 +396,11 @@ export async function chatStream(
     emit({ type: 'message_end', message: limitMessage });
     return;
   }
+
+  // Build the per-user Anthropic client before any streaming begins, so a missing
+  // key throws NoAnthropicKeyError synchronously from chatStream() (the caller maps
+  // it to an SSE error). Placed after the friendly short-circuit returns above.
+  const anthropic = await getUserAnthropicClient(userId);
 
   // Determine if user has live CM360 connection
   let isLiveData = false;

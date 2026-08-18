@@ -31,6 +31,7 @@ import uploadRouter from './routes/upload.js';
 import approvalsRouter from './routes/approvals.js';
 import qaRouter from './routes/qa.js';
 import agentRouter from './routes/agent.js';
+import anthropicKeyRouter from './routes/anthropic-key.js';
 import demoFixturesRouter from './routes/demo-fixtures.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
@@ -98,6 +99,7 @@ app.use('/api/v1', uploadRouter);
 app.use('/api/v1', approvalsRouter);
 app.use('/api/v1', qaRouter);
 app.use('/api/v1', agentRouter);
+app.use('/api/v1', anthropicKeyRouter);
 
 // Demo-mode fixtures for offline click-through testing (never mounted live)
 if (process.env.DEMO_MODE === 'true') {

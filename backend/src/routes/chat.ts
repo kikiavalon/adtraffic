@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { ChatRequestSchema } from '@adtraffic/shared';
 import type { ChatResponse, StreamEvent } from '@adtraffic/shared';
 import { chat, chatStream } from '../claude/kiki-service.js';
+import { NoAnthropicKeyError } from '../claude/anthropic-key-service.js';
 import { requireAuth } from '../auth/middleware.js';
 import { saveMessage, getConversation } from '../db/conversation-store.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
@@ -99,6 +100,10 @@ router.post('/chat', chatLimiter, requireAuth, featureFlagsMiddleware, express.j
 
     res.json(response);
   } catch (error) {
+    if (error instanceof NoAnthropicKeyError) {
+      res.status(428).json({ error: 'Connect your Claude API key in Settings to chat.', code: 'no_anthropic_key' });
+      return;
+    }
     logger.error({ err: { message: error instanceof Error ? error.message : 'Unknown error' }, requestId: req.requestId }, 'Claude API error');
     res.status(500).json({
       error: 'Failed to get response from Kiki',
@@ -201,8 +206,10 @@ router.post('/chat/stream', chatLimiter, requireAuth, featureFlagsMiddleware, ex
         streaming: true,
       });
     } catch (error) {
-      // Don't send error events for intentional client disconnects
-      if (!(error instanceof Error && error.name === 'AbortError')) {
+      if (error instanceof NoAnthropicKeyError) {
+        sendEvent({ type: 'error', error: 'Connect your Claude API key in Settings to chat.', code: 'no_anthropic_key' });
+      } else if (!(error instanceof Error && error.name === 'AbortError')) {
+        // Don't send error events for intentional client disconnects
         sendEvent({ type: 'error', error: 'Failed to get response from Kiki' });
       }
     }

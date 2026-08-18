@@ -60,6 +60,11 @@ vi.mock('@anthropic-ai/sdk', () => {
   };
 });
 
+vi.mock('../claude/anthropic-key-service.js', () => ({
+  getDecryptedKey: vi.fn().mockResolvedValue('sk-ant-test-key'),
+  NoAnthropicKeyError: class NoAnthropicKeyError extends Error {},
+}));
+
 import { chatStream } from '../claude/kiki-service.js';
 import { CM360_TOOLS, getEnabledTools } from '../claude/tool-definitions.js';
 import { getDefaultFlags } from '../feature-flags/flag-registry.js';

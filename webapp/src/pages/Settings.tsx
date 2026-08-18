@@ -25,6 +25,12 @@ interface CM360Status {
   expiresAt?: string;
 }
 
+interface AnthropicStatus {
+  connected: boolean;
+  last4?: string;
+  verifiedAt?: string;
+}
+
 const FLAG_LABELS: Record<string, string> = {
   'cm360.write_operations': 'CM360 Write Operations',
   'cm360.tag_generation': 'Tag Generation',
@@ -42,7 +48,7 @@ const FLAG_LABELS: Record<string, string> = {
 };
 
 function Settings() {
-  const { user, logout, authFetch, featureFlags, refreshCM360Status } = useAuth();
+  const { user, logout, authFetch, featureFlags, refreshCM360Status, refreshAnthropicStatus } = useAuth();
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false);
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [usageError, setUsageError] = useState('');
@@ -51,6 +57,11 @@ function Settings() {
   const [cm360Error, setCM360Error] = useState('');
   const [cm360SetupNeeded, setCM360SetupNeeded] = useState(false);
   const [cm360ActionLoading, setCM360ActionLoading] = useState(false);
+  const [anthropicStatus, setAnthropicStatus] = useState<AnthropicStatus | null>(null);
+  const [anthropicKeyInput, setAnthropicKeyInput] = useState('');
+  const [anthropicLoading, setAnthropicLoading] = useState(true);
+  const [anthropicError, setAnthropicError] = useState('');
+  const [anthropicActionLoading, setAnthropicActionLoading] = useState(false);
   const [toast, setToast] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -129,10 +140,74 @@ function Settings() {
     }
   }, [authFetch, refreshCM360Status]);
 
+  const fetchAnthropicStatus = useCallback(async () => {
+    setAnthropicLoading(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/settings/anthropic/status`);
+      if (res.ok) {
+        setAnthropicStatus(await res.json());
+        setAnthropicError('');
+      }
+      // A non-ok status on load is not surfaced — the section simply shows the
+      // "not connected" state rather than a blocking error.
+    } catch {
+      // Swallow network errors on load — mirror fetchCM360Status's quiet failure.
+    } finally {
+      setAnthropicLoading(false);
+    }
+  }, [authFetch]);
+
+  const handleAnthropicConnect = useCallback(async () => {
+    if (!anthropicKeyInput.trim()) return;
+    setAnthropicActionLoading(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/settings/anthropic`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: anthropicKeyInput }),
+      });
+      if (res.ok) {
+        setAnthropicStatus(await res.json());
+        setAnthropicKeyInput('');
+        setAnthropicError('');
+        void refreshAnthropicStatus?.();
+      } else {
+        const data = await res.json();
+        setAnthropicError(data.error ?? 'Something went wrong. Please try again.');
+      }
+    } catch {
+      setAnthropicError('Could not connect to backend');
+    } finally {
+      setAnthropicActionLoading(false);
+    }
+  }, [authFetch, anthropicKeyInput, refreshAnthropicStatus]);
+
+  const handleAnthropicDisconnect = useCallback(async () => {
+    setAnthropicActionLoading(true);
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/settings/anthropic`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setAnthropicStatus({ connected: false });
+        setAnthropicError('');
+        setToast('Claude API key removed');
+        void refreshAnthropicStatus?.();
+      } else {
+        setAnthropicError('Failed to disconnect');
+      }
+    } catch {
+      setAnthropicError('Could not connect to backend');
+    } finally {
+      setAnthropicActionLoading(false);
+    }
+  }, [authFetch, refreshAnthropicStatus]);
+
   useEffect(() => {
     fetchUsage();
     fetchCM360Status();
-  }, [fetchUsage, fetchCM360Status]);
+    fetchAnthropicStatus();
+  }, [fetchUsage, fetchCM360Status, fetchAnthropicStatus]);
 
   // Check for ?cm360=... query params (set by the OAuth callback redirect)
   useEffect(() => {
@@ -390,6 +465,80 @@ function Settings() {
                 Connecting only grants Kiki permission to act when you ask — it doesn&rsquo;t
                 change anything in your CM360 account, and you can disconnect anytime from
                 this page.
+              </p>
+            </>
+          )}
+        </section>
+
+        <section className="settings-section">
+          <h2>Claude API Key</h2>
+          {anthropicLoading ? (
+            <p className="settings-placeholder">Loading Claude API key status...</p>
+          ) : anthropicStatus?.connected ? (
+            <>
+              <div className="settings-field">
+                <label>Status</label>
+                <span className="settings-connected">
+                  Connected &#10003; &middot; &bull;&bull;&bull;&bull;{anthropicStatus.last4}
+                </span>
+              </div>
+              <p className="anthropic-connected-note">
+                Kiki is using your own Claude API key. Usage is billed directly to your
+                Anthropic account.
+              </p>
+              <button
+                className="cm360-disconnect-btn"
+                onClick={handleAnthropicDisconnect}
+                disabled={anthropicActionLoading}
+              >
+                {anthropicActionLoading ? 'Removing...' : 'Disconnect'}
+              </button>
+              <p className="settings-hint">
+                <strong>Disconnect</strong> removes your saved key. Kiki can&rsquo;t chat
+                until you connect a key again.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="anthropic-not-connected">
+                <p>
+                  Add your own Claude API key so Kiki&rsquo;s AI usage is billed to your
+                  Anthropic account instead of the shared one. Your key is stored encrypted
+                  and only the last four digits are ever shown.
+                </p>
+              </div>
+              <label className="anthropic-key-label" htmlFor="anthropic-key-input">
+                Claude API key
+              </label>
+              <input
+                id="anthropic-key-input"
+                className="anthropic-key-input"
+                type="password"
+                autoComplete="off"
+                placeholder="sk-ant-..."
+                value={anthropicKeyInput}
+                onChange={(e) => setAnthropicKeyInput(e.target.value)}
+              />
+              {anthropicError && (
+                <p className="settings-error" role="alert">{anthropicError}</p>
+              )}
+              <button
+                className="cm360-connect-btn"
+                onClick={handleAnthropicConnect}
+                disabled={anthropicActionLoading || !anthropicKeyInput.trim()}
+              >
+                {anthropicActionLoading ? 'Connecting...' : 'Connect'}
+              </button>
+              <p className="settings-hint">
+                Need a key? Create one in the{' '}
+                <a
+                  href="https://console.anthropic.com/settings/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Anthropic Console
+                </a>
+                . It starts with <code>sk-ant-</code>.
               </p>
             </>
           )}

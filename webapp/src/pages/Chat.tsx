@@ -330,8 +330,18 @@ function Chat() {
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([]);
   const [qaReports, setQaReports] = useState<QARunReport[]>([]);
   const [processingActionId, setProcessingActionId] = useState<string | null>(null);
-  const { user, logout, authFetch, cm360Connected } = useAuth();
+  const { user, logout, authFetch, cm360Connected, anthropicConnected, refreshAnthropicStatus } = useAuth();
   const dataMode: 'live' | 'demo' = cm360Connected === true ? 'live' : 'demo';
+  // Gate the composer until a Claude API key is connected. Gate only on an
+  // explicit `false` (or a no-key send error) — never on `null` (unknown, e.g.
+  // during the initial status fetch) or `true`.
+  const [noKeyError, setNoKeyError] = useState(false);
+  const keyMissing = anthropicConnected === false || noKeyError;
+  // When the user reconnects, the context flips to true — clear any stale
+  // send-error gate so the banner and disabled state lift.
+  useEffect(() => {
+    if (anthropicConnected === true) setNoKeyError(false);
+  }, [anthropicConnected]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -600,6 +610,10 @@ function Chat() {
               break;
 
             case 'error':
+              if (event.code === 'no_anthropic_key') {
+                setNoKeyError(true);
+                void refreshAnthropicStatus?.();
+              }
               setMessages((prev) => {
                 const errMsg: ChatMessage = {
                   id: crypto.randomUUID(),
@@ -655,7 +669,7 @@ function Chat() {
       setIsLoading(false);
       setToolStatus(null);
     }
-  }, [isLoading, conversationId, authFetch, appendDelta, flushDelta, pendingAttachment]);
+  }, [isLoading, conversationId, authFetch, appendDelta, flushDelta, pendingAttachment, refreshAnthropicStatus]);
 
   const startNewChat = useCallback(() => {
     // Rotate to a fresh conversation ID — the previous conversation stays
@@ -904,6 +918,11 @@ function Chat() {
       </header>
 
       <main className="chat-messages" ref={messagesContainerRef} onScroll={handleMessagesScroll} aria-live="polite">
+        {keyMissing && (
+          <div className="key-missing-banner" role="alert">
+            Connect your Claude API key in <Link to="/settings">Settings</Link> to start chatting.
+          </div>
+        )}
         {dataMode === 'demo' && (
           <div className="demo-banner">
             You're exploring demo data — <Link to="/settings">connect your CM360 account</Link> to go live.
@@ -1084,7 +1103,7 @@ function Chat() {
           onKeyDown={handleKeyDown}
           placeholder="Message Kiki..."
           rows={1}
-          disabled={isUploading}
+          disabled={isUploading || keyMissing}
         />
         {isLoading && (
           <button
@@ -1098,7 +1117,7 @@ function Chat() {
         <button
           className="chat-send-btn"
           onClick={() => sendMessage(input)}
-          disabled={!input.trim() || isLoading || isUploading}
+          disabled={!input.trim() || isLoading || isUploading || keyMissing}
         >
           Send
         </button>

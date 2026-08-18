@@ -11,7 +11,9 @@ npm install
 npm run dev          # Starts backend (port 3001) + webapp (port 5173)
 ```
 
-Add an `ANTHROPIC_API_KEY` to `backend/.env` to enable live Claude AI responses. Without it, Kiki uses mock CM360 data.
+### Connect your Claude API key (required)
+
+**Breaking change:** Kiki now uses **your own** Claude API key instead of a shared server key. After signing in, open **Settings → Claude API**, paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys), and click Connect. The key is verified with Anthropic and stored encrypted at rest; Kiki will not respond until a key is connected. The server `ANTHROPIC_API_KEY` is no longer used for chat.
 
 ## Architecture
 

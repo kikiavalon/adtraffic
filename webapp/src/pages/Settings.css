@@ -367,6 +367,43 @@
   color: var(--color-text-secondary) !important;
 }
 
+.anthropic-not-connected p {
+  font-size: var(--font-md);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+
+.anthropic-key-label {
+  display: block;
+  font-size: var(--font-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.anthropic-key-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d4d4d4;
+  border-radius: var(--radius);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: var(--font-base);
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+
+.anthropic-key-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.anthropic-connected-note {
+  font-size: var(--font-md);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  margin: 12px 0 0;
+}
+
 .settings-about-text {
   font-size: var(--font-md);
   color: var(--color-text-secondary);

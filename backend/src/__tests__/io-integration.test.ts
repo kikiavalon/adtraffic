@@ -43,6 +43,11 @@ vi.mock('@anthropic-ai/sdk', () => ({
   })),
 }));
 
+vi.mock('../claude/anthropic-key-service.js', () => ({
+  getDecryptedKey: vi.fn().mockResolvedValue('sk-ant-test-key'),
+  NoAnthropicKeyError: class NoAnthropicKeyError extends Error {},
+}));
+
 describe('IO Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();

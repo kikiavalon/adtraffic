@@ -48,3 +48,9 @@ backend/data/
 *.db
 *.db-wal
 *.db-shm
+
+# Internal planning & marketing docs — extracted to the nested private repo internal-docs/
+# (a standalone git repo living inside this one but never tracked/pushed by it)
+internal-docs/
+docs/plans/
+docs/marketing/

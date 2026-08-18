@@ -187,11 +187,14 @@ describe('Settings — CM360 Connection', () => {
     expect(screen.getByText('Connect CM360 Account')).toBeInTheDocument();
   });
 
-  it('Connect button calls /auth/google/connect', async () => {
+  it('Connect button calls /auth/google/connect after the typed acknowledgment', async () => {
+    const ackPhrase = 'I understand the live CM360 path is unverified';
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected))
       .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
+      .mockResolvedValueOnce(createOkResponse({ acknowledged: false, phrase: ackPhrase, warningText: 'The live CM360 path is unverified.' }))
+      .mockResolvedValueOnce(createOkResponse({ acknowledged: true })) // acknowledge
       .mockResolvedValueOnce(createOkResponse({ url: 'https://accounts.google.com/oauth' }));
 
     // Mock window.location.href assignment
@@ -212,6 +215,15 @@ describe('Settings — CM360 Connection', () => {
     });
 
     await user.click(screen.getByText('Connect CM360 Account'));
+
+    // The typed-acknowledgment dialog gates the redirect
+    await waitFor(() => {
+      expect(screen.getByLabelText(/type the acknowledgment/i)).toBeInTheDocument();
+    });
+    expect(mockAuthFetch).not.toHaveBeenCalledWith(expect.stringContaining('/api/v1/auth/google/connect'));
+
+    await user.type(screen.getByLabelText(/type the acknowledgment/i), ackPhrase);
+    await user.click(screen.getByRole('button', { name: /acknowledge & continue/i }));
 
     await waitFor(() => {
       expect(mockAuthFetch).toHaveBeenCalledWith(expect.stringContaining('/api/v1/auth/google/connect'));
@@ -515,10 +527,13 @@ describe('Settings — CM360 Connect Walkthrough', () => {
   });
 
   it('shows server setup instructions when connect returns 503', async () => {
+    const ackPhrase = 'I understand the live CM360 path is unverified';
     mockAuthFetch
       .mockResolvedValueOnce(createOkResponse(mockUsage))
       .mockResolvedValueOnce(createOkResponse(mockCM360Disconnected))
       .mockResolvedValueOnce(createOkResponse({ connected: false })) // anthropic
+      .mockResolvedValueOnce(createOkResponse({ acknowledged: false, phrase: ackPhrase, warningText: 'The live CM360 path is unverified.' }))
+      .mockResolvedValueOnce(createOkResponse({ acknowledged: true })) // acknowledge
       .mockResolvedValueOnce({ ok: false, status: 503 }); // OAuth not configured
 
     const user = userEvent.setup();
@@ -529,6 +544,12 @@ describe('Settings — CM360 Connect Walkthrough', () => {
     });
 
     await user.click(screen.getByText('Connect CM360 Account'));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/type the acknowledgment/i)).toBeInTheDocument();
+    });
+    await user.type(screen.getByLabelText(/type the acknowledgment/i), ackPhrase);
+    await user.click(screen.getByRole('button', { name: /acknowledge & continue/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/One-time server setup needed/)).toBeInTheDocument();

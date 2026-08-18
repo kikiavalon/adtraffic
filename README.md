@@ -1,10 +1,18 @@
 # AdTraffic.ai — Kiki
 
+[![CI](https://github.com/kikiavalon/adtraffic/actions/workflows/ci.yml/badge.svg)](https://github.com/kikiavalon/adtraffic/actions/workflows/ci.yml)
+[![Security Checks](https://github.com/kikiavalon/adtraffic/actions/workflows/security.yml/badge.svg)](https://github.com/kikiavalon/adtraffic/actions/workflows/security.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![Node.js ≥ 20](https://img.shields.io/badge/Node.js-%E2%89%A5%2020-339933.svg)](https://nodejs.org)
+
 **An open-source conversational trafficking assistant for Google Campaign Manager 360 (CM360).**
 
-Kiki is a complete assistant, not a bare API connector: she pairs the CM360 API with built-in trafficking domain expertise (naming conventions, UTM/click-through resolution, VAST/video), write-safety confirmations, and automated post-write QA — behind a natural-language chat interface and a web app. She is one of the few open tools that can **write** to CM360 (create and update campaigns, placements, ads, creatives, tags), not merely read it.
+Kiki is a complete assistant, not a bare API connector: it pairs the CM360 API with built-in trafficking domain expertise (naming conventions, UTM/click-through resolution, VAST/video), write-safety confirmations, and automated post-write QA — behind a natural-language chat interface and a web app. It is one of the few open tools that can **write** to CM360 (create and update campaigns, placements, ads, creatives, tags), not merely read it.
 
-> _Demo GIF goes here — Claude Desktop driving the MCP server, then the webapp's confirmation gate firing on a write._
+> ⚠️ **The live CM360 path is unverified.** Kiki writes to systems that control
+> real ad spend. All 70 tools are implemented; none has been exercised against
+> Google's production API. Demo mode is the tested experience.
+> **Use at your own risk** — see [DISCLAIMER.md](DISCLAIMER.md).
 
 ## Why this exists
 
@@ -46,7 +54,7 @@ Kiki ships **70 CM360 tools** (validated against CM360 API v5). By design there 
 | **Verified against a real CM360 account** | 0 | the live path has not been, and will not be, exercised against Google's API |
 | **Delete tools** | 0 | by design |
 
-⚠️ **The live CM360 path is beta and has never been exercised against the real API.** Every tool is fully wired, but none has been proven against Google's production CM360. It's provided for those bringing their own Google credentials — treat it as unverified. The demo/mock path is what the test suite exercises and is the supported experience.
+⚠️ **The live CM360 path is beta and has never been exercised against the real API.** Every tool is fully wired, but none has been proven against Google's production CM360. It is provided for those bringing their own Google credentials — treat it as unverified. The demo/mock path is what the test suite exercises and is the supported experience. See [DISCLAIMER.md](DISCLAIMER.md) before connecting a real account.
 
 ## Architecture
 
@@ -85,7 +93,7 @@ To connect Kiki to a real CM360 account you supply your own Google OAuth2 client
 
 ## How it compares
 
-Kiki is a **packaged assistant**, which is a different thing from a **connector**. Open and commercial CM360 connectors expose raw API operations (some read-only, some write-capable — e.g. the open-source [`cesteral/cm360-mcp`](https://github.com/cesteral/mcp-open-advertising), which predates this project) that you wire into your own agent. Kiki bundles the connector *and* the trafficking judgment around it: domain rules, write-safety confirmation, teaching mode, and QA. If you want raw CM360 MCP tools, those connectors may suit you better; if you want an assistant that knows how a campaign should be trafficked and checks its own work, that's Kiki.
+Kiki is a **packaged assistant**, which is a different thing from a **connector**. Open and commercial CM360 connectors expose raw API operations (some read-only, some write-capable — e.g. the open-source [`cesteral/cm360-mcp`](https://github.com/cesteral/mcp-open-advertising), which predates this project) that you wire into your own agent. Kiki bundles the connector *and* the trafficking judgment around it: domain rules, write-safety confirmation, teaching mode, and QA. If you want raw CM360 MCP tools, those connectors may suit you better; if you want an assistant that knows how a campaign should be trafficked and checks its own work, Kiki is built for that.
 
 ## Telemetry
 
@@ -97,6 +105,6 @@ Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code o
 
 A contributor with a real CM360 account validating the live API path is the single most valuable contribution the project can receive — until then, demo mode is the verified experience.
 
-## License & trademarks
+## License, disclaimer & trademarks
 
-Source is licensed under [Apache-2.0](LICENSE). "AdTraffic.ai" and "Kiki" are reserved marks — see [TRADEMARKS.md](TRADEMARKS.md). "Google", "Campaign Manager 360", and "CM360" are trademarks of Google LLC; this project is independent and not affiliated with, endorsed by, or sponsored by Google.
+Source is licensed under [Apache-2.0](LICENSE). The software is provided **as is**, without warranty of any kind — see [DISCLAIMER.md](DISCLAIMER.md) before connecting a real CM360 account. "AdTraffic.ai" and "Kiki" are reserved marks — see [TRADEMARKS.md](TRADEMARKS.md). "Google", "Campaign Manager 360", and "CM360" are trademarks of Google LLC; this project is independent and not affiliated with, endorsed by, or sponsored by Google.

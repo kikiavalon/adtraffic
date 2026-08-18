@@ -37,9 +37,13 @@ npm run build --workspace=shared   # other workspaces build against shared's out
 
 ```bash
 export DEMO_MODE=true
-export ANTHROPIC_API_KEY=sk-ant-...   # optional; without it, Kiki returns canned mock responses
 npm run dev                            # backend on :3001, webapp on :5173
 ```
+
+Kiki uses a per-user Claude API key: after signing up, connect a key from
+[console.anthropic.com](https://console.anthropic.com/settings/keys) under
+**Settings → Claude API**. Chat is disabled until a key is connected; the rest
+of the app (and the MCP server below) needs no key at all.
 
 ### Try the MCP server
 
@@ -88,12 +92,34 @@ npm test --workspace=qa-runner   # 5 e2e tests need Chromium (Playwright)
 - **Line endings are LF** (enforced via `.gitattributes`).
 - Keep `npm run lint` and `npm run typecheck` clean.
 
+## Developer Certificate of Origin (DCO)
+
+Contributions are accepted under the [Developer Certificate of Origin
+1.1](https://developercertificate.org/). By signing off, you certify that you
+wrote the contribution or otherwise have the right to submit it under the
+project's Apache-2.0 license.
+
+Add a `Signed-off-by` line to each commit (git does this for you):
+
+```bash
+git commit -s -m "your message"
+```
+
+which appends:
+
+```
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+Pull requests with unsigned commits will be asked to rebase with `-s` before merge.
+
 ## Submitting a change
 
 1. Fork the repo and create a branch from `main`.
 2. Make your change with tests; run the full gate above until green.
-3. Open a pull request describing **what** changed and **why**. Link any related issue.
-4. CI must pass. A maintainer will review; please be responsive to feedback.
+3. Sign off your commits (`git commit -s` — see DCO above).
+4. Open a pull request describing **what** changed and **why**. Link any related issue.
+5. CI must pass. A maintainer will review; please be responsive to feedback.
 
 ## Reporting bugs & requesting features
 

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ChatMessage, StreamEvent, PendingAction, QARunReport } from '@adtraffic/shared';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { safeMarkdownUrl } from '../utils/markdown-url';
 import type { PluggableList } from 'unified';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.js';
@@ -949,7 +950,7 @@ function Chat() {
                   <div className="chat-message-bubble">
                     <div className="chat-message-sender">Kiki <span className="ai-badge-small" aria-label="AI">AI</span></div>
                     <div className="chat-message-content">
-                      <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents}>
+                      <ReactMarkdown remarkPlugins={remarkPlugins} components={markdownComponents} urlTransform={safeMarkdownUrl}>
                         {showQuickReplies ? parsed.cleanContent : msg.content}
                       </ReactMarkdown>
                     </div>

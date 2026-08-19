@@ -142,13 +142,12 @@ The manifest will be served at `GET /api/v1/agent/manifest` (public, no authenti
       },
       "event_tags": {
         "description": "Manage impression and click tracking pixels",
-        "operations": ["list", "get", "create", "update", "delete"],
+        "operations": ["list", "get", "create", "update"],
         "tools": [
           "cm360_list_event_tags",
           "cm360_get_event_tag",
           "cm360_create_event_tag",
-          "cm360_update_event_tag",
-          "cm360_delete_event_tag"
+          "cm360_update_event_tag"
         ]
       },
       "user_role_management": {

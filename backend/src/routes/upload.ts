@@ -6,6 +6,7 @@ import { logger } from '../lib/logger.js';
 import * as pdfParseModule from 'pdf-parse';
 import ExcelJS from 'exceljs';
 import { cellText } from '../io/excel-processor.js';
+import { assertZipDecompressesWithinLimit } from '../io/zip-guard.js';
 
 const parsePdf = (pdfParseModule as unknown as { default: (buffer: Buffer) => Promise<{ text: string }> }).default;
 
@@ -77,6 +78,7 @@ async function handleFileExtraction(req: Request, res: Response): Promise<void> 
       req.file.mimetype.includes('excel')
     ) {
       const workbook = new ExcelJS.Workbook();
+      await assertZipDecompressesWithinLimit(req.file.buffer);
       await workbook.xlsx.load(req.file.buffer as unknown as ExcelJS.Buffer);
       extractedText = workbook.worksheets
         .map((sheet) => sheetToCsv(sheet))

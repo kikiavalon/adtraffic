@@ -14,9 +14,9 @@ const router = Router();
  * Response shape: the top-level fields are Claude API usage (backward compatible),
  * plus a `google` object with today's outbound CM360 API request count.
  */
-router.get('/usage', requireAuth, featureFlagsMiddleware, async (_req, res) => {
+router.get('/usage', requireAuth, featureFlagsMiddleware, async (req, res) => {
   const [claude, google] = await Promise.all([
-    getUsageSummary(),
+    getUsageSummary(req.user!.userId),
     getGoogleUsageSummary(),
   ]);
   res.json({ ...claude, google });

@@ -4,8 +4,9 @@ import { createCipheriv, createDecipheriv, randomBytes, createHash } from 'crypt
  * AES-256-GCM encryption utilities for OAuth token storage.
  *
  * Tokens are encrypted at rest in the database. The encryption key is sourced
- * from the ENCRYPTION_KEY environment variable. In development, falls back to
- * a key derived from JWT_SECRET (NOT recommended for production).
+ * from the ENCRYPTION_KEY environment variable. In development/test only, it
+ * falls back to a key derived from JWT_SECRET; every other environment must set
+ * ENCRYPTION_KEY.
  *
  * Encrypted format: `<iv_hex>:<authTag_hex>:<ciphertext_hex>`
  *
@@ -24,9 +25,9 @@ const AUTH_TAG_LENGTH = 16; // 128-bit auth tag
  *
  * Priority:
  *   1. ENCRYPTION_KEY env var (must be exactly 64 hex chars = 32 bytes)
- *   2. SHA-256 hash of JWT_SECRET (dev fallback only)
+ *   2. SHA-256 hash of JWT_SECRET (development/test fallback only)
  *
- * Throws in production if ENCRYPTION_KEY is not set.
+ * Throws unless NODE_ENV is "development" or "test" when ENCRYPTION_KEY is unset.
  */
 function getEncryptionKey(): Buffer {
   const envKey = process.env.ENCRYPTION_KEY;
@@ -42,10 +43,15 @@ function getEncryptionKey(): Buffer {
     return Buffer.from(envKey, 'hex');
   }
 
-  // Fallback: derive from JWT_SECRET (dev only)
-  if (process.env.NODE_ENV === 'production') {
+  // Fallback: derive the key from JWT_SECRET. This reuses one secret for two
+  // purposes, so it is only safe for an explicit development or test run. Any
+  // other environment — including an unset NODE_ENV, "staging", or a misspelled
+  // "Production" — must supply a distinct ENCRYPTION_KEY rather than silently
+  // encrypting stored OAuth/API credentials with the signing secret. (Mirrors
+  // getJwtSecret's gate.)
+  if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
     throw new Error(
-      'ENCRYPTION_KEY must be set in production. ' +
+      'ENCRYPTION_KEY must be set unless NODE_ENV is "development" or "test". ' +
       'Generate one with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
     );
   }

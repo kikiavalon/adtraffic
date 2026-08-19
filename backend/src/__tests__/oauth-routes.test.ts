@@ -181,6 +181,22 @@ describe('OAuth Routes', () => {
       expect(res.status).toBe(403);
       expect(res.body.error).toContain('tampered');
     });
+
+    it('should return 403 when a validly-signed state is expired (replay bound)', async () => {
+      const app = createApp();
+      const { createHmac } = await import('node:crypto');
+
+      // A correctly HMAC-signed state whose issued-at is older than the 10-minute window.
+      const payloadObj = { nonce: 'a'.repeat(64), userId: 'user-123', iat: Date.now() - 11 * 60 * 1000 };
+      const payload = Buffer.from(JSON.stringify(payloadObj)).toString('base64url');
+      const hmac = createHmac('sha256', process.env.JWT_SECRET!).update(payload).digest('base64url');
+      const expiredState = `${payload}.${hmac}`;
+
+      const res = await request(app)
+        .get(`/api/v1/auth/google/callback?code=test&state=${encodeURIComponent(expiredState)}`);
+
+      expect(res.status).toBe(403);
+    });
   });
 
   describe('GET /api/v1/auth/google/status', () => {

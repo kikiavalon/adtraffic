@@ -1,28 +1,27 @@
 /**
  * Database migration runner.
  *
- * Runs Drizzle ORM migrations against PostgreSQL, then exits.
- * Designed to run as a Docker init container before backend instances start.
+ * Applies pending Drizzle migrations from backend/drizzle against PostgreSQL,
+ * then exits. Runs as a Docker init container before the backend starts.
  *
- * Usage:
- *   node backend/dist/db/migrate.js
- *
- * Uses drizzle-kit push for schema synchronization.
- * For file-based migrations, use:
- *   import { migrate } from 'drizzle-orm/postgres-js/migrator';
- *   await migrate(db, { migrationsFolder: './drizzle' });
+ * Usage: node backend/dist/db/migrate.js
+ * After changing src/db/schema.ts, generate a migration:
+ *   npm run db:generate --workspace=backend
  */
 
+import { fileURLToPath } from 'node:url';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
+import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import pino from 'pino';
-import * as schema from './schema.js';
 
 const logger = pino({ name: 'adtraffic-migrate' });
 
-async function runMigrations(): Promise<void> {
-  logger.info('Running database migrations...');
+// Migrations are shipped in backend/drizzle, resolved relative to this module so
+// the path holds whether run from source (tsx) or the compiled dist/ output.
+const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url));
 
+async function runMigrations(): Promise<void> {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     logger.error('DATABASE_URL environment variable must be set');
@@ -35,29 +34,20 @@ async function runMigrations(): Promise<void> {
   });
 
   try {
-    // Verify database connectivity
-    const result = await sql`SELECT current_database() as db, version() as version`;
-    logger.info({ db: result[0]?.db }, 'Connected to PostgreSQL');
-
-    // Instantiate drizzle to verify schema compatibility
-    const db = drizzle(sql, { schema });
-
-    // Verify tables exist by running a simple query against the users table
-    try {
-      const users = await db.select().from(schema.users).limit(1);
-      logger.info({ sampleRows: users.length }, 'Users table accessible');
-    } catch {
-      logger.info('Users table not found — run drizzle-kit push');
-    }
-
-    logger.info('Migration check complete');
+    const db = drizzle(sql);
+    logger.info({ migrationsFolder }, 'Applying database migrations...');
+    await migrate(db, { migrationsFolder });
+    logger.info('Migrations applied');
   } catch (err) {
-    logger.error({ err: { message: err instanceof Error ? err.message : 'Unknown error' } }, 'Migration failed');
-    process.exit(1);
-  } finally {
+    logger.error(
+      { err: { message: err instanceof Error ? err.message : 'Unknown error' } },
+      'Migration failed',
+    );
     await sql.end();
+    process.exit(1);
   }
 
+  await sql.end();
   process.exit(0);
 }
 

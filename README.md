@@ -87,6 +87,12 @@ npm test --workspace=backend
 
 `qa-runner`'s 5 end-to-end tests need Chromium (Playwright). See [CONTRIBUTING.md](CONTRIBUTING.md) for the full setup.
 
+## Database schema & migrations
+
+The schema lives in `backend/src/db/schema.ts`. Versioned migrations are generated into `backend/drizzle/` and applied by the `migrate` step of `docker compose up` (or `npm run db:migrate --workspace=backend` against a built backend). After changing the schema, run `npm run db:generate --workspace=backend` and commit the new files.
+
+The `drizzle-kit push` shown above is a quick path for throwaway dev/test databases; it creates tables without recording the migration ledger. If you have a persistent database that was created with `drizzle-kit push` and want to switch it to the migrate flow, drop and recreate it (or baseline the ledger), since the migrator will otherwise try to recreate existing tables.
+
 ## Using the live CM360 API (bring your own credentials)
 
 To connect Kiki to a real CM360 account you supply your own Google OAuth2 client (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI`) and complete the in-app consent flow. Note Google's rules: the `dfatrafficking` and `dfareporting` scopes are **sensitive**, so an unverified OAuth app is capped at 100 users until it passes Google's verification review. See [docs/PRD-capabilities.md](docs/PRD-capabilities.md) for the CM360 v5 architecture details.

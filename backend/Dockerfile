@@ -25,6 +25,7 @@ COPY --from=builder /app/shared/package.json ./shared/
 COPY --from=builder /app/shared/dist/ ./shared/dist/
 COPY --from=builder /app/backend/package.json ./backend/
 COPY --from=builder /app/backend/dist/ ./backend/dist/
+COPY --from=builder /app/backend/drizzle/ ./backend/drizzle/
 
 # Install production dependencies only
 RUN npm ci --omit=dev --workspace=shared --workspace=backend

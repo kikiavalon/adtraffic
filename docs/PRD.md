@@ -388,7 +388,7 @@ This is the core workflow — the reason someone buys AdTraffic.ai.
 | **Input validation** | All tool inputs validated with Zod on backend before CM360 API calls. |
 | **Rate limiting** | Respect CM360's 100 queries/100 seconds. Server-side queue and pace for bulk operations. |
 | **Error handling** | Clear, actionable error messages. Never expose raw API errors, stack traces, or internal state. |
-| **RBAC (v1.5)** | Role-based access: Admin (full write), Trafficker (write with approval), Viewer (read-only). Enforced server-side. |
+| **RBAC** | Three server-side roles, enforced by per-permission middleware: **admin** (full write, user management, approves others), **senior** (full write, approves others, no user management), **junior** (reads and submits writes to the approval queue — no direct writes). |
 | **Audit trail** | Every CM360 write operation logged server-side: who, what, when, result. Available for enterprise compliance export. |
 | **SOC 2 path** | Architecture designed for SOC 2 Type II from day one: encrypted data, access controls, audit logging, incident response procedures. Certification targeted pre-enterprise sales. |
 | **Companion extension** | Minimal permissions: `activeTab` (detect CM360 pages), `storage` (user preferences). No `identity`, no `host_permissions`. All sensitive operations happen on the web app/backend. |

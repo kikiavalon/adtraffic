@@ -137,6 +137,15 @@ router.post('/approvals/:id/approve', requireAuth, requirePermission('canApprove
       return;
     }
 
+    // Segregation of duties: a requester may not approve their own request. The
+    // approve queue is guarded by the canApproveOthers permission, which no
+    // requester role holds today, but enforce identity here so the four-eyes
+    // control does not depend on the role table staying disjoint.
+    if (approval.requesterId === approverId) {
+      res.status(403).json({ error: 'You cannot approve your own request' });
+      return;
+    }
+
     // Destructive operations require typed confirmation
     if (approval.actionPayload.riskLevel === 'destructive') {
       const expectedPhrase = approval.actionPayload.preview.operation.toUpperCase();
@@ -279,6 +288,12 @@ router.post('/approvals/:id/reject', requireAuth, requirePermission('canApproveO
     const approval = await getApprovalById(approvalId);
     if (!approval || approval.status !== 'pending') {
       res.status(404).json({ error: 'Approval not found or already resolved' });
+      return;
+    }
+
+    // Segregation of duties: a requester may not resolve their own request.
+    if (approval.requesterId === approverId) {
+      res.status(403).json({ error: 'You cannot reject your own request' });
       return;
     }
 

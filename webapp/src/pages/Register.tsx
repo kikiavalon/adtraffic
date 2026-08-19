@@ -16,7 +16,7 @@ function Register() {
     setError('');
     try {
       await register(email, password, name);
-      navigate('/');
+      void navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
     }
@@ -30,7 +30,7 @@ function Register() {
 
         {error && <div className="auth-error" role="alert">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={(e) => void handleSubmit(e)} className="auth-form">
           <label className="auth-label">
             Name
             <input

@@ -10,6 +10,16 @@ interface Conversation {
   updatedAt: string;
 }
 
+type ConversationMessage = { id: string; role: string; content: string; timestamp: number };
+
+interface ConversationListResponse {
+  conversations: Conversation[];
+}
+
+interface ConversationMessagesResponse {
+  messages: ConversationMessage[];
+}
+
 interface ConversationSidebarProps {
   currentConversationId: string;
   onSelectConversation: (id: string, messages: Array<{ id: string; role: string; content: string; timestamp: number }>) => void;
@@ -34,21 +44,21 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
     try {
       const res = await authFetch(`${API_URL}/api/v1/conversations`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as ConversationListResponse;
         setConversations(data.conversations);
       }
     } catch { /* ignore */ }
   }, [authFetch]);
 
   useEffect(() => {
-    loadConversations();
+    void loadConversations();
   }, [loadConversations, refreshKey]);
 
   const handleSelect = async (convId: string) => {
     try {
       const res = await authFetch(`${API_URL}/api/v1/conversations/${convId}/messages`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as ConversationMessagesResponse;
         onSelectConversation(convId, data.messages);
         if (!isWide) setIsOpen(false);
       }
@@ -65,7 +75,7 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
       if (res.ok) {
         sessionStorage.removeItem(`adtraffic-messages-${convId}`);
         if (convId === currentConversationId) onNewChat();
-        loadConversations();
+        void loadConversations();
       }
     } catch { /* ignore */ }
   };
@@ -121,7 +131,7 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
               <div key={conv.id} className="sidebar-item-row">
                 <button
                   className={`sidebar-item ${conv.id === currentConversationId ? 'sidebar-item-active' : ''}`}
-                  onClick={() => handleSelect(conv.id)}
+                  onClick={() => void handleSelect(conv.id)}
                 >
                   <span className="sidebar-item-title">{conv.title ?? 'New conversation'}</span>
                   <span className="sidebar-item-date">
@@ -130,7 +140,7 @@ function ConversationSidebar({ currentConversationId, onSelectConversation, onNe
                 </button>
                 <button
                   className="sidebar-item-delete"
-                  onClick={() => handleDelete(conv.id, conv.title)}
+                  onClick={() => void handleDelete(conv.id, conv.title)}
                   aria-label={`Delete conversation ${conv.title ?? 'New conversation'}`}
                   title="Delete conversation"
                 >

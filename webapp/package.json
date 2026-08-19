@@ -10,7 +10,9 @@
     "build": "node scripts/generate-icons.mjs && tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run --passWithNoTests",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@adtraffic/shared": "*",

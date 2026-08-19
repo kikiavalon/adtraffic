@@ -15,7 +15,7 @@ function Login() {
     setError('');
     try {
       await login(email, password);
-      navigate('/');
+      void navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     }
@@ -29,7 +29,7 @@ function Login() {
 
         {error && <div className="auth-error" role="alert">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-form">
+        <form onSubmit={(e) => void handleSubmit(e)} className="auth-form">
           <label className="auth-label">
             Email
             <input

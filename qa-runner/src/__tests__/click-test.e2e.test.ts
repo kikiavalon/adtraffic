@@ -28,6 +28,16 @@ describe.skipIf(!browsersAvailable())('runClickTest against local fixtures', () 
     };
   }
 
+  it('blocks a click-through to a host that is not allowlisted (SSRF egress guard)', async () => {
+    // Same local fixture, but the runner is NOT told to trust it — mirrors the
+    // live path, where a user-controlled click-through resolves to an internal
+    // address. The egress guard must abort the fetch so the chain never reaches
+    // the target.
+    const result = await runClickTest(job('/click', { allowInsecureHosts: [] }), { settleMs: 800 });
+    const summary = result.checks.find((c) => c.checkKey.startsWith('clickthrough.click_test'));
+    expect(summary?.status).toBe('fail');
+  }, 30_000);
+
   it('traces a 302 chain end-to-end with evidence', async () => {
     const result = await runClickTest(job('/click'), { settleMs: 800 });
     const summary = result.checks.find((c) => c.checkKey === 'clickthrough.click_test.ad:9001');

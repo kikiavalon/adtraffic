@@ -15,6 +15,7 @@ import type { QAClickTestJob, QAClickTestResult } from '@adtraffic/shared';
 import { buildChainTrace, HOP_CAP, type RawNavigationEvent } from './chain-tracer.js';
 import { deriveClickChecks } from './checks.js';
 import { buildHarnessHtml } from './harness.js';
+import { assertEgressAllowed } from './egress-guard.js';
 
 export interface RunClickTestOptions {
   timeoutMs?: number;
@@ -58,7 +59,18 @@ export async function runClickTest(
     // post-hoc response.text() can read it. maxRedirects:0 keeps each 3xx hop
     // visible to the browser so the redirect chain is preserved.
     const htmlBodies = new Map<string, string>();
+    const allowHosts = job.allowInsecureHosts ?? [];
     await context.route('**/*', async (route) => {
+      // Guard every hop (initial nav, 3xx/meta/JS redirects, subresources): a
+      // user-controlled click-through must never be fetched if it resolves to a
+      // loopback/link-local/private/metadata address. Local fixtures opt in via
+      // allowInsecureHosts.
+      try {
+        await assertEgressAllowed(route.request().url(), allowHosts);
+      } catch {
+        await route.abort('addressunreachable').catch(() => undefined);
+        return;
+      }
       try {
         const fetched = await route.fetch({ maxRedirects: 0 });
         const contentType = fetched.headers()['content-type'] ?? '';

@@ -216,10 +216,10 @@ The manifest will be served at `GET /api/v1/agent/manifest` (public, no authenti
   },
 
   "data_processing": {
-    "campaign_data_retention": "none",
-    "campaign_data_stored": false,
-    "campaign_data_explanation": "CM360 campaign data transits our servers for API execution but is never persisted, cached, or stored beyond the API call lifecycle. Data flows from the user's authorized CM360 account through our backend to the CM360 API and back.",
-    "conversation_retention": "90_days_default_configurable",
+    "campaign_data_retention": "transient_in_pending_actions_qa_runs_and_conversation_logs",
+    "campaign_data_stored": true,
+    "campaign_data_explanation": "CM360 campaign data transits the server for API execution and is not cached or used for advertising. Campaign details appear in stored conversation logs, and pending write actions and QA runs temporarily retain the campaign fields they operate on.",
+    "conversation_retention": "until_deleted_no_automatic_purge",
     "oauth_token_storage": "encrypted_at_rest_aes256gcm",
     "training_data_usage": "never",
     "training_data_explanation": "Customer data, including CM360 campaign data and conversation content, is never used to train, fine-tune, or improve any machine learning models, AI systems, or algorithms. This applies to both AdTraffic.ai's systems and third-party AI providers.",
@@ -264,19 +264,16 @@ The manifest will be served at `GET /api/v1/agent/manifest` (public, no authenti
     "gdpr": {
       "status": "aware",
       "measures": [
-        "Data export capability for user conversations",
-        "Account deletion with cascade to all user data",
         "Minimal data collection (only what's needed for service)",
-        "Data processing limited to EU-compliant regions",
-        "Right to erasure supported"
+        "Data export, account deletion, and erasure are operator-assisted on a self-hosted instance; in-app self-service is not yet implemented"
       ]
     },
     "ccpa": {
       "status": "aware",
       "measures": [
         "Do not sell personal information",
-        "Right to know what data is collected",
-        "Right to delete personal data",
+        "Right to know what data is collected (disclosed in the privacy policy)",
+        "Deletion of personal data is operator-assisted; in-app self-service is not yet implemented",
         "Right to opt-out (account disconnection)"
       ]
     },

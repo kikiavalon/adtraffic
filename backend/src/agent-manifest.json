@@ -56,9 +56,9 @@
     }
   },
   "data_processing": {
-    "campaign_data_stored": false,
-    "campaign_data_explanation": "CM360 campaign data transits our servers for API execution but is never persisted beyond the API call lifecycle.",
-    "conversation_retention": "90_days_default_configurable",
+    "campaign_data_stored": true,
+    "campaign_data_explanation": "CM360 campaign data transits the server for API execution and is not cached or used for advertising. Campaign details appear in stored conversation logs, and pending write actions and QA runs temporarily retain the campaign fields they operate on.",
+    "conversation_retention": "until_deleted_no_automatic_purge",
     "oauth_token_encryption": "AES-256-GCM",
     "training_data_usage": "never",
     "training_data_explanation": "Customer data is never used to train, fine-tune, or improve any AI models or algorithms.",

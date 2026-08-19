@@ -106,6 +106,24 @@ describe('CreateAdInputSchema click-through fields', () => {
   });
 });
 
+describe('UpdateAdInputSchema date validation', () => {
+  const base = { profileId: PROFILE_ID, adId: '1' };
+
+  it('accepts RFC3339 datetimes with a Z or numeric offset', () => {
+    expect(UpdateAdInputSchema.safeParse({ ...base, startTime: '2026-01-01T00:00:00Z' }).success).toBe(true);
+    expect(
+      UpdateAdInputSchema.safeParse({ ...base, startTime: '2026-01-01T00:00:00-08:00', endTime: '2026-06-01T12:30:00Z' }).success,
+    ).toBe(true);
+  });
+
+  it('rejects malformed or date-only start/end times', () => {
+    for (const bad of ['not-a-date', '2026-13-45T00:00:00Z', '2026-01-01', 'tomorrow', '']) {
+      expect(UpdateAdInputSchema.safeParse({ ...base, startTime: bad }).success, bad).toBe(false);
+      expect(UpdateAdInputSchema.safeParse({ ...base, endTime: bad }).success, bad).toBe(false);
+    }
+  });
+});
+
 describe('UpdateAdInputSchema click-through fields', () => {
   it('accepts landingPageId, customClickThroughUrl, and suffix individually', () => {
     const base = { profileId: PROFILE_ID, adId: '1' };

@@ -5,7 +5,11 @@ import ExcelJS from 'exceljs';
 import { assertZipDecompressesWithinLimit } from '../io/zip-guard.js';
 import { processExcel } from '../io/excel-processor.js';
 
-const BOMB = Buffer.alloc(220 * 1024 * 1024); // 220 MB of zeros -> a few KB compressed
+// A small bomb (compresses to a few KB) plus an injected small cap proves the
+// streaming guard aborts once decompressed output exceeds the limit — without
+// inflating hundreds of megabytes, which timed out on slower CI runners.
+const BOMB = Buffer.alloc(6 * 1024 * 1024); // 6 MB of zeros -> a few KB compressed
+const TEST_MAX_BYTES = 2 * 1024 * 1024; // 2 MB cap for the rejection tests
 
 /** Local file record + central directory header for one DEFLATE entry. */
 function bombRecords(name: string, content: Buffer, localOffset: number): { local: Buffer; cdh: Buffer } {
@@ -60,7 +64,7 @@ describe('assertZipDecompressesWithinLimit', () => {
     const zip = new JSZip();
     zip.file('xl/worksheets/sheet1.xml', BOMB);
     const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
-    await expect(assertZipDecompressesWithinLimit(buffer)).rejects.toThrow(/too large/i);
+    await expect(assertZipDecompressesWithinLimit(buffer, TEST_MAX_BYTES)).rejects.toThrow(/too large/i);
   });
 
   it('rejects a bomb appended past the EOCD entry count (enumeration parity with JSZip)', async () => {
@@ -69,7 +73,7 @@ describe('assertZipDecompressesWithinLimit', () => {
     const parsed = await JSZip.loadAsync(evil);
     expect(Object.keys(parsed.files)).toContain('xl/BOMB.xml');
     // ...so the guard, using the same enumeration, must reject it.
-    await expect(assertZipDecompressesWithinLimit(evil)).rejects.toThrow(/too large/i);
+    await expect(assertZipDecompressesWithinLimit(evil, TEST_MAX_BYTES)).rejects.toThrow(/too large/i);
   });
 
   it('does not throw on a non-ZIP buffer (leaves rejection to the parser)', async () => {

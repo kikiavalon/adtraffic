@@ -52,9 +52,12 @@ function createOAuth2Client(): OAuth2Client {
  * Sign a state payload with HMAC-SHA256.
  * Payload format: base64url({nonce, userId}) + "." + hmac_signature
  */
+/** Maximum age of a signed OAuth state, bounding replay of a captured value. */
+const MAX_STATE_AGE_MS = 10 * 60 * 1000; // 10 minutes
+
 function signState(userId: string): string {
   const nonce = randomBytes(32).toString('hex');
-  const payload = Buffer.from(JSON.stringify({ nonce, userId })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({ nonce, userId, iat: Date.now() })).toString('base64url');
   const hmac = createHmac('sha256', getHmacSecret()).update(payload).digest('base64url');
   return `${payload}.${hmac}`;
 }
@@ -67,15 +70,24 @@ function verifyState(state: string): { userId: string } | null {
   const [payload, signature] = state.split('.');
   if (!payload || !signature) return null;
 
+  // Constant-time HMAC comparison so response timing does not leak how much of a
+  // forged signature is correct.
   const expected = createHmac('sha256', getHmacSecret()).update(payload).digest('base64url');
-  if (expected !== signature) return null;
+  const expectedBuf = Buffer.from(expected);
+  const signatureBuf = Buffer.from(signature);
+  if (expectedBuf.length !== signatureBuf.length || !crypto.timingSafeEqual(expectedBuf, signatureBuf)) {
+    return null;
+  }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString()) as {
+      userId?: unknown;
+      nonce?: unknown;
+      iat?: unknown;
+    };
     if (typeof data.userId !== 'string' || typeof data.nonce !== 'string') return null;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    // Reject expired states to bound replay of a captured value.
+    if (typeof data.iat !== 'number' || Date.now() - data.iat > MAX_STATE_AGE_MS) return null;
     return { userId: data.userId };
   } catch {
     return null;

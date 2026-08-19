@@ -61,29 +61,34 @@ export async function getCM360Client(userId: string): Promise<dfareporting_v5.Df
 
   // 4. Listen for token refresh events — Google may rotate the refresh token
   oauth2Client.on('tokens', (tokens) => {
-    try {
-      const updates: Record<string, unknown> = {
-        updatedAt: new Date(),
-      };
+    // The persist is async; run it in an awaited scope so a DB failure is actually
+    // caught and logged. A bare `void db.update(...)` inside the try/catch would
+    // let a rejected write escape as an unhandled promise rejection.
+    void (async () => {
+      try {
+        const updates: Record<string, unknown> = {
+          updatedAt: new Date(),
+        };
 
-      if (tokens.access_token) {
-        updates.accessToken = encrypt(tokens.access_token);
-      }
-      if (tokens.refresh_token) {
-        // Google rotated the refresh token — persist the new one immediately
-        updates.refreshToken = encrypt(tokens.refresh_token);
-      }
-      if (tokens.expiry_date) {
-        updates.expiresAt = new Date(tokens.expiry_date);
-      }
+        if (tokens.access_token) {
+          updates.accessToken = encrypt(tokens.access_token);
+        }
+        if (tokens.refresh_token) {
+          // Google rotated the refresh token — persist the new one immediately
+          updates.refreshToken = encrypt(tokens.refresh_token);
+        }
+        if (tokens.expiry_date) {
+          updates.expiresAt = new Date(tokens.expiry_date);
+        }
 
-      void db.update(schema.oauthTokens)
-        .set(updates)
-        .where(eq(schema.oauthTokens.userId, userId));
-    } catch (err) {
-      // Log but don't throw — the API call should still proceed with the current tokens
-      logger.error({ err: { message: err instanceof Error ? err.message : 'Unknown error' } }, '[cm360] Failed to persist refreshed tokens');
-    }
+        await db.update(schema.oauthTokens)
+          .set(updates)
+          .where(eq(schema.oauthTokens.userId, userId));
+      } catch (err) {
+        // Log but don't throw — the API call should still proceed with the current tokens
+        logger.error({ err: { message: err instanceof Error ? err.message : 'Unknown error' } }, '[cm360] Failed to persist refreshed tokens');
+      }
+    })();
   });
 
   // 5. Create and return the dfareporting client

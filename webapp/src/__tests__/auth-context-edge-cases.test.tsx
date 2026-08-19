@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, act } from '@testing-library/react';
+import { render, act, waitFor } from '@testing-library/react';
 import { AuthProvider, useAuth } from '../auth/AuthContext.js';
 
 function TestConsumer({ onAuth }: { onAuth: (auth: ReturnType<typeof useAuth>) => void }) {
@@ -8,7 +8,7 @@ function TestConsumer({ onAuth }: { onAuth: (auth: ReturnType<typeof useAuth>) =
   return (
     <div>
       <span data-testid="user-name">{auth.user?.name ?? 'none'}</span>
-      <span data-testid="token">{auth.token ?? 'none'}</span>
+      <span data-testid="authed">{String(auth.isAuthenticated)}</span>
       <span data-testid="flags">{auth.featureFlags ? JSON.stringify(auth.featureFlags) : 'none'}</span>
     </div>
   );
@@ -28,41 +28,45 @@ function renderWithAuth() {
 const mockUser = { id: 'u1', email: 'test@agency.com', name: 'Test User' };
 const mockToken = 'jwt-token-123';
 
+type FetchStub = ReturnType<typeof vi.fn>;
+
+function jsonRes(body: unknown, ok = true, status = ok ? 200 : 400) {
+  return { ok, status, json: () => Promise.resolve(body) };
+}
+
+function stubFetch(overrides: Array<[string, () => unknown]> = []): FetchStub {
+  const fn = vi.fn((url: string) => {
+    for (const [needle, resp] of overrides) {
+      if (url.includes(needle)) return Promise.resolve(resp());
+    }
+    if (url.includes('/auth/me')) return Promise.resolve(jsonRes({}, false, 401));
+    return Promise.resolve(jsonRes({ flags: {}, connected: false }));
+  });
+  vi.stubGlobal('fetch', fn);
+  return fn;
+}
+
+async function renderReady() {
+  const utils = renderWithAuth();
+  await waitFor(() => expect(utils.getAuth().authReady).toBe(true));
+  return utils;
+}
+
 describe('AuthContext edge cases', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn());
+    stubFetch();
   });
 
-  it('handles corrupt JSON in localStorage gracefully', () => {
-    localStorage.setItem('adtraffic-user', '{invalid json}');
-    localStorage.setItem('adtraffic-token', mockToken);
-
-    const { getAuth } = renderWithAuth();
-
-    // Should fall through to null rather than crashing
+  it('stays logged out when the initial session check fails', async () => {
+    stubFetch([['/auth/me', () => { throw new Error('network'); }]]);
+    const { getAuth } = await renderReady();
     expect(getAuth().user).toBeNull();
-    // Token is just a string, no JSON parsing needed
-    expect(getAuth().token).toBe(mockToken);
+    expect(getAuth().isAuthenticated).toBe(false);
   });
 
-  it('handles empty localStorage values', () => {
-    localStorage.setItem('adtraffic-user', '');
-    localStorage.setItem('adtraffic-token', '');
-
-    const { getAuth } = renderWithAuth();
-
-    // Empty strings: user parse will fail, token is falsy
-    expect(getAuth().user).toBeNull();
-  });
-
-  it('authFetch preserves existing custom headers', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
-    vi.stubGlobal('fetch', fetchMock);
-
-    localStorage.setItem('adtraffic-token', mockToken);
-    localStorage.setItem('adtraffic-user', JSON.stringify(mockUser));
-
-    const { getAuth } = renderWithAuth();
+  it('authFetch preserves custom headers and includes credentials', async () => {
+    const fetchMock = stubFetch();
+    const { getAuth } = await renderReady();
 
     await act(async () => {
       await getAuth().authFetch('/api/test', {
@@ -70,166 +74,113 @@ describe('AuthContext edge cases', () => {
       });
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      '/api/test',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          'Content-Type': 'application/json',
-          'X-Custom': 'value',
-          Authorization: `Bearer ${mockToken}`,
-        }),
-      })
-    );
+    const call = fetchMock.mock.calls.find((c) => c[0] === '/api/test');
+    expect(call).toBeDefined();
+    expect(call![1]).toEqual(expect.objectContaining({ credentials: 'include' }));
+    expect((call![1] as RequestInit).headers).toEqual(expect.objectContaining({
+      'Content-Type': 'application/json',
+      'X-Custom': 'value',
+    }));
   });
 
-  it('authFetch works without token (no Authorization header)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200 });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { getAuth } = renderWithAuth();
+  it('authFetch never sends an Authorization header', async () => {
+    const fetchMock = stubFetch();
+    const { getAuth } = await renderReady();
 
     await act(async () => {
       await getAuth().authFetch('/api/public');
     });
 
-    // Should not have Authorization header
-    const callHeaders = fetchMock.mock.calls[0]![1]!.headers;
-    expect(callHeaders).not.toHaveProperty('Authorization');
+    const call = fetchMock.mock.calls.find((c) => c[0] === '/api/public');
+    const headers = (call![1] as RequestInit).headers as Record<string, string>;
+    expect(headers?.['Authorization']).toBeUndefined();
   });
 
-  it('authFetch does not clear auth on non-401 errors', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
-
-    localStorage.setItem('adtraffic-token', mockToken);
-    localStorage.setItem('adtraffic-user', JSON.stringify(mockUser));
-
-    const { getAuth } = renderWithAuth();
-    expect(getAuth().token).toBe(mockToken);
+  it('authFetch does not clear the session on non-401 errors', async () => {
+    stubFetch([
+      ['/auth/me', () => jsonRes({ user: mockUser })],
+      ['/api/test', () => jsonRes({}, false, 500)],
+    ]);
+    const { getAuth } = await renderReady();
+    expect(getAuth().isAuthenticated).toBe(true);
 
     await act(async () => {
       await getAuth().authFetch('/api/test');
     });
 
-    // Token should still be set — only 401 clears it
-    expect(getAuth().token).toBe(mockToken);
+    expect(getAuth().isAuthenticated).toBe(true);
     expect(getAuth().user).toEqual(mockUser);
   });
 
-  it('logout clears featureFlags', async () => {
-    // Set up authenticated state with flags
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ token: mockToken, user: mockUser }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ flags: { 'chat.enabled': true } }),
-      });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { getAuth } = renderWithAuth();
+  it('logout clears featureFlags and user', async () => {
+    stubFetch([
+      ['/auth/login', () => jsonRes({ token: mockToken, user: mockUser })],
+      ['/feature-flags', () => jsonRes({ flags: { 'chat.enabled': true } })],
+    ]);
+    const { getAuth } = await renderReady();
 
     await act(async () => {
       await getAuth().login('test@agency.com', 'password123');
     });
+    await waitFor(() => expect(getAuth().featureFlags).not.toBeNull());
 
-    // Now logout
     act(() => {
       getAuth().logout();
     });
 
     expect(getAuth().featureFlags).toBeNull();
     expect(getAuth().user).toBeNull();
-    expect(getAuth().token).toBeNull();
+    expect(getAuth().isAuthenticated).toBe(false);
   });
 
-  it('login triggers feature flags fetch', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ token: mockToken, user: mockUser }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ flags: { 'chat.enabled': true, 'limits.daily_api_requests': 100 } }),
-      });
-    vi.stubGlobal('fetch', fetchMock);
+  it('login triggers a feature-flags fetch with credentials and no Authorization header', async () => {
+    const fetchMock = stubFetch([
+      ['/auth/login', () => jsonRes({ token: mockToken, user: mockUser })],
+      ['/feature-flags', () => jsonRes({ flags: { 'chat.enabled': true, 'limits.daily_api_requests': 100 } })],
+    ]);
+    const { getAuth } = await renderReady();
 
-    const { getAuth } = renderWithAuth();
+    await act(async () => {
+      await getAuth().login('test@agency.com', 'password123');
+    });
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/api/v1/feature-flags'))).toBe(true);
+    });
+
+    const flagsCall = fetchMock.mock.calls.find((c) => String(c[0]).includes('/api/v1/feature-flags'));
+    expect(flagsCall![1]).toEqual(expect.objectContaining({ credentials: 'include' }));
+    const headers = (flagsCall![1] as RequestInit | undefined)?.headers as Record<string, string> | undefined;
+    expect(headers?.['Authorization']).toBeUndefined();
+  });
+
+  it('feature-flags fetch failure is silent (does not crash)', async () => {
+    stubFetch([
+      ['/auth/login', () => jsonRes({ token: mockToken, user: mockUser })],
+      ['/feature-flags', () => { throw new Error('Network error'); }],
+    ]);
+    const { getAuth } = await renderReady();
 
     await act(async () => {
       await getAuth().login('test@agency.com', 'password123');
     });
 
-    // Wait for flags fetch
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-    });
-
-    // Flags should be fetched (second call to fetch)
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/feature-flags'),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: `Bearer ${mockToken}`,
-        }),
-      })
-    );
-  });
-
-  it('feature flags fetch failure is silent (does not crash)', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ token: mockToken, user: mockUser }),
-      })
-      .mockRejectedValueOnce(new Error('Network error')); // flags fetch fails
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { getAuth } = renderWithAuth();
-
-    await act(async () => {
-      await getAuth().login('test@agency.com', 'password123');
-    });
-
-    // Wait for failed flags fetch
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-    });
-
-    // Should not crash — featureFlags remains null
     expect(getAuth().featureFlags).toBeNull();
-    // User should still be logged in
     expect(getAuth().user).toEqual(mockUser);
   });
 
-  it('register triggers feature flags fetch', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ token: mockToken, user: mockUser }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ flags: { 'chat.enabled': true } }),
-      });
-    vi.stubGlobal('fetch', fetchMock);
-
-    const { getAuth } = renderWithAuth();
+  it('register triggers a feature-flags fetch', async () => {
+    const fetchMock = stubFetch([
+      ['/auth/register', () => jsonRes({ token: mockToken, user: mockUser }, true, 201)],
+      ['/feature-flags', () => jsonRes({ flags: { 'chat.enabled': true } })],
+    ]);
+    const { getAuth } = await renderReady();
 
     await act(async () => {
       await getAuth().register('test@agency.com', 'password123', 'Test User');
     });
-
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 10));
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some((c) => String(c[0]).includes('/api/v1/feature-flags'))).toBe(true);
     });
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/feature-flags'),
-      expect.any(Object)
-    );
   });
 
   it('context value is memoized (stable reference)', () => {
@@ -247,15 +198,12 @@ describe('AuthContext edge cases', () => {
       </AuthProvider>
     );
 
-    // Re-render without state changes
     rerender(
       <AuthProvider>
         <Collector />
       </AuthProvider>
     );
 
-    // Both renders should return the same reference (useMemo)
-    // Note: React may re-render even with same values, but useMemo ensures stable object
     expect(values.length).toBeGreaterThanOrEqual(2);
   });
 });

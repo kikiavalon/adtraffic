@@ -82,6 +82,10 @@ app.use(cors({
   origin: corsOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  // Allow the browser to send the httpOnly session cookie on cross-origin
+  // requests (e.g. a webapp deployed on a different origin than the API). The
+  // `origin` allow-list above still restricts which origins are permitted.
+  credentials: true,
 }));
 app.use(express.json({ limit: '100kb' }));
 

@@ -98,6 +98,19 @@ export async function login(email: string, password: string): Promise<AuthTokens
   };
 }
 
+/** Look up the current user's public profile by id — used to rehydrate the
+ * session on page load when the JWT lives in an httpOnly cookie. */
+export async function getUserById(userId: string): Promise<AuthUser | null> {
+  const rows = await db
+    .select({ id: schema.users.id, email: schema.users.email, name: schema.users.name, role: schema.users.role })
+    .from(schema.users)
+    .where(eq(schema.users.id, userId))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  return { id: row.id, email: row.email, name: row.name, role: row.role as UserRole };
+}
+
 export function verifyToken(token: string): { userId: string; email: string; role: string } {
   const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
   if (

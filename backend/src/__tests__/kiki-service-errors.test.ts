@@ -168,6 +168,7 @@ describe('Usage limit enforcement', () => {
       expect.any(String), // model name
       150,
       50,
+      undefined, // userId — none supplied by this chat() call
     );
   });
 });

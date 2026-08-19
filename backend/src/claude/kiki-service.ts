@@ -202,6 +202,7 @@ export async function chat(
         CLAUDE_MODEL,
         response.usage?.input_tokens ?? 0,
         response.usage?.output_tokens ?? 0,
+        userId,
       );
 
       // Add assistant response to history
@@ -512,6 +513,7 @@ export async function chatStream(
         CLAUDE_MODEL,
         finalMessage.usage?.input_tokens ?? 0,
         finalMessage.usage?.output_tokens ?? 0,
+        userId,
       );
 
       // Add assistant response to history

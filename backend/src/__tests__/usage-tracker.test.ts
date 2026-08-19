@@ -237,3 +237,36 @@ describe('daily reset', () => {
     vi.useRealTimers();
   });
 });
+
+describe('per-user isolation (F-03-1)', () => {
+  it('keeps each user\'s request count separate', async () => {
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50, 'user-a');
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50, 'user-a');
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50, 'user-b');
+
+    expect((await getUsageSummary('user-a')).requests).toBe(2);
+    expect((await getUsageSummary('user-b')).requests).toBe(1);
+  });
+
+  it('does not let one user\'s traffic exhaust another user\'s limit', async () => {
+    // user-a spends their whole allowance...
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50, 'user-a');
+    await recordUsage('claude-haiku-4-5-20251001', 100, 50, 'user-a');
+    expect((await checkLimit(2, 'user-a')).allowed).toBe(false);
+
+    // ...but user-b, who shares nothing with them, is still allowed.
+    expect((await checkLimit(2, 'user-b')).allowed).toBe(true);
+  });
+
+  it('scopes token totals and cost per user', async () => {
+    await recordUsage('claude-haiku-4-5-20251001', 1_000_000, 1_000_000, 'user-a');
+
+    const a = await getUsageSummary('user-a');
+    const b = await getUsageSummary('user-b');
+
+    expect(a.totalTokens).toBe(2_000_000);
+    expect(a.estimatedCost).toBe('$4.8000');
+    expect(b.totalTokens).toBe(0);
+    expect(b.estimatedCost).toBe('$0.0000');
+  });
+});

@@ -24,23 +24,56 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Run npm audit
+      - name: Print full npm audit report
         run: npm audit --audit-level=high
         continue-on-error: true
-      - name: Check for critical vulnerabilities
+      - name: Fail on production high/critical or any critical (allowlisted)
+        # Gate the shipped (production) tree at `high`, and the full tree at
+        # `critical` (so a dev-tooling critical still fails, as the old gate did).
+        # A small allowlist covers advisories with no clean fix today — each is a
+        # ReDoS reachable only through developer-fixed route/glob patterns, never
+        # from request input, and the real fixes (express 4->5, or npm overrides
+        # that force a full lockfile regeneration of ~180 packages including a
+        # canvas downgrade) are riskier than the advisories. Revisit when upstream
+        # releases land. `npm audit` exits nonzero whenever any vuln exists, so its
+        # output is captured to files (the redirect + `|| true` keep that exit off
+        # the pipeline) and the pass/fail decision is made solely by the check below.
+        #   path-to-regexp  GHSA-37ch-88jc-xwx2  express@4's legacy 0.1.x router
+        #   brace-expansion GHSA-f886-m6hf-6m8v  prod via google-auth-library, exceljs
+        #   minimatch       GHSA-3ppc-4f35-3m26  prod via google-auth-library, exceljs
         run: |
-          RESULT=$(npm audit --json 2>/dev/null | node -e "
-            const data = require('fs').readFileSync('/dev/stdin', 'utf8');
-            const audit = JSON.parse(data);
-            const vulns = audit.vulnerabilities || {};
-            const critical = Object.values(vulns).filter(v => v.severity === 'critical');
-            if (critical.length > 0) {
-              console.error('CRITICAL vulnerabilities found:', critical.map(v => v.name).join(', '));
+          npm audit --omit=dev --json > "$RUNNER_TEMP/prod-audit.json" 2>/dev/null || true
+          npm audit --json > "$RUNNER_TEMP/full-audit.json" 2>/dev/null || true
+          node -e "
+            const fs = require('fs');
+            // Fail closed: if npm audit produced no parseable JSON, treat it as a
+            // failure rather than silently passing.
+            const read = (f) => {
+              const raw = fs.readFileSync(f, 'utf8');
+              return JSON.parse(raw).vulnerabilities || {};
+            };
+            let prod, full;
+            try {
+              prod = read(process.env.RUNNER_TEMP + '/prod-audit.json');
+              full = read(process.env.RUNNER_TEMP + '/full-audit.json');
+            } catch (err) {
+              console.error('Could not read npm audit output:', err.message);
               process.exit(1);
             }
-            console.log('No critical vulnerabilities found');
-          ")
-          echo "$RESULT"
+            const ALLOW = new Set(['path-to-regexp', 'brace-expansion', 'minimatch']);
+            const blocking = new Map();
+            for (const [name, v] of Object.entries(prod)) {
+              if ((v.severity === 'high' || v.severity === 'critical') && !ALLOW.has(name)) blocking.set(name, v.severity);
+            }
+            for (const [name, v] of Object.entries(full)) {
+              if (v.severity === 'critical' && !ALLOW.has(name)) blocking.set(name, v.severity);
+            }
+            if (blocking.size > 0) {
+              console.error('Blocking vulnerabilities:', [...blocking].map((e) => e[0] + ' (' + e[1] + ')').join(', '));
+              process.exit(1);
+            }
+            console.log('No blocking production high/critical or unlisted critical vulnerabilities.');
+          "
 
   secrets-scan:
     name: Secrets Scan

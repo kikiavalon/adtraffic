@@ -10,3 +10,10 @@ updates:
       github-actions:
         patterns:
           - '*'
+    # Actions are SHA-pinned to a vetted major. Take patch/minor bumps within
+    # that major automatically; major bumps are a deliberate, manually reviewed
+    # decision (they can change action inputs or runtime behavior).
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major

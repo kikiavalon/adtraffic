@@ -350,10 +350,10 @@ Modeled after Improvado's AI Data Processing Addendum pattern. Key commitments:
 
 | Commitment | Detail |
 |---|---|
-| **No campaign data storage** | CM360 data transits servers but is never persisted beyond the API call |
+| **Campaign data storage** | CM360 data that appears in a conversation is persisted (chat history, pending-action and approval-queue payloads, QA runs) as plaintext; only OAuth tokens and API keys are encrypted at rest |
 | **No training on customer data** | Customer data never used to train, fine-tune, or improve any AI models |
 | **Encrypted OAuth tokens** | AES-256-GCM encryption at rest, transmitted only over TLS |
-| **Conversation retention** | 90 days default, configurable per enterprise account |
+| **Conversation retention** | No automatic retention window; conversations persist until a user deletes them. QA runs default to 30-day retention |
 | **Data deletion on termination** | All customer data deleted upon account deletion or service termination |
 
 ### `data_processing.third_party_processors`
@@ -395,7 +395,7 @@ Maps to the regulatory frameworks identified in our IAB compliance plan:
 ## Notes for Legal Review
 
 1. The `training_data_explanation` language is modeled after Improvado's Customer Data Usage clause. Have legal confirm this commitment is sustainable given our Anthropic API terms.
-2. Conversation retention of 90 days should be validated against GDPR data minimization requirements.
+2. Conversations currently have no automatic retention window (they persist until manually deleted); a defined retention policy should be added and validated against GDPR data minimization requirements.
 3. The `data_retained_by_processor: false` claim for Anthropic should be verified against their current API data handling terms.
 4. SOC 2 Type II target date (2026-Q4) should be validated with the compliance team.
 5. Privacy policy URL and security policy URL should be live before this manifest is published.

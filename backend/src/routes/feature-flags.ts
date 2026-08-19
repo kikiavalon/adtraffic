@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../auth/middleware.js';
+import { requirePermission } from '../auth/roles.js';
 import {
   resolveFlags,
   setFlagOverride,
@@ -49,7 +50,10 @@ router.get('/feature-flags', requireAuth, async (req, res) => {
  * PUT /feature-flags/:flagName
  * Set a flag override for the authenticated user.
  */
-router.put('/feature-flags/:flagName', flagMutateLimiter, requireAuth, async (req, res) => {
+// Every registered flag gates a capability or a limit (CM360 tool access, the
+// daily request cap, the QA click-tester / SSRF gate, compliance disclosures),
+// so mutating one is an administrative action, not a user self-service toggle.
+router.put('/feature-flags/:flagName', flagMutateLimiter, requireAuth, requirePermission('canManageUsers'), async (req, res) => {
   try {
     const flagName = req.params['flagName'] as string;
 
@@ -94,7 +98,7 @@ router.put('/feature-flags/:flagName', flagMutateLimiter, requireAuth, async (re
  * DELETE /feature-flags/:flagName
  * Clear a flag override for the authenticated user.
  */
-router.delete('/feature-flags/:flagName', flagMutateLimiter, requireAuth, async (req, res) => {
+router.delete('/feature-flags/:flagName', flagMutateLimiter, requireAuth, requirePermission('canManageUsers'), async (req, res) => {
   try {
     const flagName = req.params['flagName'] as string;
 

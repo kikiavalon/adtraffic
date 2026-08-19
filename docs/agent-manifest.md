@@ -354,7 +354,7 @@ Modeled after Improvado's AI Data Processing Addendum pattern. Key commitments:
 | **No training on customer data** | Customer data never used to train, fine-tune, or improve any AI models |
 | **Encrypted OAuth tokens** | AES-256-GCM encryption at rest, transmitted only over TLS |
 | **Conversation retention** | No automatic retention window; conversations persist until a user deletes them. QA runs default to 30-day retention |
-| **Data deletion on termination** | All customer data deleted upon account deletion or service termination |
+| **Data deletion** | Users can delete individual conversations and disconnect credentials in-app. Full account deletion and erasure are operator-assisted on a self-hosted instance; in-app self-service is not yet implemented |
 
 ### `data_processing.third_party_processors`
 

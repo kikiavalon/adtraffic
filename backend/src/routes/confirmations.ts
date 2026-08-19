@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth/middleware.js';
+import { createRateLimiter } from '../middleware/rate-limiter.js';
 import { isValidRole, hasPermission } from '../auth/roles.js';
 import { consumePendingAction, listPendingActions } from '../cm360/pending-actions.js';
 import { executeTool } from '../cm360/tool-executor.js';
@@ -11,6 +12,15 @@ import { runTurnQa } from '../qa/qa-service.js';
 import type { QARunReport } from '@adtraffic/shared';
 
 const router = Router();
+
+// The approve route executes a real CM360 write, so throttle it per user (not
+// per shared IP) as defence against a compromised session hammering executeTool.
+const approveLimiter = createRateLimiter({
+  name: 'confirmation-approve',
+  windowMs: 60_000,
+  maxRequests: 30,
+  key: (req) => req.user?.userId ?? req.ip ?? 'anonymous',
+});
 
 /**
  * GET /confirmations/pending?conversationId=...
@@ -41,7 +51,7 @@ router.get('/confirmations/pending', requireAuth, async (req, res) => {
  * Executes a pending write operation after user confirmation.
  * For destructive operations, requires `typedConfirmation` matching the operation name (e.g., "DELETE", "ARCHIVE").
  */
-router.post('/confirmations/:actionId/approve', requireAuth, async (req, res) => {
+router.post('/confirmations/:actionId/approve', requireAuth, approveLimiter, async (req, res) => {
   try {
     const actionId = req.params['actionId'] as string;
     const userId = req.user!.userId;

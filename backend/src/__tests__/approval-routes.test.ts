@@ -297,6 +297,19 @@ describe('POST /api/v1/approvals/:id/approve', () => {
     expect(mockApproveRequest).toHaveBeenCalledWith('approval-001', 'approver-1', 'Approved for Q1 launch');
   });
 
+  it('rejects a self-approval with 403 (segregation of duties)', async () => {
+    // Approver and requester are the same user (approver-1).
+    mockGetApprovalById.mockResolvedValue(makeApprovalItem({ requesterId: 'approver-1' }));
+
+    const res = await request(app)
+      .post('/api/v1/approvals/approval-001/approve')
+      .send({ note: 'self approve' });
+
+    expect(res.status).toBe(403);
+    expect(mockApproveRequest).not.toHaveBeenCalled();
+    expect(mockExecuteTool).not.toHaveBeenCalled();
+  });
+
   it('executes the stored tool action as the requester on approve', async () => {
     const approval = makeApprovalItem();
     mockGetApprovalById.mockResolvedValue(approval);
@@ -543,6 +556,17 @@ describe('POST /api/v1/approvals/:id/reject', () => {
     expect(res.body.rejectedAt).toBeDefined();
 
     expect(mockRejectRequest).toHaveBeenCalledWith('approval-001', 'approver-1', 'Wrong campaign dates');
+  });
+
+  it('rejects a self-reject with 403 (segregation of duties)', async () => {
+    mockGetApprovalById.mockResolvedValue(makeApprovalItem({ requesterId: 'approver-1' }));
+
+    const res = await request(app)
+      .post('/api/v1/approvals/approval-001/reject')
+      .send({ note: 'self reject' });
+
+    expect(res.status).toBe(403);
+    expect(mockRejectRequest).not.toHaveBeenCalled();
   });
 
   it('returns 404 for non-existent approval', async () => {

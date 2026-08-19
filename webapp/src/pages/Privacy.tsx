@@ -76,8 +76,9 @@ function Privacy() {
         <section>
           <h2>Security</h2>
           <p>
-            All data is encrypted in transit (TLS) and at rest. OAuth tokens use AES-256-GCM encryption.
-            Our infrastructure runs on Google Cloud with SOC 2 compliance path. See our{' '}
+            All data is encrypted in transit (TLS). At rest, OAuth tokens and API keys are encrypted at the
+            application level with AES-256-GCM; conversation content is not — it relies on the database's own
+            at-rest encryption. Our infrastructure runs on Google Cloud with SOC 2 compliance path. See our{' '}
             <a href="https://github.com/kikiavalon/adtraffic/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">
               Security Policy
             </a>{' '}

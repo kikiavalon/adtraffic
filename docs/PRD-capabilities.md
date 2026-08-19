@@ -178,7 +178,7 @@ Web App (React 19)
 Companion Chrome Extension → detects CM360 context → quick-launches the web app
 ```
 
-**Key decision:** CM360 API calls are server-side (not browser-side), enabling audit logging, role-based access, background bulk processing, and a standard SaaS security model. Campaign data transits the backend but is not persisted beyond the API-call lifecycle; OAuth tokens are stored encrypted.
+**Key decision:** CM360 API calls are server-side (not browser-side), enabling audit logging, role-based access, background bulk processing, and a standard SaaS security model. Campaign content that appears in a conversation is persisted (chat history, pending-action and approval-queue payloads, QA runs) as plaintext; OAuth tokens and API keys are encrypted at rest.
 
 **Tech stack:** React 19 / TypeScript / Vite (webapp); Node.js / Express / `@anthropic-ai/sdk` (backend); `@googleapis/dfareporting` v17 targeting CM360 API **v5** (v4 sunset Feb 2026); PostgreSQL + Drizzle ORM; Redis (ioredis); Zod validation; Chrome Manifest V3; Playwright + BullMQ (QA); Docker Compose deployment.
 

@@ -359,7 +359,7 @@ This is the core workflow — the reason someone buys AdTraffic.ai.
 ### Do Now (built into v1 architecture)
 - **AdCP alignment:** Use IAB content taxonomy and ad product taxonomy in data models where they overlap with CM360 fields
 - **AI transparency:** Every Kiki response that executes a write operation includes a clear indicator that this was performed by an AI agent
-- **Minimal data retention:** Campaign data transits our servers for API execution but is not persisted beyond the request lifecycle. OAuth tokens stored encrypted. Conversation logs retained per policy (90 days default).
+- **Data retention:** Campaign content is persisted where it appears in conversation history, pending-action and approval-queue payloads, and QA runs — as plaintext; only OAuth tokens and API keys are encrypted at rest. Conversations have no automatic retention window and persist until a user deletes them; QA runs default to 30-day retention.
 - **Audit-ready output:** Every write operation logged server-side with full receipt: who requested, what was created, API response. Available for compliance export.
 
 ### Do Before Enterprise Sales
@@ -380,10 +380,10 @@ This is the core workflow — the reason someone buys AdTraffic.ai.
 | Requirement | Implementation |
 |---|---|
 | **CM360 OAuth tokens** | Stored server-side, encrypted at rest (AES-256). Obtained via standard Google OAuth2 authorization code flow. Refresh tokens rotated. Never sent to the frontend. |
-| **Campaign data** | Transits our backend for CM360 API calls. Never persisted beyond the API call lifecycle. Logs contain operation metadata (resource type, count) but not campaign content. |
+| **Campaign data** | Transits the backend for CM360 API calls. Campaign content is persisted wherever it appears in a conversation — chat message history, pending-action and approval-queue payloads, and QA run records — stored as plaintext, not encrypted at rest (only OAuth tokens and API keys are). Application logs carry operation metadata (resource type, count), not campaign content. |
 | **Claude API key** | Stored on backend only. Never exposed to frontend or extension. |
 | **User authentication** | JWT-based session auth. Login via email/password or Google SSO. |
-| **Conversation data** | Stored server-side (encrypted) for conversation continuity. Retention policy: 90 days default, configurable per enterprise client. |
+| **Conversation data** | Stored server-side as plaintext for conversation continuity (not encrypted at rest — only OAuth tokens and API keys are). No automatic retention window ships today; conversations persist until a user deletes them. QA run records are the exception, with a configurable retention (30 days by default). |
 | **Confirm before mutating** | Every write operation shows a preview and requires explicit approval. |
 | **Input validation** | All tool inputs validated with Zod on backend before CM360 API calls. |
 | **Rate limiting** | Respect CM360's 100 queries/100 seconds. Server-side queue and pace for bulk operations. |

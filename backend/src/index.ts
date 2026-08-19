@@ -64,8 +64,13 @@ app.use(requestLoggerMiddleware);
 app.use(metricsCollectorMiddleware);
 
 // Middleware
-// CORS: In production, set CHROME_EXTENSION_ID to lock to a specific extension.
-// Without it, all chrome-extension origins are allowed in development only.
+// CORS: set CHROME_EXTENSION_ID to allow-list the companion extension in any
+// environment. The any-extension wildcard is a convenience for local extension
+// development ONLY and requires an explicit NODE_ENV=development — it is never
+// enabled when NODE_ENV is unset, 'staging', or 'production', so a self-hosted
+// instance that never sets NODE_ENV does not silently accept every extension
+// origin (which, combined with credentials below, would let a hostile extension
+// ride a user's session cookie).
 const corsOrigins: (string | RegExp)[] = [
   /^http:\/\/localhost(:\d+)?$/,
 ];
@@ -74,8 +79,7 @@ if (process.env.WEBAPP_URL) {
 }
 if (process.env.CHROME_EXTENSION_ID) {
   corsOrigins.push(`chrome-extension://${process.env.CHROME_EXTENSION_ID}`);
-} else if (process.env.NODE_ENV !== 'production') {
-  // Allow any extension in development only
+} else if (process.env.NODE_ENV === 'development') {
   corsOrigins.push(/^chrome-extension:\/\//);
 }
 app.use(cors({

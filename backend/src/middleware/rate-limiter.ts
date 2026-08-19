@@ -23,6 +23,12 @@ interface RateLimiterOptions {
    * Defaults to true.
    */
   skipInTest?: boolean;
+  /**
+   * Derive the rate-limit bucket key from the request. Defaults to the client
+   * IP. On authenticated routes, pass `(req) => req.user?.userId ?? req.ip` to
+   * limit per user instead of per shared IP.
+   */
+  key?: (req: Request) => string;
 }
 
 /**
@@ -34,7 +40,7 @@ interface RateLimiterOptions {
  * Expired members are pruned on each check.
  */
 export function createRateLimiter(options: RateLimiterOptions) {
-  const { name, windowMs, maxRequests, skipInTest = true } = options;
+  const { name, windowMs, maxRequests, skipInTest = true, key: keyFn } = options;
   const isTest = process.env.NODE_ENV === 'test';
   const windowSeconds = Math.ceil(windowMs / 1000);
 
@@ -66,13 +72,14 @@ export function createRateLimiter(options: RateLimiterOptions) {
     }
 
     const ip = req.ip ?? req.socket.remoteAddress ?? 'unknown';
+    const rateKey = keyFn ? keyFn(req) : ip;
     const now = Date.now();
 
     // Try Redis first
     if (isRedisHealthy()) {
       try {
         const redis = getRedis()!;
-        const key = `ratelimit:${name}:${ip}`;
+        const key = `ratelimit:${name}:${rateKey}`;
         const windowStart = now - windowMs;
 
         // Pipeline: prune expired + count + add + set TTL
@@ -115,10 +122,10 @@ export function createRateLimiter(options: RateLimiterOptions) {
     }
 
     // In-memory fallback
-    let entry = store.get(ip);
+    let entry = store.get(rateKey);
     if (!entry) {
       entry = { timestamps: [] };
-      store.set(ip, entry);
+      store.set(rateKey, entry);
     }
 
     // Remove timestamps outside the current sliding window

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../auth/middleware.js';
 import { requirePermission } from '../auth/roles.js';
+import { createRateLimiter } from '../middleware/rate-limiter.js';
 import {
   getPendingApprovals,
   getMyRequests,
@@ -17,6 +18,14 @@ import { runTurnQa } from '../qa/qa-service.js';
 import type { PendingAction, QARunReport } from '@adtraffic/shared';
 
 const router = Router();
+
+// The approve route executes a real CM360 write, so throttle it per user.
+const approveLimiter = createRateLimiter({
+  name: 'approval-approve',
+  windowMs: 60_000,
+  maxRequests: 30,
+  key: (req) => req.user?.userId ?? req.ip ?? 'anonymous',
+});
 
 /**
  * GET /approvals/pending
@@ -118,7 +127,7 @@ router.get('/approvals/my-requests', requireAuth, async (req, res) => {
  * Requires canApproveOthers permission.
  * For destructive operations, requires typedConfirmation matching the operation name.
  */
-router.post('/approvals/:id/approve', requireAuth, requirePermission('canApproveOthers'), async (req, res) => {
+router.post('/approvals/:id/approve', requireAuth, requirePermission('canApproveOthers'), approveLimiter, async (req, res) => {
   try {
     const approvalId = req.params['id'] as string;
     const approverId = req.user!.userId;

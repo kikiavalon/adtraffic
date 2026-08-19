@@ -115,6 +115,59 @@ describe('createRateLimiter', () => {
     });
   });
 
+  describe('per-user key function', () => {
+    // The approve routes throttle per authenticated user, not per shared IP, so
+    // one compromised session cannot exhaust the bucket for everyone behind a NAT.
+    function mockUserReq(userId: string, ip = '10.0.0.9'): Partial<Request> {
+      return { ip, socket: { remoteAddress: ip } as never, user: { userId } as never };
+    }
+
+    it('buckets by the key function instead of the IP', () => {
+      limiter = createRateLimiter({
+        name: 'test-per-user',
+        windowMs: 60_000,
+        maxRequests: 1,
+        skipInTest: false,
+        key: (req) => req.user?.userId ?? req.ip ?? 'anonymous',
+      });
+
+      // user-a spends its single allowance.
+      const nextA = vi.fn();
+      limiter(mockUserReq('user-a') as Request, mockRes().res as Response, nextA);
+      expect(nextA).toHaveBeenCalled();
+
+      // user-a's second request — same IP — is blocked by its own bucket.
+      const blockedA = mockRes();
+      limiter(mockUserReq('user-a') as Request, blockedA.res as Response, vi.fn());
+      expect(blockedA.state.statusCode).toBe(429);
+
+      // user-b shares the IP but has its own bucket, so it is still allowed.
+      const nextB = vi.fn();
+      limiter(mockUserReq('user-b') as Request, mockRes().res as Response, nextB);
+      expect(nextB).toHaveBeenCalled();
+
+      // The store is keyed by userId, not IP.
+      expect(limiter._store.has('user-a')).toBe(true);
+      expect(limiter._store.has('user-b')).toBe(true);
+      expect(limiter._store.has('10.0.0.9')).toBe(false);
+    });
+
+    it('falls back to the IP when the key function returns it for an unauthenticated request', () => {
+      limiter = createRateLimiter({
+        name: 'test-per-user-fallback',
+        windowMs: 60_000,
+        maxRequests: 1,
+        skipInTest: false,
+        key: (req) => req.user?.userId ?? req.ip ?? 'anonymous',
+      });
+
+      const next = vi.fn();
+      limiter(mockReq('203.0.113.5') as Request, mockRes().res as Response, next);
+      expect(next).toHaveBeenCalled();
+      expect(limiter._store.has('203.0.113.5')).toBe(true);
+    });
+  });
+
   describe('sliding window expiration', () => {
     it('allows requests again after the window expires', () => {
       vi.useFakeTimers();

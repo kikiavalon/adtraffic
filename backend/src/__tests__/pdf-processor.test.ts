@@ -1,29 +1,51 @@
 import { describe, it, expect, vi } from 'vitest';
-import { processPdf } from '../io/pdf-processor.js';
+import { processPdf, assertPagesWithinPixelBudget } from '../io/pdf-processor.js';
 
-// Mock pdf-to-img since it requires native deps that may not be available in CI
+// Mock pdf-to-img (rendering) but NOT pdfjs — the pixel-budget pre-check runs
+// real pdfjs against the actual PDF bytes.
 vi.mock('pdf-to-img', () => ({
   pdf: vi.fn(),
 }));
+
+/** Minimal single-page PDF with the given MediaBox. pdfjs reconstructs the
+ * cross-reference table, so this is enough to read page dimensions. */
+function makePdf(mediaBox: string): Buffer {
+  return Buffer.from(
+    '%PDF-1.4\n' +
+      '1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+      '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+      `3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[${mediaBox}]>>endobj\n` +
+      'trailer<</Root 1 0 R>>\n%%EOF',
+  );
+}
+
+const NORMAL_PDF_B64 = makePdf('0 0 612 792').toString('base64');
+
+describe('assertPagesWithinPixelBudget', () => {
+  it('accepts a normal-size page', async () => {
+    await expect(assertPagesWithinPixelBudget(makePdf('0 0 612 792'))).resolves.toBeUndefined();
+  });
+
+  it('rejects a huge-MediaBox page before it is rendered (raster bomb)', async () => {
+    // 14400x14400 at scale 2.0 is ~830 megapixels.
+    await expect(assertPagesWithinPixelBudget(makePdf('0 0 14400 14400'))).rejects.toThrow(/too large/i);
+  });
+});
 
 describe('PDF Processor', () => {
   it('converts PDF pages to base64 PNG images', async () => {
     const { pdf } = await import('pdf-to-img');
     const mockPdf = vi.mocked(pdf);
 
-    // Mock the async iterable that pdf-to-img returns
     const fakePng1 = Buffer.from('fake-png-page-1');
     const fakePng2 = Buffer.from('fake-png-page-2');
 
     mockPdf.mockResolvedValue({
       length: 2,
-      [Symbol.asyncIterator]: async function* () {
-        yield fakePng1;
-        yield fakePng2;
-      },
+      getPage: async (n: number) => (n === 1 ? fakePng1 : fakePng2),
     } as unknown as Awaited<ReturnType<typeof pdf>>);
 
-    const result = await processPdf('fake-base64-data');
+    const result = await processPdf(NORMAL_PDF_B64);
 
     expect(result).toHaveLength(2);
     const first = result[0]!;
@@ -31,8 +53,6 @@ describe('PDF Processor', () => {
     const source = first.source as { type: string; media_type: string; data: string };
     expect(source.type).toBe('base64');
     expect(source.media_type).toBe('image/png');
-    expect(typeof source.data).toBe('string');
-    // Verify it's valid base64 of our fake PNG
     expect(Buffer.from(source.data, 'base64').toString()).toBe('fake-png-page-1');
   });
 
@@ -42,12 +62,10 @@ describe('PDF Processor', () => {
 
     mockPdf.mockResolvedValue({
       length: 0,
-      [Symbol.asyncIterator]: async function* () {
-        // No pages
-      },
+      getPage: vi.fn(),
     } as unknown as Awaited<ReturnType<typeof pdf>>);
 
-    const result = await processPdf('fake-base64-data');
+    const result = await processPdf(NORMAL_PDF_B64);
     expect(result).toHaveLength(0);
   });
 
@@ -55,15 +73,16 @@ describe('PDF Processor', () => {
     const { pdf } = await import('pdf-to-img');
     const mockPdf = vi.mocked(pdf);
 
-    const pages = Array.from({ length: 25 }, (_, i) => Buffer.from(`page-${i}`));
+    const getPage = vi.fn(async (n: number) => Buffer.from(`page-${n}`));
     mockPdf.mockResolvedValue({
       length: 25,
-      [Symbol.asyncIterator]: async function* () {
-        for (const page of pages) yield page;
-      },
+      getPage,
     } as unknown as Awaited<ReturnType<typeof pdf>>);
 
-    const result = await processPdf('fake-base64-data');
-    expect(result.length).toBeLessThanOrEqual(20);
+    const result = await processPdf(NORMAL_PDF_B64);
+    expect(result).toHaveLength(20);
+    // The renderer must never be asked for page 21 (off-by-one raster-bomb guard).
+    expect(getPage).toHaveBeenCalledTimes(20);
+    expect(getPage).not.toHaveBeenCalledWith(21);
   });
 });

@@ -67,6 +67,32 @@ describe('analyzeImpact', () => {
   });
 
   // --- Campaign archive ---
+  describe('live CM360 mode (isLiveData=true)', () => {
+    it('does not show fabricated mock counts when archiving a live campaign', async () => {
+      // In live mode the real placements/ads live in CM360, not the mock store —
+      // so mock counts would be fabricated. Prime the store to prove it is ignored.
+      mockedStore.listPlacements.mockReturnValue([
+        { id: '1', name: 'P', campaignId: '999', activeStatus: 'ACTIVE' },
+      ] as never);
+      mockedStore.listAds.mockReturnValue([]);
+
+      const result = await analyzeImpact(
+        'cm360_update_campaign',
+        { campaignId: '999', archived: true },
+        'user-1',
+        true, // isLiveData
+      );
+
+      // No fabricated count, and the mock store is never consulted.
+      expect(result.join(' ')).not.toMatch(/active placement\(s\)|active ad\(s\)/);
+      expect(result).toContainEqual(
+        expect.stringContaining('not verified against your live CM360 account'),
+      );
+      expect(mockedStore.listPlacements).not.toHaveBeenCalled();
+      expect(mockedStore.listAds).not.toHaveBeenCalled();
+    });
+  });
+
   describe('cm360_update_campaign with archived: true', () => {
     it('warns about active placements in the campaign', async () => {
       mockedStore.listPlacements.mockReturnValue([

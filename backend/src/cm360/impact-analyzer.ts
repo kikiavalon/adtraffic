@@ -5,10 +5,13 @@
  * Returns an array of warning strings that get appended to ActionPreview.warnings
  * so the ConfirmationCard can display them prominently.
  *
- * Currently uses the mock data store directly (demo mode). When users connect
- * real CM360 accounts, this should be updated to query the real API.
- *
- * TODO: Add real CM360 API support via cm360-client when OAuth tokens are available.
+ * Count-based warnings (e.g. "N active placements") are derived from the mock
+ * data store, which is exactly what a demo user sees — so those counts are
+ * accurate in demo mode. For a user connected to a LIVE CM360 account the mock
+ * store holds unrelated data, so emitting mock counts would be fabricated (a real
+ * archive could read "0 affected"). In live mode we therefore never show mock
+ * counts; we show an honest "not verified against your live account" warning
+ * instead. A future enhancement can query real impact via cm360-client.
  */
 
 import { mockStore } from './mock-data-store.js';
@@ -26,17 +29,20 @@ import { mockStore } from './mock-data-store.js';
  * @param toolName - The CM360 tool being called
  * @param toolInput - The tool's input parameters
  * @param _userId - Reserved for future real API support
+ * @param isLiveData - True when the user is connected to a live CM360 account;
+ *   suppresses mock-derived counts that would be fabricated for real campaigns.
  * @returns Array of warning strings (empty if no concerns)
  */
 export async function analyzeImpact(
   toolName: string,
   toolInput: Record<string, unknown>,
   _userId?: string,
+  isLiveData = false,
 ): Promise<string[]> {
   try {
     switch (toolName) {
       case 'cm360_update_campaign':
-        return await analyzeCampaignUpdate(toolInput);
+        return await analyzeCampaignUpdate(toolInput, isLiveData);
 
       case 'cm360_update_placement':
         return analyzePlacementUpdate(toolInput);
@@ -62,13 +68,21 @@ export async function analyzeImpact(
 /**
  * Campaign archive: check for active placements and ads that would be affected.
  */
-async function analyzeCampaignUpdate(input: Record<string, unknown>): Promise<string[]> {
+async function analyzeCampaignUpdate(input: Record<string, unknown>, isLiveData: boolean): Promise<string[]> {
   if (input.archived !== true) return [];
 
   const campaignId = typeof input.campaignId === 'string' ? input.campaignId : undefined;
   if (!campaignId) return [];
 
-  // Query placements and ads in parallel for future API migration readiness
+  // Live account: the mock store does not hold this campaign, so any count would
+  // be fabricated. Warn honestly rather than assert an unverified number.
+  if (isLiveData) {
+    return [
+      'Archiving this campaign will stop its active placements and ads from serving. The number affected is not verified against your live CM360 account — review in CM360 before confirming.',
+    ];
+  }
+
+  // Demo mode: the mock store IS the data the user sees, so its counts are accurate.
   const [placements, ads] = await Promise.all([
     Promise.resolve(mockStore.listPlacements({ campaignId }) ?? []),
     Promise.resolve(mockStore.listAds({ campaignId }) ?? []),

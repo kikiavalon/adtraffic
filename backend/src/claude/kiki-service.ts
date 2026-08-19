@@ -275,7 +275,7 @@ export async function chat(
 
             // Add downstream impact warnings for elevated/destructive operations
             if (riskLevel === 'elevated' || riskLevel === 'destructive') {
-              const impactWarnings = await analyzeImpact(toolUse.name, toolInput, userId);
+              const impactWarnings = await analyzeImpact(toolUse.name, toolInput, userId, isLiveData);
               if (impactWarnings.length > 0) {
                 preview.warnings = [...(preview.warnings ?? []), ...impactWarnings];
               }
@@ -604,7 +604,7 @@ export async function chatStream(
 
           // Add downstream impact warnings for elevated/destructive operations
           if (riskLevel === 'elevated' || riskLevel === 'destructive') {
-            const impactWarnings = await analyzeImpact(toolUse.name, toolInput, userId);
+            const impactWarnings = await analyzeImpact(toolUse.name, toolInput, userId, isLiveData);
             if (impactWarnings.length > 0) {
               preview.warnings = [...(preview.warnings ?? []), ...impactWarnings];
             }

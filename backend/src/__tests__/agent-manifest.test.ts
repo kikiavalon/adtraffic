@@ -67,7 +67,7 @@ describe('GET /api/v1/agent/manifest', () => {
   it('includes data processing commitments', async () => {
     const res = await request(app).get('/api/v1/agent/manifest');
 
-    expect(res.body.data_processing.campaign_data_stored).toBe(false);
+    expect(res.body.data_processing.campaign_data_stored).toBe(true);
     expect(res.body.data_processing.training_data_usage).toBe('never');
     expect(res.body.data_processing.oauth_token_encryption).toBe('AES-256-GCM');
   });

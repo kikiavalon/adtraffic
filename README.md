@@ -68,7 +68,7 @@ mcp/        → @adtraffic/mcp — stdio MCP server over the mock CM360 layer
 qa-runner/  → headless click-through QA runner (Playwright)
 ```
 
-CM360 calls are made **server-side** (never in the browser); campaign data transits the server for the API call but is not persisted. OAuth tokens, when used, are encrypted at rest.
+CM360 calls are made **server-side** (never in the browser); campaign data transits the server for the API call. It is not cached or used for advertising, but campaign details are stored in conversation logs and, transiently, in pending write actions and QA runs. OAuth tokens, when used, are encrypted at rest.
 
 ## Tests
 

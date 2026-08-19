@@ -7,7 +7,7 @@
  * or throws errors to callers.
  */
 
-const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+const API_URL = import.meta.env.VITE_API_URL ?? '';
 const FLUSH_INTERVAL = 5_000; // 5 seconds
 
 interface InteractionEvent {

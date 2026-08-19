@@ -69,7 +69,7 @@ function Settings() {
     try {
       const res = await authFetch(`${API_URL}/api/v1/usage`);
       if (res.ok) {
-        setUsage(await res.json());
+        setUsage(await res.json() as UsageSummary);
         setUsageError('');
       } else {
         setUsageError('Failed to load usage data');
@@ -84,7 +84,7 @@ function Settings() {
     try {
       const res = await authFetch(`${API_URL}/api/v1/auth/google/status`);
       if (res.ok) {
-        setCM360Status(await res.json());
+        setCM360Status(await res.json() as CM360Status);
         setCM360Error('');
       } else {
         setCM360Error('Failed to load CM360 status');
@@ -102,7 +102,7 @@ function Settings() {
     try {
       const res = await authFetch(`${API_URL}/api/v1/auth/google/connect`);
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as { url: string };
         window.location.href = data.url;
       } else if (res.status === 503) {
         // Backend is missing Google OAuth credentials — a server setup issue,
@@ -145,7 +145,7 @@ function Settings() {
     try {
       const res = await authFetch(`${API_URL}/api/v1/settings/anthropic/status`);
       if (res.ok) {
-        setAnthropicStatus(await res.json());
+        setAnthropicStatus(await res.json() as AnthropicStatus);
         setAnthropicError('');
       }
       // A non-ok status on load is not surfaced — the section simply shows the
@@ -167,12 +167,12 @@ function Settings() {
         body: JSON.stringify({ apiKey: anthropicKeyInput }),
       });
       if (res.ok) {
-        setAnthropicStatus(await res.json());
+        setAnthropicStatus(await res.json() as AnthropicStatus);
         setAnthropicKeyInput('');
         setAnthropicError('');
         void refreshAnthropicStatus?.();
       } else {
-        const data = await res.json();
+        const data = await res.json() as { error?: string };
         setAnthropicError(data.error ?? 'Something went wrong. Please try again.');
       }
     } catch {
@@ -204,9 +204,9 @@ function Settings() {
   }, [authFetch, refreshAnthropicStatus]);
 
   useEffect(() => {
-    fetchUsage();
-    fetchCM360Status();
-    fetchAnthropicStatus();
+    void fetchUsage();
+    void fetchCM360Status();
+    void fetchAnthropicStatus();
   }, [fetchUsage, fetchCM360Status, fetchAnthropicStatus]);
 
   // Check for ?cm360=... query params (set by the OAuth callback redirect)
@@ -216,7 +216,7 @@ function Settings() {
 
     if (result === 'connected') {
       setToast('CM360 account connected successfully!');
-      fetchCM360Status();
+      void fetchCM360Status();
     } else if (result === 'denied') {
       setToast('Google connection canceled — nothing was changed.');
     } else if (result === 'error') {
@@ -263,7 +263,7 @@ function Settings() {
         <section className="settings-section">
           <div className="settings-section-header">
             <h2>API Usage</h2>
-            <button className="settings-refresh-btn" onClick={fetchUsage} title="Refresh usage">
+            <button className="settings-refresh-btn" onClick={() => void fetchUsage()} title="Refresh usage">
               Refresh
             </button>
           </div>
@@ -370,7 +370,7 @@ function Settings() {
               </p>
               <button
                 className="cm360-connect-btn"
-                onClick={handleConnect}
+                onClick={() => void handleConnect()}
                 disabled={cm360ActionLoading}
               >
                 {cm360ActionLoading ? 'Opening Google...' : 'Reconnect CM360'}
@@ -406,7 +406,7 @@ function Settings() {
                     </button>
                     <button
                       className="cm360-disconnect-btn"
-                      onClick={handleDisconnect}
+                      onClick={() => void handleDisconnect()}
                       disabled={cm360ActionLoading}
                     >
                       {cm360ActionLoading ? 'Disconnecting...' : 'Disconnect CM360'}
@@ -460,7 +460,7 @@ function Settings() {
               </div>
               <button
                 className="cm360-connect-btn"
-                onClick={handleConnect}
+                onClick={() => void handleConnect()}
                 disabled={cm360ActionLoading}
               >
                 {cm360ActionLoading ? 'Connecting...' : 'Connect CM360 Account'}
@@ -492,7 +492,7 @@ function Settings() {
               </p>
               <button
                 className="cm360-disconnect-btn"
-                onClick={handleAnthropicDisconnect}
+                onClick={() => void handleAnthropicDisconnect()}
                 disabled={anthropicActionLoading}
               >
                 {anthropicActionLoading ? 'Removing...' : 'Disconnect'}
@@ -528,7 +528,7 @@ function Settings() {
               )}
               <button
                 className="cm360-connect-btn"
-                onClick={handleAnthropicConnect}
+                onClick={() => void handleAnthropicConnect()}
                 disabled={anthropicActionLoading || !anthropicKeyInput.trim()}
               >
                 {anthropicActionLoading ? 'Connecting...' : 'Connect'}

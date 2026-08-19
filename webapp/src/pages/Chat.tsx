@@ -99,12 +99,13 @@ function CodeBlock({ children, ...props }: React.HTMLAttributes<HTMLPreElement>)
         ? children
         : (() => {
             // children is the <code> element rendered by ReactMarkdown
-            const codeEl = Array.isArray(children) ? children[0] : children;
+            const codeEl = Array.isArray(children) ? (children as React.ReactNode[])[0] : children;
             if (codeEl && typeof codeEl === 'object' && 'props' in codeEl) {
               const codeChildren = (codeEl as React.ReactElement<{ children?: React.ReactNode }>).props.children;
-              return typeof codeChildren === 'string' ? codeChildren : String(codeChildren ?? '');
+              if (typeof codeChildren === 'string') return codeChildren;
+              return typeof codeChildren === 'number' ? String(codeChildren) : '';
             }
-            return String(children ?? '');
+            return typeof children === 'number' ? String(children) : '';
           })();
 
     navigator.clipboard.writeText(text).then(() => {
@@ -264,7 +265,7 @@ function formatToolName(toolName: string): string {
   return TOOL_LABELS[toolName] ?? toolName.replace(/^cm360_/, '').replace(/_/g, ' ');
 }
 
-const API_URL: string = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+const API_URL = import.meta.env.VITE_API_URL ?? '';
 
 const WELCOME_MESSAGE = `Hey! I'm **Kiki**, an AI assistant for CM360 ad trafficking, powered by Claude. I can help you create campaigns, manage placements, generate tags, and more — just ask in plain English.
 
@@ -360,15 +361,15 @@ function Chat() {
     rehydratedRef.current = true;
     const storedConv = sessionStorage.getItem('adtraffic-conv-id');
     if (!storedConv) return; // fresh session — nothing pending
-    (async () => {
+    void (async () => {
       try {
         const res = await authFetch(
           `${API_URL}/api/v1/confirmations/pending?conversationId=${encodeURIComponent(storedConv)}`,
         );
         if (res.ok) {
-          const data = await res.json();
+          const data = await res.json() as { actions?: PendingAction[] };
           if (Array.isArray(data.actions) && data.actions.length > 0) {
-            setPendingActions(data.actions as PendingAction[]);
+            setPendingActions(data.actions);
           }
         }
       } catch { /* pending list is best-effort */ }
@@ -701,7 +702,13 @@ function Chat() {
         body: JSON.stringify(typedConfirmation ? { typedConfirmation } : {}),
       });
 
-      const data = await response.json();
+      const data = await response.json() as {
+        isError?: boolean;
+        result?: unknown;
+        errorMessage?: string;
+        error?: string;
+        qaReport?: QARunReport;
+      };
 
       // Remove from pending actions
       setPendingActions((prev) => prev.filter((a) => a.actionId !== actionId));
@@ -728,7 +735,7 @@ function Chat() {
           timestamp: Date.now(),
         };
         setMessages((prev) => [...prev, resultMessage]);
-        const approvedQaReport = (data as { qaReport?: QARunReport }).qaReport;
+        const approvedQaReport = data.qaReport;
         if (approvedQaReport) setQaReports((prev) => [...prev, approvedQaReport]);
       } else {
         // Add error as assistant message
@@ -778,7 +785,7 @@ function Chat() {
         };
         setMessages((prev) => [...prev, cancelMessage]);
       } else {
-        const data = await response.json().catch(() => ({ error: 'Action not found or expired' }));
+        const data = await response.json().catch(() => ({ error: 'Action not found or expired' })) as { error?: string };
         const errorText = data.error || 'Failed to cancel action';
         const errorMessage: ChatMessage = {
           id: crypto.randomUUID(),
@@ -822,7 +829,7 @@ function Chat() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage(input);
+      void sendMessage(input);
     }
   };
 
@@ -957,7 +964,7 @@ function Chat() {
                     {showQuickReplies && (
                       <QuickReplyButtons
                         options={parsed.options}
-                        onSelect={sendMessage}
+                        onSelect={(text) => void sendMessage(text)}
                         disabled={isLoading}
                       />
                     )}
@@ -976,7 +983,7 @@ function Chat() {
               <button
                 key={prompt}
                 className="starter-chip"
-                onClick={() => sendMessage(prompt)}
+                onClick={() => void sendMessage(prompt)}
                 disabled={isLoading}
               >
                 {prompt}
@@ -991,8 +998,8 @@ function Chat() {
               <div className="chat-message-bubble confirmation-card-container">
                 <ConfirmationCard
                   action={action}
-                  onApprove={handleApprove}
-                  onReject={handleReject}
+                  onApprove={(actionId, typedConfirmation) => void handleApprove(actionId, typedConfirmation)}
+                  onReject={(actionId) => void handleReject(actionId)}
                   disabled={processingActionId === action.actionId}
                   mode={dataMode}
                 />
@@ -1051,7 +1058,7 @@ function Chat() {
         {failedSend && (
           <div className="send-error-bar" role="alert">
             <span>Your message didn't send — connection problem.</span>
-            <button className="send-error-retry" onClick={() => sendMessage(failedSend)}>
+            <button className="send-error-retry" onClick={() => void sendMessage(failedSend)}>
               Retry
             </button>
           </div>
@@ -1083,7 +1090,7 @@ function Chat() {
           ref={fileInputRef}
           type="file"
           accept=".pdf,.xlsx,.xls,.csv"
-          onChange={handleFileChange}
+          onChange={(e) => void handleFileChange(e)}
           hidden
         />
         <div className="chat-input-row">
@@ -1117,7 +1124,7 @@ function Chat() {
         )}
         <button
           className="chat-send-btn"
-          onClick={() => sendMessage(input)}
+          onClick={() => void sendMessage(input)}
           disabled={!input.trim() || isLoading || isUploading || keyMissing}
         >
           Send

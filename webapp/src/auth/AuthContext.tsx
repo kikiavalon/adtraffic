@@ -11,6 +11,23 @@ interface AuthUser {
 
 type FeatureFlags = Record<string, boolean | number>;
 
+interface AuthResponse {
+  token: string;
+  user: AuthUser;
+}
+
+interface ErrorResponse {
+  error?: string;
+}
+
+interface FlagsResponse {
+  flags: FeatureFlags;
+}
+
+interface ConnectionStatusResponse {
+  connected?: boolean;
+}
+
 interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
@@ -65,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {},
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as FlagsResponse;
         setFeatureFlags(data.flags);
       }
     } catch { /* silently fail — flags are non-critical */ }
@@ -77,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {},
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as ConnectionStatusResponse;
         setCM360Connected(data.connected === true);
       }
     } catch { /* status stays unknown — UI treats it as demo */ }
@@ -89,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {},
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await res.json() as ConnectionStatusResponse;
         setAnthropicConnected(data.connected === true);
       }
     } catch { /* status stays unknown */ }
@@ -97,8 +114,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Fetch flags on initial load when user is already authenticated
   useEffect(() => {
-    if (token && user) { fetchFlags(); refreshCM360Status(); refreshAnthropicStatus(); }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (token && user) { void fetchFlags(); void refreshCM360Status(); void refreshAnthropicStatus(); }
+    // Runs once on mount; the initial-hydration effect intentionally omits deps.
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
@@ -110,18 +128,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json() as ErrorResponse;
         throw new Error(data.error ?? 'Login failed');
       }
 
-      const data = await res.json();
+      const data = await res.json() as AuthResponse;
       setToken(data.token);
       setUser(data.user);
       tokenRef.current = data.token;
       // Fetch feature flags and CM360 connection status after login
-      fetchFlags();
-      refreshCM360Status();
-      refreshAnthropicStatus();
+      void fetchFlags();
+      void refreshCM360Status();
+      void refreshAnthropicStatus();
     } finally {
       setIsLoading(false);
     }
@@ -137,18 +155,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json() as ErrorResponse;
         throw new Error(data.error ?? 'Registration failed');
       }
 
-      const data = await res.json();
+      const data = await res.json() as AuthResponse;
       setToken(data.token);
       setUser(data.user);
       tokenRef.current = data.token;
       // Fetch feature flags and CM360 connection status after registration
-      fetchFlags();
-      refreshCM360Status();
-      refreshAnthropicStatus();
+      void fetchFlags();
+      void refreshCM360Status();
+      void refreshAnthropicStatus();
     } finally {
       setIsLoading(false);
     }

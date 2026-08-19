@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
@@ -28,9 +28,17 @@ interface ConnectionStatusResponse {
   connected?: boolean;
 }
 
+interface MeResponse {
+  user: AuthUser;
+}
+
 interface AuthContextType {
   user: AuthUser | null;
-  token: string | null;
+  /** True once a valid session has been established (cookie-backed). */
+  isAuthenticated: boolean;
+  /** False until the initial /auth/me session check has resolved. Routes should
+   * wait for this before redirecting, to avoid a flash of the login page. */
+  authReady: boolean;
   featureFlags: FeatureFlags | null;
   /** null = unknown (treat as demo), false = demo data, true = live CM360 */
   cm360Connected: boolean | null;
@@ -48,39 +56,18 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const saved = localStorage.getItem('adtraffic-user');
-    if (saved) {
-      try { return JSON.parse(saved) as AuthUser; } catch { /* fall through */ }
-    }
-    return null;
-  });
-  const [token, setToken] = useState<string | null>(() => {
-    return localStorage.getItem('adtraffic-token');
-  });
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
   const [cm360Connected, setCM360Connected] = useState<boolean | null>(null);
   const [anthropicConnected, setAnthropicConnected] = useState<boolean | null>(null);
 
-  const tokenRef = useRef(token);
-  useEffect(() => { tokenRef.current = token; }, [token]);
-
-  useEffect(() => {
-    if (token && user) {
-      localStorage.setItem('adtraffic-token', token);
-      localStorage.setItem('adtraffic-user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('adtraffic-token');
-      localStorage.removeItem('adtraffic-user');
-    }
-  }, [token, user]);
-
+  // The JWT lives in an httpOnly cookie the client cannot read; every request
+  // sends it automatically via credentials: 'include'.
   const fetchFlags = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/feature-flags`, {
-        headers: tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {},
-      });
+      const res = await fetch(`${API_URL}/api/v1/feature-flags`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json() as FlagsResponse;
         setFeatureFlags(data.flags);
@@ -90,9 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshCM360Status = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/auth/google/status`, {
-        headers: tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {},
-      });
+      const res = await fetch(`${API_URL}/api/v1/auth/google/status`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json() as ConnectionStatusResponse;
         setCM360Connected(data.connected === true);
@@ -102,9 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshAnthropicStatus = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/settings/anthropic/status`, {
-        headers: tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {},
-      });
+      const res = await fetch(`${API_URL}/api/v1/settings/anthropic/status`, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json() as ConnectionStatusResponse;
         setAnthropicConnected(data.connected === true);
@@ -112,11 +95,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* status stays unknown */ }
   }, []);
 
-  // Fetch flags on initial load when user is already authenticated
+  const loadSessionExtras = useCallback(() => {
+    void fetchFlags();
+    void refreshCM360Status();
+    void refreshAnthropicStatus();
+  }, [fetchFlags, refreshCM360Status, refreshAnthropicStatus]);
+
+  // On load, ask the server who we are. A valid session cookie yields the user;
+  // anything else leaves us logged out. authReady gates routing either way.
   useEffect(() => {
-    if (token && user) { void fetchFlags(); void refreshCM360Status(); void refreshAnthropicStatus(); }
-    // Runs once on mount; the initial-hydration effect intentionally omits deps.
-  }, []);
+    void (async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/auth/me`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json() as MeResponse;
+          setUser(data.user);
+          loadSessionExtras();
+        }
+      } catch { /* not authenticated */ }
+      finally {
+        setAuthReady(true);
+      }
+    })();
+    // Runs once on mount.
+  }, [loadSessionExtras]);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
@@ -125,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
+        credentials: 'include',
       });
 
       if (!res.ok) {
@@ -133,17 +136,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const data = await res.json() as AuthResponse;
-      setToken(data.token);
+      // The token arrives in an httpOnly cookie; we keep only the user profile.
       setUser(data.user);
-      tokenRef.current = data.token;
-      // Fetch feature flags and CM360 connection status after login
-      void fetchFlags();
-      void refreshCM360Status();
-      void refreshAnthropicStatus();
+      loadSessionExtras();
     } finally {
       setIsLoading(false);
     }
-  }, [fetchFlags, refreshCM360Status, refreshAnthropicStatus]);
+  }, [loadSessionExtras]);
 
   const register = useCallback(async (email: string, password: string, name: string) => {
     setIsLoading(true);
@@ -152,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name }),
+        credentials: 'include',
       });
 
       if (!res.ok) {
@@ -160,20 +160,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const data = await res.json() as AuthResponse;
-      setToken(data.token);
       setUser(data.user);
-      tokenRef.current = data.token;
-      // Fetch feature flags and CM360 connection status after registration
-      void fetchFlags();
-      void refreshCM360Status();
-      void refreshAnthropicStatus();
+      loadSessionExtras();
     } finally {
       setIsLoading(false);
     }
-  }, [fetchFlags, refreshCM360Status, refreshAnthropicStatus]);
+  }, [loadSessionExtras]);
 
   const logout = useCallback(() => {
-    setToken(null);
+    // Clear the httpOnly cookie server-side; fire-and-forget.
+    void fetch(`${API_URL}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     setUser(null);
     setFeatureFlags(null);
     setCM360Connected(null);
@@ -184,23 +180,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const authFetch = useCallback(async (url: string, options?: RequestInit) => {
     const res = await fetch(url, {
       ...options,
-      headers: {
-        ...options?.headers,
-        ...(tokenRef.current ? { 'Authorization': `Bearer ${tokenRef.current}` } : {}),
-      },
+      credentials: 'include',
+      headers: { ...options?.headers },
     });
 
     if (res.status === 401) {
-      setToken(null);
+      // Session expired or revoked — drop to the logged-out state.
       setUser(null);
-      localStorage.removeItem('adtraffic-token');
-      localStorage.removeItem('adtraffic-user');
     }
 
     return res;
   }, []);
 
-  const value = useMemo(() => ({ user, token, featureFlags, cm360Connected, refreshCM360Status, anthropicConnected, refreshAnthropicStatus, login, register, logout, isLoading, authFetch }), [user, token, featureFlags, cm360Connected, refreshCM360Status, anthropicConnected, refreshAnthropicStatus, login, register, logout, isLoading, authFetch]);
+  const value = useMemo(
+    () => ({
+      user,
+      isAuthenticated: user !== null,
+      authReady,
+      featureFlags,
+      cm360Connected,
+      refreshCM360Status,
+      anthropicConnected,
+      refreshAnthropicStatus,
+      login,
+      register,
+      logout,
+      isLoading,
+      authFetch,
+    }),
+    [user, authReady, featureFlags, cm360Connected, refreshCM360Status, anthropicConnected, refreshAnthropicStatus, login, register, logout, isLoading, authFetch],
+  );
 
   return (
     <AuthContext.Provider value={value}>

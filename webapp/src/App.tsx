@@ -8,14 +8,16 @@ import Privacy from './pages/Privacy.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
-  if (!token) return <Navigate to="/login" replace />;
+  const { isAuthenticated, authReady } = useAuth();
+  if (!authReady) return null; // wait for the session check before deciding
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { token } = useAuth();
-  if (token) return <Navigate to="/" replace />;
+  const { isAuthenticated, authReady } = useAuth();
+  if (!authReady) return null;
+  if (isAuthenticated) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 

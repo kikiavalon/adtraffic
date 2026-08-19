@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { register, login } from '../auth/auth-service.js';
+import { register, login, getUserById } from '../auth/auth-service.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
+import { requireAuth } from '../auth/middleware.js';
+import { setAuthCookie, clearAuthCookie } from '../auth/cookies.js';
 
 const router = Router();
 
@@ -29,6 +31,7 @@ router.post('/auth/register', registerLimiter, async (req, res) => {
 
   try {
     const result = await register(parsed.data.email, parsed.data.password, parsed.data.name);
+    setAuthCookie(res, result.token);
     res.status(201).json(result);
   } catch (error) {
     if (error instanceof Error && error.message === 'Email already registered') {
@@ -50,6 +53,7 @@ router.post('/auth/login', loginLimiter, async (req, res) => {
 
   try {
     const result = await login(parsed.data.email, parsed.data.password);
+    setAuthCookie(res, result.token);
     res.json(result);
   } catch (error) {
     if (error instanceof Error && error.message === 'Invalid email or password') {
@@ -58,6 +62,35 @@ router.post('/auth/login', loginLimiter, async (req, res) => {
     }
     throw error;
   }
+});
+
+/**
+ * GET /auth/me
+ *
+ * Returns the authenticated user's profile. The webapp calls this on load to
+ * rehydrate its session, since the JWT lives in an httpOnly cookie the client
+ * cannot read. Returns 401 when no valid session cookie or Bearer token is present.
+ */
+router.get('/auth/me', requireAuth, async (req, res) => {
+  const user = await getUserById(req.user!.userId);
+  if (!user) {
+    // Token is valid but the account no longer exists — clear the stale cookie.
+    clearAuthCookie(res);
+    res.status(401).json({ error: 'Authentication required' });
+    return;
+  }
+  res.json({ user });
+});
+
+/**
+ * POST /auth/logout
+ *
+ * Clears the session cookie. Intentionally does not require authentication so it
+ * still works with an expired cookie; clearing a cookie is harmless without one.
+ */
+router.post('/auth/logout', (_req, res) => {
+  clearAuthCookie(res);
+  res.json({ ok: true });
 });
 
 export default router;

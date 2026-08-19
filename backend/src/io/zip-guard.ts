@@ -18,7 +18,15 @@ function tooLarge(): Error {
   return new Error('Spreadsheet is too large to process (decompressed size exceeds the limit)');
 }
 
-export async function assertZipDecompressesWithinLimit(buffer: Buffer): Promise<void> {
+/**
+ * @param maxBytes cumulative decompressed byte cap across all entries. Defaults
+ *   to the production limit; tests inject a small cap so they can prove rejection
+ *   without inflating hundreds of megabytes.
+ */
+export async function assertZipDecompressesWithinLimit(
+  buffer: Buffer,
+  maxBytes: number = MAX_DECOMPRESSED_BYTES,
+): Promise<void> {
   let zip: JSZip;
   try {
     zip = await JSZip.loadAsync(buffer);
@@ -34,7 +42,7 @@ export async function assertZipDecompressesWithinLimit(buffer: Buffer): Promise<
       const stream = entry.nodeStream('nodebuffer');
       stream.on('data', (chunk: Buffer) => {
         total += chunk.length;
-        if (total > MAX_DECOMPRESSED_BYTES) {
+        if (total > maxBytes) {
           stream.pause();
           (stream as unknown as { destroy?: () => void }).destroy?.();
           reject(tooLarge());

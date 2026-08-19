@@ -4,7 +4,7 @@ import { db, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import type { UserRole } from './roles.js';
 
-function getJwtSecret(): string {
+export function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (secret) {
     if (process.env.NODE_ENV === 'production' && secret.length < 32) {
@@ -12,8 +12,14 @@ function getJwtSecret(): string {
     }
     return secret;
   }
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET must be set in production environment');
+  // No secret set. The hardcoded fallback is public in the source tree, so it is
+  // only safe for an explicit development or test run. Any other environment —
+  // including an unset NODE_ENV, "staging", or a misspelled "Production" — must
+  // supply a real secret rather than silently signing tokens with a known value.
+  if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+    throw new Error(
+      'JWT_SECRET must be set unless NODE_ENV is "development" or "test"',
+    );
   }
   return 'dev-secret-change-in-production';
 }

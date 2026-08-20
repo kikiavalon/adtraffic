@@ -1,4 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
+import { detectMagic } from './detect-magic.js';
 
 const MAX_PDF_PAGES = 20;
 const RENDER_SCALE = 2.0;
@@ -53,6 +54,9 @@ export async function processPdf(
   base64Data: string,
 ): Promise<Anthropic.ImageBlockParam[]> {
   const buffer = Buffer.from(base64Data, 'base64');
+  if (detectMagic(buffer) !== 'pdf') {
+    throw new Error('File content does not match its declared PDF type.');
+  }
   await assertPagesWithinPixelBudget(buffer);
 
   const { pdf } = await import('pdf-to-img');

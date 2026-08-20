@@ -55,6 +55,14 @@ describe('Excel/CSV Processor', () => {
     expect(result).toContain('300x250');
   });
 
+  it('rejects a non-zip file declared as an .xlsx (content/type mismatch)', async () => {
+    // %PDF bytes with an .xlsx name must not reach the spreadsheet parser.
+    const notZip = Buffer.from('%PDF-1.4 not a spreadsheet').toString('base64');
+    await expect(processExcel(notZip, 'evil.xlsx')).rejects.toThrow(
+      /does not match its declared spreadsheet type/i,
+    );
+  });
+
   it('handles quoted CSV fields containing commas', async () => {
     const csvContent = 'Site,Notes\nESPN.com,"takeover, homepage"\n';
     const data = Buffer.from(csvContent).toString('base64');

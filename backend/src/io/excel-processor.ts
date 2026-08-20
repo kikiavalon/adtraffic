@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { Readable } from 'node:stream';
 import { assertZipDecompressesWithinLimit } from './zip-guard.js';
+import { detectMagic } from './detect-magic.js';
 
 /**
  * Process an Excel or CSV file (base64-encoded) into structured text
@@ -26,6 +27,9 @@ export async function processExcel(base64Data: string, filename: string): Promis
   if (isCsv) {
     await workbook.csv.read(Readable.from(buffer));
   } else {
+    if (detectMagic(buffer) !== 'zip') {
+      throw new Error('File content does not match its declared spreadsheet type.');
+    }
     await assertZipDecompressesWithinLimit(buffer);
     await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
   }

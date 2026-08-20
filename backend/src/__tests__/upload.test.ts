@@ -144,6 +144,37 @@ describe('POST /api/v1/upload', () => {
     expect(res.body.extractedText).toBe('Extracted PDF text content');
   });
 
+  it('rejects a file declared as PDF whose bytes are not a PDF', async () => {
+    // Real zip (xlsx) bytes mislabeled application/pdf — must not reach the PDF parser.
+    const wb = new ExcelJS.Workbook();
+    wb.addWorksheet('S').addRow(['a', 'b']);
+    const zipBytes = Buffer.from(await wb.xlsx.writeBuffer());
+
+    const res = await request(app)
+      .post('/api/v1/upload')
+      .set('Authorization', 'Bearer test-user')
+      .attach('file', zipBytes, { filename: 'evil.pdf', contentType: 'application/pdf' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/does not match its declared PDF type/i);
+  });
+
+  it('rejects a file declared as a spreadsheet whose bytes are not a zip', async () => {
+    // %PDF bytes mislabeled as xlsx — must not reach the spreadsheet parser.
+    const pdfBytes = Buffer.from('%PDF-1.4 not a spreadsheet');
+
+    const res = await request(app)
+      .post('/api/v1/upload')
+      .set('Authorization', 'Bearer test-user')
+      .attach('file', pdfBytes, {
+        filename: 'evil.xlsx',
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/does not match its declared spreadsheet type/i);
+  });
+
   it('rejects unsupported file types', async () => {
     const buffer = Buffer.from('plain text content');
 

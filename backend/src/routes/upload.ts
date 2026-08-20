@@ -7,6 +7,7 @@ import * as pdfParseModule from 'pdf-parse';
 import ExcelJS from 'exceljs';
 import { cellText } from '../io/excel-processor.js';
 import { assertZipDecompressesWithinLimit } from '../io/zip-guard.js';
+import { detectMagic } from '../io/detect-magic.js';
 
 const parsePdf = (pdfParseModule as unknown as { default: (buffer: Buffer) => Promise<{ text: string }> }).default;
 
@@ -71,12 +72,20 @@ async function handleFileExtraction(req: Request, res: Response): Promise<void> 
     let extractedText: string;
 
     if (req.file.mimetype === 'application/pdf') {
+      if (detectMagic(req.file.buffer) !== 'pdf') {
+        res.status(400).json({ error: 'File content does not match its declared PDF type.' });
+        return;
+      }
       const pdfData = await parsePdf(req.file.buffer);
       extractedText = pdfData.text;
     } else if (
       req.file.mimetype.includes('spreadsheet') ||
       req.file.mimetype.includes('excel')
     ) {
+      if (detectMagic(req.file.buffer) !== 'zip') {
+        res.status(400).json({ error: 'File content does not match its declared spreadsheet type.' });
+        return;
+      }
       const workbook = new ExcelJS.Workbook();
       await assertZipDecompressesWithinLimit(req.file.buffer);
       await workbook.xlsx.load(req.file.buffer as unknown as ExcelJS.Buffer);

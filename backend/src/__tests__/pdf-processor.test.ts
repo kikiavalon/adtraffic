@@ -33,6 +33,11 @@ describe('assertPagesWithinPixelBudget', () => {
 });
 
 describe('PDF Processor', () => {
+  it('rejects a non-PDF file declared as a PDF (content/type mismatch)', async () => {
+    const notPdf = Buffer.from('this is plainly not a pdf').toString('base64');
+    await expect(processPdf(notPdf)).rejects.toThrow(/does not match its declared PDF type/i);
+  });
+
   it('converts PDF pages to base64 PNG images', async () => {
     const { pdf } = await import('pdf-to-img');
     const mockPdf = vi.mocked(pdf);

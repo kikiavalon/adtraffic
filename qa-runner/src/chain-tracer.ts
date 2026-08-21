@@ -24,20 +24,34 @@ export interface RawNavigationEvent {
   endedAt?: number;
 }
 
-const META_REFRESH_TAG_RE = /<meta[^>]+http-equiv\s*=\s*["']?refresh["']?[^>]*>/i;
-const META_CONTENT_URL_RE = /content\s*=\s*["']?\s*\d+\s*;\s*url\s*=\s*([^"'>\s]+)/i;
+// Match each <meta> tag, then inspect the short tag text with anchored,
+// non-ambiguous sub-patterns. The previous combined patterns had adjacent
+// [^>]/\s* quantifiers that backtrack polynomially on adversarial page HTML —
+// which is attacker-influenced in live click-tracing (js/polynomial-redos).
+// The tag-body scan is length-bounded (a real <meta> tag is short) so many
+// unterminated "<meta" starts can't force a rescan-to-end at each position.
+const META_TAG_RE = /<meta\b[^>]{0,8192}>/gi;
+const REFRESH_ATTR_RE = /http-equiv\s*=\s*["']?refresh\b/i;
+const CONTENT_ATTR_RE = /content\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]*))/i;
+const REFRESH_CONTENT_RE = /^\s*\d+\s*;\s*url\s*=\s*(\S+?)\s*$/i;
 
 /** Parse the target of a <meta http-equiv="refresh"> tag; null when absent/unparsable. */
 export function parseMetaRefreshUrl(html: string, baseUrl: string): string | null {
-  const tag = html.match(META_REFRESH_TAG_RE)?.[0];
-  if (!tag) return null;
-  const target = tag.match(META_CONTENT_URL_RE)?.[1];
-  if (!target) return null;
-  try {
-    return new URL(target, baseUrl).toString();
-  } catch {
-    return null;
+  for (const match of html.matchAll(META_TAG_RE)) {
+    const tag = match[0];
+    if (!REFRESH_ATTR_RE.test(tag)) continue;
+    // First refresh meta tag wins, matching browser behavior.
+    const content = tag.match(CONTENT_ATTR_RE);
+    const value = content ? (content[1] ?? content[2] ?? content[3] ?? '') : '';
+    const target = REFRESH_CONTENT_RE.exec(value)?.[1];
+    if (!target) return null;
+    try {
+      return new URL(target, baseUrl).toString();
+    } catch {
+      return null;
+    }
   }
+  return null;
 }
 
 function urlsMatch(a: string | null, b: string): boolean {

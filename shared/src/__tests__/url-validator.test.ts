@@ -87,6 +87,16 @@ describe('findUnresolvedMacros (check 5)', () => {
     expect(v.length).toBe(1);
     expect(v[0]!.message).toContain('%epid!');
   });
+
+  it('runs in linear time on adversarial macro-like input (ReDoS guard)', () => {
+    // "${" repeated with no closing brace. The old unbounded /\$\{[^}]+\}/g was
+    // O(n^2) — ~1.8s at this size; the bounded quantifier is ~linear (tens of ms).
+    // The generous ceiling catches a revert to the unbounded pattern without flaking.
+    const url = 'https://x.com/?a=' + '${'.repeat(50000);
+    const start = performance.now();
+    expect(findUnresolvedMacros(url)).toEqual([]);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
 });
 
 describe('validateSourceConsistency (mistake 4)', () => {

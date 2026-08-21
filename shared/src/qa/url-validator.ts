@@ -68,7 +68,7 @@ function tracking(
 
 /** Strip macro-shaped tokens before value-level casing checks (macro casing has its own check). */
 function stripMacroTokens(value: string): string {
-  return value.replace(/%e[a-z]+!/gi, '').replace(/%[ng](?![\w])/g, '');
+  return value.replace(/%e[a-z]{1,64}!/gi, '').replace(/%[ng](?![\w])/g, '');
 }
 
 /**
@@ -93,7 +93,7 @@ export function validateConfiguredUrl(url: string, options: ValidateUrlOptions =
   }
 
   // Check 12: every %e…! macro must be in the verified table, lowercase
-  const macroMatches = url.match(/%e[a-z]+!/gi) ?? [];
+  const macroMatches = url.match(/%e[a-z]{1,64}!/gi) ?? [];
   for (const macro of new Set(macroMatches)) {
     const lower = macro.toLowerCase();
     if (!VALID_CM360_MACROS.includes(lower)) {
@@ -158,11 +158,13 @@ export function findUnresolvedMacros(
   options: { treatCm360MacrosAsUnresolved?: boolean; keySuffix?: string } = {},
 ): QACheckResult[] {
   const found = new Set<string>();
-  for (const pattern of [/%%[A-Za-z0-9_]+%%/g, /\$\{[^}]+\}/g]) {
+  // Quantifiers are length-bounded — a real macro token is short — so these
+  // cannot backtrack polynomially on an adversarial URL (js/polynomial-redos).
+  for (const pattern of [/%%[A-Za-z0-9_]{1,256}%%/g, /\$\{[^}]{1,256}\}/g]) {
     for (const match of url.match(pattern) ?? []) found.add(match);
   }
   if (options.treatCm360MacrosAsUnresolved) {
-    for (const match of url.match(/%e[a-z]+!/gi) ?? []) found.add(match);
+    for (const match of url.match(/%e[a-z]{1,64}!/gi) ?? []) found.add(match);
     for (const match of url.match(/%[ng](?![\w])/g) ?? []) found.add(match);
   }
   if (found.size === 0) return [];

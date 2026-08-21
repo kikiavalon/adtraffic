@@ -28,6 +28,16 @@ describe('parseMetaRefreshUrl', () => {
   it('returns null when there is no refresh tag', () => {
     expect(parseMetaRefreshUrl('<html><body>hi</body></html>', 'https://x.com/')).toBeNull();
   });
+
+  it('runs in linear time on adversarial meta-heavy HTML (ReDoS guard)', () => {
+    // Many "<meta" starts with no closing ">". The old combined <meta[^>]+...[^>]*>
+    // was O(n^2) — ~5.5s at this size; the bounded body scan is ~linear (well under
+    // a second). The generous ceiling catches a revert without flaking.
+    const start = performance.now();
+    expect(parseMetaRefreshUrl('<meta '.repeat(50000), 'https://x.com/')).toBeNull();
+    expect(parseMetaRefreshUrl('<meta http-equiv=' + ' '.repeat(50000), 'https://x.com/')).toBeNull();
+    expect(performance.now() - start).toBeLessThan(2500);
+  });
 });
 
 describe('classifyHops', () => {

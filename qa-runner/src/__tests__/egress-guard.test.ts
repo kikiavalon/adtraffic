@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { lookup } from 'node:dns/promises';
 import { isBlockedIp, assertEgressAllowed } from '../egress-guard.js';
+
+// The guard resolves hostnames via node:dns; mock it to exercise the
+// resolution-based path (IP-literal URLs skip lookup and are covered above).
+vi.mock('node:dns/promises', () => ({ lookup: vi.fn() }));
 
 describe('isBlockedIp', () => {
   it('blocks loopback, link/site-local, private, CGNAT, reserved, and internal IPv6 ranges', () => {
@@ -86,5 +91,32 @@ describe('assertEgressAllowed', () => {
   it('allows public hosts', async () => {
     await expect(assertEgressAllowed('https://8.8.8.8/')).resolves.toBeUndefined();
     await expect(assertEgressAllowed('https://[::ffff:8.8.8.8]/')).resolves.toBeUndefined();
+  });
+});
+
+describe('assertEgressAllowed — hostname resolution (the DNS path behind rebinding)', () => {
+  // lookup has overloads; the { all: true } form the guard uses returns an
+  // array. Type the mock loosely so mockResolvedValue accepts LookupAddress[].
+  const mockLookup = lookup as unknown as Mock;
+  beforeEach(() => { mockLookup.mockReset(); });
+
+  it('blocks a hostname that resolves to a private address', async () => {
+    mockLookup.mockResolvedValue([{ address: '10.0.0.1', family: 4 }]);
+    await expect(assertEgressAllowed('http://rebind.example/'))
+      .rejects.toThrow(/Blocked click-test egress to private address/);
+  });
+
+  it('blocks when ANY resolved address is private (multi-record)', async () => {
+    mockLookup.mockResolvedValue([
+      { address: '93.184.216.34', family: 4 },
+      { address: '169.254.169.254', family: 4 },
+    ]);
+    await expect(assertEgressAllowed('http://mixed.example/'))
+      .rejects.toThrow(/Blocked click-test egress/);
+  });
+
+  it('allows a hostname that resolves only to public addresses', async () => {
+    mockLookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }]);
+    await expect(assertEgressAllowed('https://public.example/')).resolves.toBeUndefined();
   });
 });

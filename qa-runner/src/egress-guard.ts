@@ -13,7 +13,9 @@ import { lookup } from 'node:dns/promises';
  * subsequent fetch resolves independently, so a DNS-rebinding domain (public at
  * check time, private at fetch time) is not fully defeated. Pinning to the
  * vetted IP is not viable here because fetching an https URL by IP breaks TLS
- * SNI/certificate validation.
+ * SNI/certificate validation. This residual is accepted: click-testing is
+ * admin-gated and off by default (the qa.click_test.enabled flag), so reaching
+ * this path at all requires an operator to enable the feature.
  */
 
 /** True if the IP literal is loopback, link/site-local (incl. the

@@ -6,7 +6,6 @@
  * Moved verbatim from backend/src/cm360/tool-executor.ts.
  */
 
-import type { PendingAction } from '../types/confirmation.js';
 import { mockStore } from './mock-data-store.js';
 import {
   ListProfilesInputSchema,
@@ -86,10 +85,6 @@ export interface ToolResult {
   result: unknown;
   isError: boolean;
   errorMessage?: string;
-  /** Set when a write tool requires user confirmation before execution */
-  requiresConfirmation?: boolean;
-  /** The pending action details for the confirmation card */
-  pendingAction?: PendingAction;
 }
 
 // ---------------------------------------------------------------------------

@@ -8,10 +8,16 @@ import ExcelJS from 'exceljs';
 import { cellText } from '../io/excel-processor.js';
 import { assertZipDecompressesWithinLimit } from '../io/zip-guard.js';
 import { detectMagic } from '../io/detect-magic.js';
+import { createRateLimiter } from '../middleware/rate-limiter.js';
 
 const parsePdf = (pdfParseModule as unknown as { default: (buffer: Buffer) => Promise<{ text: string }> }).default;
 
 const router = Router();
+
+// File uploads run expensive parsing (PDF text extraction, and XLSX which
+// decompresses a zip in memory — a zip-bomb surface). Cap the rate per IP so a
+// client cannot drive repeated heavy parses. No-op under NODE_ENV=test.
+const uploadLimiter = createRateLimiter({ name: 'upload', windowMs: 60_000, maxRequests: 20 });
 
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -43,7 +49,7 @@ const upload = multer({
  * Accepts a PDF, Excel, or CSV file, extracts text content, and returns it.
  * Used for IO document parsing — Claude processes the extracted text to identify placements.
  */
-router.post('/upload', requireAuth, (req: Request, res: Response) => {
+router.post('/upload', uploadLimiter, requireAuth, (req: Request, res: Response) => {
   upload.single('file')(req, res, (err: unknown) => {
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {

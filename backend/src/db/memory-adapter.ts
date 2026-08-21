@@ -550,6 +550,7 @@ export function createMemoryDb(): { db: {
     email: 'demo@adtraffic.ai',
     passwordHash: demoPasswordHash,
     name: 'Demo User',
+    role: 'senior',
     createdAt: new Date(),
     updatedAt: new Date(),
   });

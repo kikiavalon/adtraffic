@@ -19,9 +19,11 @@ import type { PendingAction, QARunReport } from '@adtraffic/shared';
 
 const router = Router();
 
-// The approve route executes a real CM360 write, so throttle it per user.
-const approveLimiter = createRateLimiter({
-  name: 'approval-approve',
+// Approve executes a real CM360 write and reject resolves a pending item; both
+// mutate approval state, so throttle decisions per user (shared bucket) — not
+// per shared IP — as defence against a compromised session hammering them.
+const decisionLimiter = createRateLimiter({
+  name: 'approval-decision',
   windowMs: 60_000,
   maxRequests: 30,
   key: (req) => req.user?.userId ?? req.ip ?? 'anonymous',
@@ -127,7 +129,7 @@ router.get('/approvals/my-requests', requireAuth, async (req, res) => {
  * Requires canApproveOthers permission.
  * For destructive operations, requires typedConfirmation matching the operation name.
  */
-router.post('/approvals/:id/approve', requireAuth, requirePermission('canApproveOthers'), approveLimiter, async (req, res) => {
+router.post('/approvals/:id/approve', requireAuth, requirePermission('canApproveOthers'), decisionLimiter, async (req, res) => {
   try {
     const approvalId = req.params['id'] as string;
     const approverId = req.user!.userId;
@@ -281,7 +283,7 @@ router.post('/approvals/:id/approve', requireAuth, requirePermission('canApprove
  * Rejects a pending approval request.
  * Requires canApproveOthers permission.
  */
-router.post('/approvals/:id/reject', requireAuth, requirePermission('canApproveOthers'), async (req, res) => {
+router.post('/approvals/:id/reject', requireAuth, requirePermission('canApproveOthers'), decisionLimiter, async (req, res) => {
   try {
     const approvalId = req.params['id'] as string;
     const approverId = req.user!.userId;

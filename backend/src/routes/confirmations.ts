@@ -13,10 +13,11 @@ import type { QARunReport } from '@adtraffic/shared';
 
 const router = Router();
 
-// The approve route executes a real CM360 write, so throttle it per user (not
-// per shared IP) as defence against a compromised session hammering executeTool.
-const approveLimiter = createRateLimiter({
-  name: 'confirmation-approve',
+// Approve executes a real CM360 write; reject consumes the pending action. Both
+// mutate state, so throttle decisions per user (not per shared IP) as defence
+// against a compromised session hammering these endpoints.
+const decisionLimiter = createRateLimiter({
+  name: 'confirmation-decision',
   windowMs: 60_000,
   maxRequests: 30,
   key: (req) => req.user?.userId ?? req.ip ?? 'anonymous',
@@ -51,7 +52,7 @@ router.get('/confirmations/pending', requireAuth, async (req, res) => {
  * Executes a pending write operation after user confirmation.
  * For destructive operations, requires `typedConfirmation` matching the operation name (e.g., "DELETE", "ARCHIVE").
  */
-router.post('/confirmations/:actionId/approve', requireAuth, approveLimiter, async (req, res) => {
+router.post('/confirmations/:actionId/approve', requireAuth, decisionLimiter, async (req, res) => {
   try {
     const actionId = req.params['actionId'] as string;
     const userId = req.user!.userId;
@@ -145,7 +146,7 @@ router.post('/confirmations/:actionId/approve', requireAuth, approveLimiter, asy
  *
  * Marks a pending action as rejected and removes it from the store.
  */
-router.post('/confirmations/:actionId/reject', requireAuth, async (req, res) => {
+router.post('/confirmations/:actionId/reject', requireAuth, decisionLimiter, async (req, res) => {
   try {
     const actionId = req.params['actionId'] as string;
     const userId = req.user!.userId;

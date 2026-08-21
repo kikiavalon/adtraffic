@@ -33,6 +33,9 @@ jobs:
           languages: ${{ matrix.language }}
           # TypeScript is interpreted; no compiler invocation is needed.
           build-mode: none
+          # Excludes js/missing-rate-limiting (unmodelable custom limiter — see
+          # the config file's header); every other default query stays enabled.
+          config-file: ./.github/codeql/codeql-config.yml
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@f3712979fa5f215279b101dd0a2e3bdfb4353324 # v3.37.7
         with:

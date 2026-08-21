@@ -54,7 +54,13 @@ app.set('trust proxy', 1);
 
 // Security headers via helmet
 app.use(helmet({
-  contentSecurityPolicy: false, // CSP handled by nginx for the webapp; API responses don't serve HTML
+  // The API serves JSON/text/binary/redirects; the only HTML it can emit is the
+  // offline demo-fixtures pages (DEMO_MODE), which load no scripts/styles/images/
+  // frames — so `default-src 'none'` is safe everywhere (it only strips a cosmetic
+  // inline style in demo mode) and adds defense-in-depth if a response ever carries
+  // markup. The webapp's own CSP is served separately by nginx; this mirrors the
+  // per-response `default-src 'none'` already set on QA evidence.
+  contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"] } },
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
 }));
 

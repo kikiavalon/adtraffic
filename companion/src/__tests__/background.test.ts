@@ -467,6 +467,21 @@ describe('background service worker', () => {
       expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '', tabId: 1 });
     });
 
+    it('clears badge when campaignmanager.google.com appears only in the query (spoof attempt)', () => {
+      tabUpdateListener(1, { url: 'https://evil.com/?x=campaignmanager.google.com' }, {});
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '', tabId: 1 });
+    });
+
+    it('clears badge for a look-alike host suffixing campaignmanager.google.com (spoof attempt)', () => {
+      tabUpdateListener(1, { url: 'https://campaignmanager.google.com.evil.com/#/accounts/1' }, {});
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '', tabId: 1 });
+    });
+
+    it('clears badge for non-TLS http://campaignmanager.google.com (manifest is https-only)', () => {
+      tabUpdateListener(1, { url: 'http://campaignmanager.google.com/#/accounts/1' }, {});
+      expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '', tabId: 1 });
+    });
+
     it('scopes badge clear to specific tab ID', () => {
       tabUpdateListener(42, { url: 'https://www.example.com' }, {});
       expect(chrome.action.setBadgeText).toHaveBeenCalledWith({ text: '', tabId: 42 });

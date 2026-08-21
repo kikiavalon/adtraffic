@@ -13,6 +13,32 @@ const contextByTab = new Map<number, CM360PageContext>();
 let lastUpdatedTabId: number | null = null;
 
 /**
+ * Whether a URL is a CM360 page the companion operates on. Parses the URL and
+ * checks the host, mirroring the manifest match patterns — NOT a substring
+ * match, so a hostile URL like `https://evil.com/?x=campaignmanager.google.com`
+ * or `https://campaignmanager.google.com.evil.com/` cannot masquerade as CM360:
+ *   - https://campaignmanager.google.com/*   (production)
+ *   - http://localhost:5173/mock-cm360*       (local mock)
+ */
+function isCm360Url(rawUrl: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return false;
+  }
+  if (url.protocol === 'https:' && url.hostname === 'campaignmanager.google.com') {
+    return true;
+  }
+  // Local mock served by the webapp dev server. localhost is not spoofable by a
+  // remote origin, so the port is not a security boundary here.
+  if (url.hostname === 'localhost' && url.pathname.startsWith('/mock-cm360')) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Listen for messages from the content script and popup.
  */
 chrome.runtime.onMessage.addListener(
@@ -55,11 +81,7 @@ chrome.runtime.onMessage.addListener(
  */
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.url) {
-    const isCM360 =
-      changeInfo.url.includes('campaignmanager.google.com') ||
-      changeInfo.url.includes('mock-cm360');
-
-    if (!isCM360) {
+    if (!isCm360Url(changeInfo.url)) {
       contextByTab.delete(tabId);
       if (lastUpdatedTabId === tabId) {
         lastUpdatedTabId = null;

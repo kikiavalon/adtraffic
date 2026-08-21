@@ -2,15 +2,20 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../auth/middleware.js';
 import { setKey, getStatus, clearKey, verifyKey } from '../claude/anthropic-key-service.js';
+import { createRateLimiter } from '../middleware/rate-limiter.js';
 
 const router = Router();
 const KeySchema = z.object({ apiKey: z.string().min(20).max(200).startsWith('sk-ant-') });
+
+// PUT verifies the key against Anthropic's API (an external network call), so cap
+// it per IP to prevent abuse of that upstream call. No-op under NODE_ENV=test.
+const anthropicKeyLimiter = createRateLimiter({ name: 'anthropic-key', windowMs: 60_000, maxRequests: 10 });
 
 router.get('/settings/anthropic/status', requireAuth, async (req, res) => {
   res.json(await getStatus(req.user!.userId));
 });
 
-router.put('/settings/anthropic', requireAuth, async (req, res) => {
+router.put('/settings/anthropic', anthropicKeyLimiter, requireAuth, async (req, res) => {
   const parsed = KeySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "That doesn't look like a Claude API key (it should start with sk-ant-)." });
   let ok: boolean;

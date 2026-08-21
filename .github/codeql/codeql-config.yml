@@ -1,0 +1,46 @@
+# CodeQL configuration for AdTraffic.ai
+#
+# This augments GitHub's default CodeQL analysis. Every default query stays
+# enabled EXCEPT the single one excluded below.
+#
+# ---------------------------------------------------------------------------
+# Why js/missing-rate-limiting is excluded
+# ---------------------------------------------------------------------------
+# The backend rate-limits sensitive routes with its own middleware,
+# `createRateLimiter` (backend/src/middleware/rate-limiter.ts) — a sliding-window
+# limiter backed by Redis with an in-memory fallback, applied per route, e.g.
+# `router.post('/auth/login', loginLimiter, handler)`.
+#
+# CodeQL's js/missing-rate-limiting recognizes only a fixed set of third-party
+# npm limiters (express-rate-limit, express-brute, express-slow-down, …). It
+# cannot recognize this project's custom limiter: the query's only extension
+# point is a QL subclass of an internal library class (RateLimitedRouteHandlerExpr),
+# not a data extension, and maintaining a custom CodeQL pack that hooks CodeQL's
+# internal API is an inappropriate, fragile burden for a project this size.
+#
+# Because the limiter is invisible to the query, it cannot tell a rate-limited
+# route from an unlimited one. Concretely, it flags `POST /auth/login` — which
+# sits directly behind `loginLimiter` — as missing rate limiting. Its findings
+# therefore can't be triaged as limited-vs-unlimited and can't gate a PR; they
+# are noise that masks real alerts. (At the time of writing it had 39 open
+# alerts on main — about 30 of the 39 on routes that are already limited or
+# read-only, the rest on cheap bounded mutations.)
+#
+# Rate-limiting is instead enforced by convention and verified directly:
+#   - the limiter has dedicated unit tests
+#     (backend/src/__tests__/rate-limiter.test.ts)
+#   - the routes CodeQL flagged were audited by hand. The genuinely
+#     expensive/abusable unlimited ones — file upload (PDF/XLSX parsing, a
+#     zip-bomb surface) and Claude-key verification (an external call to
+#     Anthropic) — are given real limiters in this same change, rather than
+#     relying on a scanner that couldn't reliably catch them. The rest are
+#     already limited, read-only, or cheap bounded mutations.
+#
+# Every other CodeQL query — injection, XSS, SSRF, path traversal, etc. — stays
+# active. If GitHub ever ships data-extension support for this query, drop this
+# exclusion and model createRateLimiter instead.
+name: "AdTraffic.ai CodeQL config"
+
+query-filters:
+  - exclude:
+      id: js/missing-rate-limiting

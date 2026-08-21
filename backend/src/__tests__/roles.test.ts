@@ -191,9 +191,9 @@ describe('Role-based access control', () => {
   });
 
   describe('Schema default role', () => {
-    it('users table role column defaults to "senior"', () => {
+    it('users table role column defaults to "junior" (least privilege)', () => {
       const roleColumn = users.role;
-      expect(roleColumn.default).toBe('senior');
+      expect(roleColumn.default).toBe('junior');
     });
   });
 });

@@ -44,6 +44,25 @@ export interface AuthTokens {
   user: AuthUser;
 }
 
+/**
+ * Role for a newly registered user. The FIRST account on a fresh instance
+ * becomes `admin` (bootstraps the self-host operator); everyone after gets
+ * DEFAULT_USER_ROLE — default `junior` (read + write-pending-approval), so open
+ * registration cannot silently grant direct live-write authority. A trusted-team
+ * instance can set DEFAULT_USER_ROLE=senior. (Best-effort first-user check: two
+ * truly simultaneous first registrations could both be admin — acceptable for a
+ * self-hosted instance.)
+ */
+async function resolveNewUserRole(): Promise<UserRole> {
+  const anyUser = await db.select({ id: schema.users.id }).from(schema.users).limit(1);
+  if (anyUser.length === 0) return 'admin';
+  // Only senior/junior are valid mass-assignment defaults. admin is reserved for
+  // the bootstrap first user, so DEFAULT_USER_ROLE=admin (which would make every
+  // registrant a full admin) is rejected and falls back to least privilege.
+  const configured = process.env.DEFAULT_USER_ROLE;
+  return configured === 'senior' || configured === 'junior' ? configured : 'junior';
+}
+
 export async function register(email: string, password: string, name: string): Promise<AuthTokens> {
   const existing = await db.select().from(schema.users).where(eq(schema.users.email, email));
   if (existing[0]) {
@@ -51,11 +70,13 @@ export async function register(email: string, password: string, name: string): P
   }
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  const role = await resolveNewUserRole();
 
   const result = await db.insert(schema.users).values({
     email,
     passwordHash,
     name,
+    role,
   }).returning({
     id: schema.users.id,
     email: schema.users.email,
@@ -123,6 +144,6 @@ export function verifyToken(token: string): { userId: string; email: string; rol
   }
   const role = typeof (decoded as Record<string, unknown>).role === 'string'
     ? (decoded as Record<string, unknown>).role as string
-    : 'senior'; // Backward compat: tokens issued before role was added default to senior
+    : 'junior'; // Missing/legacy role → least privilege (freshly issued tokens always carry a role)
   return { userId: (decoded as Record<string, unknown>).userId as string, email: (decoded as Record<string, unknown>).email as string, role };
 }

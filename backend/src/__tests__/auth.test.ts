@@ -68,6 +68,53 @@ describe('Auth API', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('makes the first registered user an admin (self-host bootstrap)', async () => {
+      const res = await request(app)
+        .post('/api/v1/auth/register')
+        .send({ email: 'first@agency.com', password: 'SecurePass123', name: 'First' });
+      expect(res.status).toBe(201);
+      expect(res.body.user.role).toBe('admin');
+    });
+
+    it('defaults subsequent users to junior (least privilege)', async () => {
+      await request(app).post('/api/v1/auth/register')
+        .send({ email: 'owner@agency.com', password: 'SecurePass123', name: 'Owner' });
+      const res = await request(app).post('/api/v1/auth/register')
+        .send({ email: 'second@agency.com', password: 'SecurePass123', name: 'Second' });
+      expect(res.status).toBe(201);
+      expect(res.body.user.role).toBe('junior');
+    });
+
+    it('honors DEFAULT_USER_ROLE=senior for subsequent users', async () => {
+      vi.stubEnv('DEFAULT_USER_ROLE', 'senior');
+      await request(app).post('/api/v1/auth/register')
+        .send({ email: 'owner2@agency.com', password: 'SecurePass123', name: 'Owner2' });
+      const res = await request(app).post('/api/v1/auth/register')
+        .send({ email: 'teammate@agency.com', password: 'SecurePass123', name: 'Teammate' });
+      expect(res.body.user.role).toBe('senior');
+      vi.unstubAllEnvs();
+    });
+
+    it('falls back to junior for an invalid DEFAULT_USER_ROLE', async () => {
+      vi.stubEnv('DEFAULT_USER_ROLE', 'superuser');
+      await request(app).post('/api/v1/auth/register')
+        .send({ email: 'owner3@agency.com', password: 'SecurePass123', name: 'Owner3' });
+      const res = await request(app).post('/api/v1/auth/register')
+        .send({ email: 'teammate2@agency.com', password: 'SecurePass123', name: 'Teammate2' });
+      expect(res.body.user.role).toBe('junior');
+      vi.unstubAllEnvs();
+    });
+
+    it('rejects DEFAULT_USER_ROLE=admin (reserved for first-user bootstrap) → junior', async () => {
+      vi.stubEnv('DEFAULT_USER_ROLE', 'admin');
+      await request(app).post('/api/v1/auth/register')
+        .send({ email: 'owner4@agency.com', password: 'SecurePass123', name: 'Owner4' });
+      const res = await request(app).post('/api/v1/auth/register')
+        .send({ email: 'teammate3@agency.com', password: 'SecurePass123', name: 'Teammate3' });
+      expect(res.body.user.role).toBe('junior');
+      vi.unstubAllEnvs();
+    });
   });
 
   describe('POST /api/v1/auth/login', () => {

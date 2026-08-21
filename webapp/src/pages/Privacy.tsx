@@ -10,7 +10,7 @@ function Privacy() {
       </header>
 
       <main className="privacy-content">
-        <p className="privacy-updated">Last updated: March 9, 2026</p>
+        <p className="privacy-updated">Last updated: August 21, 2026</p>
 
         <section>
           <h2>What We Collect</h2>
@@ -28,6 +28,21 @@ function Privacy() {
             <li><strong>AI-assisted trafficking:</strong> Your messages are sent to Claude (by Anthropic) to generate responses and execute CM360 operations.</li>
             <li><strong>CM360 API calls:</strong> Your OAuth tokens are used to make API calls to Google CM360 on your behalf. Campaign data transits the server to execute those calls; we do not cache it or use it for advertising, but campaign details you discuss are saved in your conversation logs, and a pending write action or QA run temporarily stores the campaign fields it operates on.</li>
             <li><strong>Service improvement:</strong> Aggregated, anonymized usage metrics help us improve the product.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Browser Extension (Optional)</h2>
+          <p>
+            AdTraffic offers an optional companion browser extension that launches Kiki with the
+            context of the Campaign Manager 360 page you are viewing. It is not required to use
+            AdTraffic. If you install it:
+          </p>
+          <ul>
+            <li><strong>Where it runs:</strong> its content script activates only on Campaign Manager 360 pages (<code>campaignmanager.google.com</code>) and the local demo (<code>localhost:5173/mock-cm360</code>). It does not run on any other website.</li>
+            <li><strong>What it reads:</strong> the account, advertiser, campaign, and profile identifiers present in the page URL and page content, plus a label for the type of CM360 page you are on, so Kiki can open already scoped to what you are looking at.</li>
+            <li><strong>Tab access:</strong> the <code>tabs</code> permission lets the extension see tab URLs as you navigate, so it can show or clear its toolbar badge on CM360 pages. It does not read your browsing history, and it does not read the contents of non-CM360 pages.</li>
+            <li><strong>Where it goes:</strong> those identifiers are stored on your device — in the extension's memory and in your browser's local storage — and are sent to the AdTraffic app only when you open Kiki. They remain in local storage until overwritten on your next CM360 visit. The extension makes no other network requests and shares nothing with third parties.</li>
           </ul>
         </section>
 

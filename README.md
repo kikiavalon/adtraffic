@@ -7,7 +7,7 @@
 
 **An open-source conversational trafficking assistant for Google Campaign Manager 360 (CM360).**
 
-Kiki is a complete assistant, not a bare API connector: it pairs the CM360 API with built-in trafficking domain expertise (naming conventions, UTM/click-through resolution, VAST/video), write-safety confirmations, and automated post-write QA — behind a natural-language chat interface and a web app. It is one of the few open tools that can **write** to CM360 (create and update campaigns, placements, ads, creatives, tags), not merely read it.
+Kiki is a complete assistant, not a bare API connector: it pairs the CM360 API with built-in trafficking domain expertise (naming conventions, UTM/click-through resolution, VAST/video), write-safety confirmations, and automated post-write QA — behind a natural-language chat interface and a web app. It can **write** to CM360 (create and update campaigns, placements, ads, creatives, tags), not merely read it.
 
 > ⚠️ **The live CM360 path is unverified.** Kiki writes to systems that control
 > real ad spend. All 70 tools are implemented; none has been exercised against
@@ -16,7 +16,7 @@ Kiki is a complete assistant, not a bare API connector: it pairs the CM360 API w
 
 ## Why this exists
 
-Google sunset **Bulkdozer** — its open-source bulk-trafficking tool — in August 2023, leaving traffickers without a scriptable, safety-checked way to make changes at scale. Most tooling that filled the space is read-only analytics plumbing. AdTraffic takes the opposite tack: it treats **agent behavior as a product spec**. Every mutating action is previewed and confirmed, tool inputs are validated with Zod, and a built-in QA pass re-reads what changed and click-tests the resulting ad tags. The goal is a tool a trafficker managing real ad spend could actually trust.
+Google sunset **Bulkdozer** — its open-source bulk-trafficking tool — in August 2023, leaving traffickers without a scriptable, safety-checked way to make changes at scale. AdTraffic treats **agent behavior as a product spec**. Every mutating action is previewed and confirmed, tool inputs are validated with Zod, and a built-in QA pass re-reads what changed and click-tests the resulting ad tags. The goal is a tool a trafficker managing real ad spend could actually trust.
 
 ## Quick start (demo mode — no database, no CM360 account)
 
@@ -73,7 +73,7 @@ CM360 calls are made **server-side** (never in the browser); campaign data trans
 ## Tests
 
 ```bash
-npm run build && npm run typecheck && npm run lint && npm test   # the full gate (2,440 tests)
+npm run build && npm run typecheck && npm run lint && npm test   # the full gate (2,552 tests)
 ```
 
 `shared`, `mcp`, and `webapp` suites need no services. The `backend` suite needs a local Postgres:
@@ -96,10 +96,6 @@ The `drizzle-kit push` shown above is a quick path for throwaway dev/test databa
 ## Using the live CM360 API (bring your own credentials)
 
 To connect Kiki to a real CM360 account you supply your own Google OAuth2 client (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI`) and complete the in-app consent flow. Note Google's rules: the `dfatrafficking` and `dfareporting` scopes are **sensitive**, so an unverified OAuth app is capped at 100 users until it passes Google's verification review. See [docs/PRD-capabilities.md](docs/PRD-capabilities.md) for the CM360 v5 architecture details.
-
-## How it compares
-
-Kiki is a **packaged assistant**, which is a different thing from a **connector**. Open and commercial CM360 connectors expose raw API operations (some read-only, some write-capable — e.g. the open-source [`cesteral/cm360-mcp`](https://github.com/cesteral/mcp-open-advertising), which predates this project) that you wire into your own agent. Kiki bundles the connector *and* the trafficking judgment around it: domain rules, write-safety confirmation, teaching mode, and QA. If you want raw CM360 MCP tools, those connectors may suit you better; if you want an assistant that knows how a campaign should be trafficked and checks its own work, Kiki is built for that.
 
 ## Telemetry
 

@@ -6,12 +6,23 @@
  * already JSON Schema, so the ListTools handler passes them through
  * untouched instead of round-tripping through zod shapes.
  */
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { CM360_TOOLS, executeToolMock, type ToolResult } from '@adtraffic/shared/mock-cm360';
 
 export const SERVER_NAME = 'adtraffic-mcp';
-export const SERVER_VERSION = '0.1.0';
+
+// Derive the advertised version from package.json so it can never drift from the
+// published package. server.ts (src/) and the tsup bundle (dist/) both sit one
+// level below the package root, and npm always ships package.json in the
+// tarball — so '../package.json' resolves under test and at runtime alike.
+const pkg = JSON.parse(
+  readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'),
+) as { version: string };
+export const SERVER_VERSION = pkg.version;
 
 /** Flat error payload — every error response serializes to this shape. */
 interface ErrorPayload {

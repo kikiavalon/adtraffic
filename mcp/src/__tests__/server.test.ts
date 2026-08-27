@@ -1,8 +1,19 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { CM360_TOOLS, mockStore } from '@adtraffic/shared/mock-cm360';
 import { createAdTrafficServer } from '../server.js';
+
+// The single source of truth for the package version is the same package.json
+// that npm publishes. The server's advertised version MUST track it.
+const pkgVersion = (
+  JSON.parse(
+    readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../package.json'), 'utf8'),
+  ) as { version: string }
+).version;
 
 const openClients: Client[] = [];
 let savedDemoMode: string | undefined;
@@ -43,6 +54,15 @@ describe('createAdTrafficServer', () => {
     expect(listProfiles?.description).toBe(source?.description);
     expect(listProfiles?.inputSchema).toMatchObject({ type: 'object' });
     expect(listProfiles?.inputSchema).toEqual(source?.input_schema);
+  });
+
+  it('advertises the version from package.json in its MCP handshake (no drift)', async () => {
+    const client = await connectedClient();
+    const impl = client.getServerVersion();
+    expect(impl?.name).toBe('adtraffic-mcp');
+    // Guards against the server version being a hardcoded literal that silently
+    // drifts from package.json (as it did before 0.1.1, which shipped announcing 0.1.0).
+    expect(impl?.version).toBe(pkgVersion);
   });
 
   it('executes cm360_list_profiles and returns profiles as JSON text', async () => {

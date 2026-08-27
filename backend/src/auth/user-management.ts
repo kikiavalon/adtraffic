@@ -13,13 +13,16 @@ export interface ManagedUser {
   createdAt: Date;
 }
 
-const userColumns = {
+// A function (not a top-level const) so schema columns are dereferenced at call
+// time. Reading schema.* during module init races the db module's top-level
+// await and can throw "Cannot read properties of undefined (reading 'id')".
+const userColumns = () => ({
   id: schema.users.id,
   email: schema.users.email,
   name: schema.users.name,
   role: schema.users.role,
   createdAt: schema.users.createdAt,
-} as const;
+});
 
 export class DuplicateEmailError extends Error {
   constructor() {
@@ -30,7 +33,7 @@ export class DuplicateEmailError extends Error {
 
 /** All users, newest first. Never includes password hashes. */
 export async function listUsers(): Promise<ManagedUser[]> {
-  const rows = await db.select(userColumns).from(schema.users);
+  const rows = await db.select(userColumns()).from(schema.users);
   return rows
     .map((r) => ({ ...r, role: r.role as UserRole }))
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -55,7 +58,7 @@ export async function createUser(input: {
   const rows = await db
     .insert(schema.users)
     .values({ email: input.email, passwordHash, name: input.name, role: input.role })
-    .returning(userColumns);
+    .returning(userColumns());
   const row = rows[0];
   if (!row) throw new Error('Failed to create user');
   return { ...row, role: row.role as UserRole };
@@ -84,7 +87,7 @@ async function countAdmins(): Promise<number> {
 }
 
 async function getUserRow(userId: string): Promise<ManagedUser | null> {
-  const rows = await db.select(userColumns).from(schema.users).where(eq(schema.users.id, userId)).limit(1);
+  const rows = await db.select(userColumns()).from(schema.users).where(eq(schema.users.id, userId)).limit(1);
   const row = rows[0];
   return row ? { ...row, role: row.role as UserRole } : null;
 }
@@ -103,7 +106,7 @@ export async function updateUserRole(userId: string, role: UserRole): Promise<Ma
     .update(schema.users)
     .set({ role, updatedAt: new Date() })
     .where(eq(schema.users.id, userId))
-    .returning(userColumns);
+    .returning(userColumns());
   const row = rows[0];
   if (!row) throw new UserNotFoundError();
   return { ...row, role: row.role as UserRole };

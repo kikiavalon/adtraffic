@@ -21,6 +21,7 @@ Thumbs.db
 
 # Claude Code internals
 .claude/
+.agents/
 
 # Git worktrees
 .worktrees/

@@ -1,8 +1,8 @@
 /**
  * Trafficking QA — pure string-level URL and UTM (Urchin Tracking Module) rules.
  *
- * Executable transcription of the verified utm-expert rule set
- * (.agents/skills/utm-expert/SKILL.md, verified against Google docs 2026-08-15).
+ * Executable transcription of the verified utm-expert rule set,
+ * verified against Google's UTM / Campaign URL documentation (2026-08-15).
  * Design-doc checks covered: 5 (unresolved macros), 10 (required UTMs),
  * 11 (convention), 12 (macro table), 14 (GA4 partial tagging).
  *

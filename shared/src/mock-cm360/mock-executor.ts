@@ -167,6 +167,7 @@ export function executeToolMock(
           startDate: parsed.data.startDate,
           endDate: parsed.data.endDate,
           defaultLandingPageId: parsed.data.defaultLandingPageId,
+          euPoliticalAdsDeclaration: parsed.data.euPoliticalAdsDeclaration,
         });
         return { result: campaign, isError: false };
       }

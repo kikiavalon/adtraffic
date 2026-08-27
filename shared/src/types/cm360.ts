@@ -80,6 +80,15 @@ export interface CM360Advertiser {
   clickThroughUrlSuffix?: string;
 }
 
+/**
+ * EU Political Ads declaration (CM360 API v5). CM360 does not allow campaigns
+ * declared as containing EU political ads to serve in the EU. Optional — omit
+ * when undeclared.
+ */
+export type CM360EuPoliticalAdsDeclaration =
+  | 'CONTAINS_EU_POLITICAL_ADS'
+  | 'DOES_NOT_CONTAIN_EU_POLITICAL_ADS';
+
 export interface CM360Campaign {
   id: string;
   name: string;
@@ -89,6 +98,7 @@ export interface CM360Campaign {
   endDate: string;   // YYYY-MM-DD
   defaultLandingPageId: string;
   archived: boolean;
+  euPoliticalAdsDeclaration?: CM360EuPoliticalAdsDeclaration;
   clickThroughUrlSuffixProperties?: CM360ClickThroughUrlSuffixProperties;
 }
 
@@ -98,6 +108,7 @@ export interface CM360CreateCampaignInput {
   startDate: string;
   endDate: string;
   defaultLandingPageId: string;
+  euPoliticalAdsDeclaration?: CM360EuPoliticalAdsDeclaration;
 }
 
 export interface CM360Site {
@@ -278,6 +289,7 @@ export interface CM360UpdateCampaignInput {
   endDate?: string;
   archived?: boolean;
   defaultLandingPageId?: string;
+  euPoliticalAdsDeclaration?: CM360EuPoliticalAdsDeclaration;
 }
 
 export interface CM360UpdatePlacementInput {

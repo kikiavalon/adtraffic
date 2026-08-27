@@ -261,6 +261,39 @@ describe('CM360Client', () => {
       expect(result.id).toBe('501');
       expect(result.defaultLandingPageId).toBe('300');
     });
+
+    it('includes euPoliticalAdsDeclaration in requestBody and surfaces it (v5)', async () => {
+      (mockApi.campaigns.insert as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: {
+          id: '502',
+          name: 'Political Campaign',
+          accountId: '222',
+          advertiserId: '100',
+          startDate: '2026-04-01',
+          endDate: '2026-06-30',
+          defaultLandingPage: { id: '300' },
+          archived: false,
+          euPoliticalAdsDeclaration: 'CONTAINS_EU_POLITICAL_ADS',
+        },
+      });
+
+      const result = await client.createCampaign('111', {
+        advertiserId: '100',
+        name: 'Political Campaign',
+        startDate: '2026-04-01',
+        endDate: '2026-06-30',
+        defaultLandingPageId: '300',
+        euPoliticalAdsDeclaration: 'CONTAINS_EU_POLITICAL_ADS',
+      });
+
+      expect(mockApi.campaigns.insert).toHaveBeenCalledWith({
+        profileId: '111',
+        requestBody: expect.objectContaining({
+          euPoliticalAdsDeclaration: 'CONTAINS_EU_POLITICAL_ADS',
+        }),
+      });
+      expect(result.euPoliticalAdsDeclaration).toBe('CONTAINS_EU_POLITICAL_ADS');
+    });
   });
 
   describe('listPlacements', () => {

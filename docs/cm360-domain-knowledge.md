@@ -27,6 +27,7 @@
 | **Cost structures** | CPM (most common), vCPM, CPC, CPA, Flat rate |
 | **SSL required** | All assets must be HTTPS — no exceptions |
 | **IAB counting** | CM360 follows IAB standards with third-party audit |
+| **EU political ads (v5)** | Campaigns carry an optional `euPoliticalAdsDeclaration`; CM360 blocks campaigns declared as containing EU political ads from serving in the EU |
 
 ---
 

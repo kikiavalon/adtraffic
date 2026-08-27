@@ -173,18 +173,27 @@ describe('CM360 workflow rules', () => {
     expect(KIKI_SYSTEM_PROMPT).toMatch(/cannot skip steps/i);
   });
 
-  it('states creatives are uploaded by the user, not created by Kiki', () => {
-    expect(KIKI_SYSTEM_PROMPT).toMatch(/creatives are uploaded by the user/i);
+  it('states creative files come from the user while Kiki registers and wires them up', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/creative files come from the user/i);
   });
 });
 
 describe('Capability boundaries', () => {
-  it('explicitly states Kiki cannot create creative assets', () => {
-    expect(KIKI_SYSTEM_PROMPT).toMatch(/cannot create or upload creative assets/i);
+  it('clarifies Kiki can register/upload creatives but does not author creative files', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/do not author or design creative files/i);
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/cm360_upload_creative_asset/i);
   });
 
   it('states tags require the full chain to exist', () => {
     expect(KIKI_SYSTEM_PROMPT).toMatch(/cannot generate tags until ads exist/i);
+  });
+});
+
+describe('EU Political Ads declaration (v5)', () => {
+  it('teaches the field as optional and never inferred', () => {
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/EU Political Ads/i);
+    expect(KIKI_SYSTEM_PROMPT).toContain('euPoliticalAdsDeclaration');
+    expect(KIKI_SYSTEM_PROMPT).toMatch(/never infer/i);
   });
 });
 

@@ -174,6 +174,20 @@ describe('Required fields', () => {
     expect(required).toContain('defaultLandingPageId');
   });
 
+  it('campaign create/update tools expose optional euPoliticalAdsDeclaration enum (v5)', () => {
+    for (const name of ['cm360_create_campaign', 'cm360_update_campaign']) {
+      const tool = CM360_TOOLS.find((t) => t.name === name)!;
+      const props = tool.input_schema.properties as Record<string, { enum?: string[] }>;
+      expect(props.euPoliticalAdsDeclaration).toBeDefined();
+      expect(props.euPoliticalAdsDeclaration!.enum).toEqual([
+        'CONTAINS_EU_POLITICAL_ADS',
+        'DOES_NOT_CONTAIN_EU_POLITICAL_ADS',
+      ]);
+      const required = (tool.input_schema.required as string[] | undefined) ?? [];
+      expect(required).not.toContain('euPoliticalAdsDeclaration');
+    }
+  });
+
   it('cm360_create_placement requires all mandatory fields', () => {
     const tool = CM360_TOOLS.find((t) => t.name === 'cm360_create_placement')!;
     const required = tool.input_schema.required as string[];

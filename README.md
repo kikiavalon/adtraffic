@@ -41,6 +41,8 @@ npm run dev                            # backend on :3001, webapp on :5173
 
 Open http://localhost:5173 and sign up. Kiki uses **your own** Claude API key — open **Settings → Claude API** and paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys); it's verified and stored encrypted, and chat stays disabled until it's connected. Then ask Kiki to "list advertisers" or "create a campaign." Everything runs against seeded, deterministic mock CM360 data — no Google account required.
 
+> **`npm install` prints audit warnings — that's expected.** They're almost all dev/build tooling (e.g. `esbuild` via `tsx` and `drizzle-kit`) and don't affect the demo. **Don't run `npm audit fix --force`** — dependencies are pinned to exact, tested versions, and `--force` swaps in incompatible majors that break the build. To harden a dependency, open a PR with a targeted, in-range bump instead.
+
 ## Try it over MCP (Model Context Protocol)
 
 `@adtraffic/mcp` is a zero-credential stdio MCP server that exposes all 70 CM360 tools against the same seeded mock data — usable from Claude Desktop or any MCP client. No Claude key needed; it's just the tool surface over mock data.

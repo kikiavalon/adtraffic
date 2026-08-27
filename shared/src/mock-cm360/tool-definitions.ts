@@ -74,6 +74,11 @@ export const CM360_TOOLS: CM360ToolDefinition[] = [
         startDate: { type: 'string', description: 'Campaign start date in YYYY-MM-DD format' },
         endDate: { type: 'string', description: 'Campaign end date in YYYY-MM-DD format' },
         defaultLandingPageId: { type: 'string', description: 'Default landing page ID (required by CM360)' },
+        euPoliticalAdsDeclaration: {
+          type: 'string',
+          enum: ['CONTAINS_EU_POLITICAL_ADS', 'DOES_NOT_CONTAIN_EU_POLITICAL_ADS'],
+          description: 'Optional EU Political Ads declaration (v5). CM360 blocks campaigns declared as containing EU political ads from serving in the EU. Set only when the user states the political-ads status; otherwise omit.',
+        },
       },
       required: ['profileId', 'advertiserId', 'name', 'startDate', 'endDate', 'defaultLandingPageId'],
     },
@@ -367,6 +372,11 @@ export const CM360_TOOLS: CM360ToolDefinition[] = [
         endDate: { type: 'string', description: 'New end date (YYYY-MM-DD)' },
         archived: { type: 'boolean', description: 'Set to true to archive, false to unarchive' },
         defaultLandingPageId: { type: 'string', description: 'New default landing page ID' },
+        euPoliticalAdsDeclaration: {
+          type: 'string',
+          enum: ['CONTAINS_EU_POLITICAL_ADS', 'DOES_NOT_CONTAIN_EU_POLITICAL_ADS'],
+          description: 'Optional EU Political Ads declaration (v5). CM360 blocks campaigns declared as containing EU political ads from serving in the EU. Set only when the user states the political-ads status; otherwise omit.',
+        },
       },
       required: ['profileId', 'campaignId'],
     },

@@ -15,6 +15,7 @@ import type {
   CM360UserProfile,
   CM360Advertiser,
   CM360Campaign,
+  CM360EuPoliticalAdsDeclaration,
   CM360Site,
   CM360Size,
   CM360LandingPage,
@@ -1421,6 +1422,7 @@ class MockDataStore {
     startDate: string;
     endDate: string;
     defaultLandingPageId: string;
+    euPoliticalAdsDeclaration?: CM360EuPoliticalAdsDeclaration;
   }): CM360Campaign {
     const id = this.genId();
     const campaign: CM360Campaign = {
@@ -1432,6 +1434,9 @@ class MockDataStore {
       endDate: input.endDate,
       defaultLandingPageId: input.defaultLandingPageId,
       archived: false,
+      ...(input.euPoliticalAdsDeclaration !== undefined && {
+        euPoliticalAdsDeclaration: input.euPoliticalAdsDeclaration,
+      }),
     };
     this.campaigns.set(id, campaign);
     return campaign;
@@ -1947,6 +1952,7 @@ class MockDataStore {
       ...(input.endDate !== undefined && { endDate: input.endDate }),
       ...(input.archived !== undefined && { archived: input.archived }),
       ...(input.defaultLandingPageId !== undefined && { defaultLandingPageId: input.defaultLandingPageId }),
+      ...(input.euPoliticalAdsDeclaration !== undefined && { euPoliticalAdsDeclaration: input.euPoliticalAdsDeclaration }),
     };
     this.campaigns.set(id, updated);
     return updated;

@@ -186,6 +186,28 @@ describe('MockDataStore', () => {
       expect(after.find((c) => c.id === created.id)).toBeDefined();
     });
 
+    it('createCampaign persists euPoliticalAdsDeclaration', () => {
+      const advId = mockStore.listAdvertisers()[0]!.id;
+      const lpId = mockStore.listLandingPages({ advertiserId: advId })[0]!.id;
+      const created = mockStore.createCampaign({
+        advertiserId: advId,
+        name: 'EU Political Test',
+        startDate: '2026-06-01',
+        endDate: '2026-08-31',
+        defaultLandingPageId: lpId,
+        euPoliticalAdsDeclaration: 'CONTAINS_EU_POLITICAL_ADS',
+      });
+      expect(created.euPoliticalAdsDeclaration).toBe('CONTAINS_EU_POLITICAL_ADS');
+    });
+
+    it('updateCampaign sets euPoliticalAdsDeclaration', () => {
+      const campId = mockStore.listCampaigns()[0]!.id;
+      const updated = mockStore.updateCampaign(campId, {
+        euPoliticalAdsDeclaration: 'DOES_NOT_CONTAIN_EU_POLITICAL_ADS',
+      });
+      expect(updated?.euPoliticalAdsDeclaration).toBe('DOES_NOT_CONTAIN_EU_POLITICAL_ADS');
+    });
+
     it('createPlacement persists and appears in list', () => {
       const campaigns = mockStore.listCampaigns();
       const camp = campaigns[0]!;

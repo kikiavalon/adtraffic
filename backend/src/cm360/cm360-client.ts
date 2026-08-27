@@ -155,6 +155,9 @@ export class CM360Client {
         startDate: input.startDate,
         endDate: input.endDate,
         defaultLandingPageId: input.defaultLandingPageId,
+        ...(input.euPoliticalAdsDeclaration !== undefined && {
+          euPoliticalAdsDeclaration: input.euPoliticalAdsDeclaration,
+        }),
       },
     });
     return mapCampaign(res.data);
@@ -181,6 +184,7 @@ export class CM360Client {
         ...(input.endDate !== undefined && { endDate: input.endDate }),
         ...(input.archived !== undefined && { archived: input.archived }),
         ...(input.defaultLandingPageId !== undefined && { defaultLandingPageId: input.defaultLandingPageId }),
+        ...(input.euPoliticalAdsDeclaration !== undefined && { euPoliticalAdsDeclaration: input.euPoliticalAdsDeclaration }),
       },
     });
     return mapCampaign(res.data);
@@ -1480,6 +1484,8 @@ function mapCampaign(c: any): CM360Campaign {
     endDate: (c.endDate as string) ?? '',
     defaultLandingPageId: String(defaultLP?.id ?? c.defaultLandingPageId ?? ''),
     archived: (c.archived as boolean) ?? false,
+    euPoliticalAdsDeclaration:
+      (c.euPoliticalAdsDeclaration as CM360Campaign['euPoliticalAdsDeclaration']) ?? undefined,
     clickThroughUrlSuffixProperties: mapSuffixProperties(c.clickThroughUrlSuffixProperties),
   };
 }

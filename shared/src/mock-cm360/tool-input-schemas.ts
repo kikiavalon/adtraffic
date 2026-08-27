@@ -124,6 +124,15 @@ export const ListSizesInputSchema = z.object({
 // Update / Patch operations
 // ---------------------------------------------------------------------------
 
+/**
+ * EU Political Ads declaration (CM360 API v5) — shared by campaign create/update.
+ * CM360 blocks campaigns declared as containing EU political ads from serving in the EU.
+ */
+export const euPoliticalAdsDeclarationSchema = z.enum([
+  'CONTAINS_EU_POLITICAL_ADS',
+  'DOES_NOT_CONTAIN_EU_POLITICAL_ADS',
+]);
+
 export const UpdateCampaignInputSchema = z.object({
   profileId: z.string().min(1, 'Profile ID is required').max(50),
   campaignId: z.string().min(1, 'Campaign ID is required'),
@@ -132,6 +141,7 @@ export const UpdateCampaignInputSchema = z.object({
   endDate: dateString.optional(),
   archived: z.boolean().optional(),
   defaultLandingPageId: z.string().min(1).optional(),
+  euPoliticalAdsDeclaration: euPoliticalAdsDeclarationSchema.optional(),
 }).refine(
   (data) => {
     if (data.startDate && data.endDate) return data.endDate >= data.startDate;
@@ -195,6 +205,7 @@ export const CreateCampaignInputSchema = z.object({
   startDate: dateString,
   endDate: dateString,
   defaultLandingPageId: z.string().min(1, 'Default landing page ID is required'),
+  euPoliticalAdsDeclaration: euPoliticalAdsDeclarationSchema.optional(),
 }).refine(
   (data) => data.endDate >= data.startDate,
   { message: 'End date must be on or after start date', path: ['endDate'] },

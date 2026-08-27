@@ -14,6 +14,16 @@ Kiki is a complete assistant, not a bare API connector: it pairs the CM360 API w
 > Google's production API. Demo mode is the tested experience.
 > **Use at your own risk** — see [DISCLAIMER.md](DISCLAIMER.md).
 
+## Demo
+
+[![Kiki — the AdTraffic.ai CM360 trafficking assistant](docs/media/kiki-demo.jpg)](https://www.loom.com/share/49182b1a028b4931a15602b423b301ef)
+
+Short walkthroughs (click to watch):
+
+- **[Expert Trafficking Desk](https://www.loom.com/share/49182b1a028b4931a15602b423b301ef)** — a full session with Kiki
+- **[Quick Tag Pull](https://www.loom.com/share/42f380b149d1471eb67b0a7bb76766d3)** — generating ad serving tags
+- **[Create a Campaign & Placements](https://www.loom.com/share/3a28b5e53e9e464daf52080df728ff16)** — building a campaign and placements from a natural-language request
+
 ## Why this exists
 
 Google sunset **Bulkdozer** — its open-source bulk-trafficking tool — in August 2023, leaving traffickers without a scriptable, safety-checked way to make changes at scale. AdTraffic treats **agent behavior as a product spec**. Every mutating action is previewed and confirmed, tool inputs are validated with Zod, and a built-in QA pass re-reads what changed and click-tests the resulting ad tags. The goal is a tool a trafficker managing real ad spend could actually trust.

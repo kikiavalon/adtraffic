@@ -15,6 +15,13 @@
       "when": 1787343939499,
       "tag": "0001_orange_venus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787868172492,
+      "tag": "0002_smiling_gabe_jones",
+      "breakpoints": true
     }
   ]
 }

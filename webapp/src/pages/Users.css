@@ -125,6 +125,23 @@
 
 .users-placeholder { color: #6b7280; }
 
+.users-inactive td { opacity: 0.5; }
+
+.users-action-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #b91c1c;
+  cursor: pointer;
+}
+.users-action-btn:hover { background: #fef2f2; }
+
+.users-reactivate { color: #4f46e5; }
+.users-reactivate:hover { background: #eef2ff; }
+
 @media (max-width: 560px) {
   .users-create-form { grid-template-columns: 1fr; }
 }

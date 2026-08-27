@@ -157,6 +157,11 @@ export async function login(email: string, password: string): Promise<AuthTokens
     throw new Error('Invalid email or password');
   }
 
+  // Soft-deleted accounts keep valid credentials but cannot sign in.
+  if (user.active === false) {
+    throw new Error('Account deactivated');
+  }
+
   const token = jwt.sign({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });
 
   return {

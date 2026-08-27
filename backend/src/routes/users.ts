@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../auth/middleware.js';
 import { requirePermission } from '../auth/roles.js';
-import { listUsers, createUser, updateUserRole, DuplicateEmailError, UserNotFoundError, LastAdminError } from '../auth/user-management.js';
+import { listUsers, createUser, updateUserRole, setUserActive, DuplicateEmailError, UserNotFoundError, LastAdminError, SelfActionError } from '../auth/user-management.js';
 import { logger } from '../lib/logger.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
 
@@ -82,6 +82,49 @@ router.patch('/users/:id', requireAuth, requirePermission('canManageUsers'), mut
       'Error updating user role',
     );
     res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// Soft-delete: deactivate a user (they can no longer sign in; data is kept).
+router.delete('/users/:id', requireAuth, requirePermission('canManageUsers'), mutateLimiter, async (req, res) => {
+  try {
+    const user = await setUserActive(req.params['id'] as string, false, req.user!.userId);
+    res.json({ user });
+  } catch (error) {
+    if (error instanceof UserNotFoundError) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    if (error instanceof SelfActionError) {
+      res.status(409).json({ error: error.message });
+      return;
+    }
+    if (error instanceof LastAdminError) {
+      res.status(409).json({ error: 'Cannot deactivate the last admin' });
+      return;
+    }
+    logger.error(
+      { err: { message: error instanceof Error ? error.message : 'Unknown error' } },
+      'Error deactivating user',
+    );
+    res.status(500).json({ error: 'Failed to deactivate user' });
+  }
+});
+
+router.post('/users/:id/reactivate', requireAuth, requirePermission('canManageUsers'), mutateLimiter, async (req, res) => {
+  try {
+    const user = await setUserActive(req.params['id'] as string, true, req.user!.userId);
+    res.json({ user });
+  } catch (error) {
+    if (error instanceof UserNotFoundError) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    logger.error(
+      { err: { message: error instanceof Error ? error.message : 'Unknown error' } },
+      'Error reactivating user',
+    );
+    res.status(500).json({ error: 'Failed to reactivate user' });
   }
 });
 

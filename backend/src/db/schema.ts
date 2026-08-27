@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uuid, bigint, unique, index, customType } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, uuid, bigint, boolean, unique, index, customType } from 'drizzle-orm/pg-core';
 
 /**
  * Database schema for AdTraffic.ai
@@ -13,6 +13,9 @@ export const users = pgTable('users', {
   passwordHash: text('password_hash').notNull(),
   name: text('name').notNull(),
   role: text('role', { enum: ['admin', 'senior', 'junior'] }).notNull().default('junior'),
+  // Soft-delete: a deactivated user cannot sign in, but their account and data
+  // are preserved and it is reversible.
+  active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });

@@ -9,7 +9,6 @@
  */
 
 import crypto from 'crypto';
-import bcrypt from 'bcrypt';
 import * as schema from './schema.js';
 import { logger } from '../lib/logger.js';
 
@@ -17,7 +16,19 @@ import { logger } from '../lib/logger.js';
 // Table Storage — one Map per table, keyed by primary key
 // ---------------------------------------------------------------------------
 
-type TableName = 'users' | 'conversations' | 'messages' | 'oauthTokens' | 'featureFlagOverrides';
+type TableName =
+  | 'users'
+  | 'conversations'
+  | 'messages'
+  | 'oauthTokens'
+  | 'featureFlagOverrides'
+  | 'auditLogs'
+  | 'approvalQueue'
+  | 'pendingActions'
+  | 'qaRuns'
+  | 'qaEvidence'
+  | 'qaChecks'
+  | 'anthropicCredentials';
 
 // Each Map stores records as plain objects with camelCase property names
 // matching the Drizzle schema definitions (not the snake_case DB columns).
@@ -27,6 +38,13 @@ const tables: Record<TableName, Map<string, Record<string, unknown>>> = {
   messages: new Map(),
   oauthTokens: new Map(),
   featureFlagOverrides: new Map(),
+  auditLogs: new Map(),
+  approvalQueue: new Map(),
+  pendingActions: new Map(),
+  qaRuns: new Map(),
+  qaEvidence: new Map(),
+  qaChecks: new Map(),
+  anthropicCredentials: new Map(),
 };
 
 // Map schema table objects to their storage Map + table name
@@ -36,6 +54,13 @@ const tableRegistry = new Map<unknown, { name: TableName; pkField: string; autoI
   [schema.messages, { name: 'messages', pkField: 'id', autoId: false }],
   [schema.oauthTokens, { name: 'oauthTokens', pkField: 'id', autoId: true }],
   [schema.featureFlagOverrides, { name: 'featureFlagOverrides', pkField: 'id', autoId: true }],
+  [schema.auditLogs, { name: 'auditLogs', pkField: 'id', autoId: true }],
+  [schema.approvalQueue, { name: 'approvalQueue', pkField: 'id', autoId: true }],
+  [schema.pendingActions, { name: 'pendingActions', pkField: 'actionId', autoId: false }],
+  [schema.qaRuns, { name: 'qaRuns', pkField: 'id', autoId: false }],
+  [schema.qaEvidence, { name: 'qaEvidence', pkField: 'id', autoId: false }],
+  [schema.qaChecks, { name: 'qaChecks', pkField: 'id', autoId: true }],
+  [schema.anthropicCredentials, { name: 'anthropicCredentials', pkField: 'id', autoId: true }],
 ]);
 
 function getTable(schemaTable: unknown): { map: Map<string, Record<string, unknown>>; meta: { name: TableName; pkField: string; autoId: boolean } } {
@@ -367,6 +392,14 @@ class InsertBuilder {
         record[meta.pkField] = crypto.randomUUID();
       }
 
+      // Apply the column defaults Postgres would (the in-memory store doesn't):
+      // defaultNow() timestamps and users.active, so demo rows match live rows.
+      const columns = this._table as Record<string, unknown>;
+      const now = new Date();
+      if (columns['createdAt'] && record['createdAt'] === undefined) record['createdAt'] = now;
+      if (columns['updatedAt'] && record['updatedAt'] === undefined) record['updatedAt'] = now;
+      if (columns['active'] && record['active'] === undefined) record['active'] = true;
+
       const pk = String(record[meta.pkField]);
 
       // Handle conflicts
@@ -427,6 +460,8 @@ class UpdateBuilder {
   private _table: unknown;
   private _setValues: Record<string, unknown> | undefined;
   private _where: unknown;
+  private _projection: Record<string, unknown> | undefined;
+  private _hasReturning = false;
 
   constructor(table: unknown) {
     this._table = table;
@@ -442,21 +477,31 @@ class UpdateBuilder {
     return this;
   }
 
-  then<TResult1 = void, TResult2 = never>(
-    resolve?: ((value: void) => TResult1 | PromiseLike<TResult1>) | null,
+  returning(projection?: Record<string, unknown>): this {
+    this._hasReturning = true;
+    this._projection = projection;
+    return this;
+  }
+
+  then<TResult1 = Record<string, unknown>[], TResult2 = never>(
+    resolve?: ((value: Record<string, unknown>[]) => TResult1 | PromiseLike<TResult1>) | null,
     reject?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
   ): Promise<TResult1 | TResult2> {
     try {
       const { map } = getTable(this._table);
       const conditions = parseCondition(this._where);
 
+      const updated: Record<string, unknown>[] = [];
       for (const [key, record] of map) {
         if (matchesConditions(record, conditions)) {
-          map.set(key, { ...record, ...this._setValues });
+          const next = { ...record, ...this._setValues };
+          map.set(key, next);
+          updated.push(next);
         }
       }
 
-      return resolve ? Promise.resolve(resolve(undefined as void)) : Promise.resolve(undefined as void) as unknown as Promise<TResult1 | TResult2>;
+      const rows = this._hasReturning ? updated.map((r) => projectColumns(r, this._projection)) : [];
+      return resolve ? Promise.resolve(resolve(rows)) : (Promise.resolve(rows) as unknown as Promise<TResult1 | TResult2>);
     } catch (err) {
       return reject ? Promise.resolve(reject(err)) : Promise.reject(err instanceof Error ? err : new Error(String(err)));
     }
@@ -529,7 +574,7 @@ class DeleteBuilder {
 
 /**
  * Create an in-memory database that mimics the Drizzle ORM API.
- * Pre-seeds a demo user (demo@adtraffic.ai / demo123).
+ * Starts empty (no seed user) so demo behaves like a real fresh instance.
  */
 export function createMemoryDb(): { db: {
   select: (projection?: Record<string, unknown>) => SelectBuilder;
@@ -542,19 +587,8 @@ export function createMemoryDb(): { db: {
     map.clear();
   }
 
-  // Seed demo user
-  const demoUserId = crypto.randomUUID();
-  const demoPasswordHash = bcrypt.hashSync('demo123', 10);
-  tables.users.set(demoUserId, {
-    id: demoUserId,
-    email: 'demo@adtraffic.ai',
-    passwordHash: demoPasswordHash,
-    name: 'Demo User',
-    role: 'senior',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-
+  // No seed user: demo starts as a real fresh instance, so the first signup
+  // runs the bootstrap flow (creates the workspace admin).
   logger.info('Demo mode: in-memory database initialized (no PostgreSQL required)');
 
   const db = {

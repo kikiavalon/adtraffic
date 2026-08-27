@@ -12,6 +12,7 @@ interface ManagedUser {
   email: string;
   name: string;
   role: Role;
+  active: boolean;
   createdAt: string;
 }
 
@@ -96,6 +97,27 @@ function Users() {
     }
   };
 
+  // Soft-delete: DELETE deactivates, POST /reactivate restores. Backend guards
+  // against removing yourself or the last active admin (409).
+  const setActive = async (id: string, active: boolean) => {
+    setError('');
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/users/${id}${active ? '/reactivate' : ''}`, {
+        method: active ? 'POST' : 'DELETE',
+      });
+      if (res.ok) {
+        const data = await res.json() as { user: ManagedUser };
+        setUsers((prev) => prev.map((u) => (u.id === id ? data.user : u)));
+      } else {
+        setError(res.status === 409
+          ? "You can't deactivate the last admin or your own account."
+          : 'Failed to update the user.');
+      }
+    } catch {
+      setError('Could not connect to the backend.');
+    }
+  };
+
   return (
     <div className="users-page">
       <div className="users-header">
@@ -138,11 +160,11 @@ function Users() {
           <div className="users-table-wrap">
             <table className="users-table">
               <thead>
-                <tr><th>Name</th><th>Email</th><th>Role</th><th>Added</th></tr>
+                <tr><th>Name</th><th>Email</th><th>Role</th><th>Added</th><th>Status</th></tr>
               </thead>
               <tbody>
                 {users.map((u) => (
-                  <tr key={u.id}>
+                  <tr key={u.id} className={u.active ? undefined : 'users-inactive'}>
                     <td>{u.name}{currentUser?.id === u.id && <span className="users-you"> (you)</span>}</td>
                     <td>{u.email}</td>
                     <td>
@@ -155,6 +177,29 @@ function Users() {
                       </select>
                     </td>
                     <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                    <td>
+                      {u.active ? (
+                        currentUser?.id === u.id ? (
+                          <span className="users-you">Active</span>
+                        ) : (
+                          <button
+                            className="users-action-btn"
+                            aria-label={`Deactivate ${u.email}`}
+                            onClick={() => void setActive(u.id, false)}
+                          >
+                            Deactivate
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          className="users-action-btn users-reactivate"
+                          aria-label={`Reactivate ${u.email}`}
+                          onClick={() => void setActive(u.id, true)}
+                        >
+                          Reactivate
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

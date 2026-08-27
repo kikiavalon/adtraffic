@@ -71,6 +71,10 @@ router.post('/auth/login', loginLimiter, async (req, res) => {
       res.status(401).json({ error: error.message });
       return;
     }
+    if (error instanceof Error && error.message === 'Account deactivated') {
+      res.status(403).json({ error: 'Your account has been deactivated. Contact your workspace admin.' });
+      return;
+    }
     throw error;
   }
 });

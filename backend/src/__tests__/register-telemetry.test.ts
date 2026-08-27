@@ -62,4 +62,14 @@ describe('register() → telemetry identity (agency admin only)', () => {
     expect(cfg?.['email']).toBeUndefined();
     expect(cfg?.['agency']).toBeUndefined();
   });
+
+  it('does not record telemetry in DEMO_MODE (throwaway signup)', async () => {
+    process.env.DEMO_MODE = 'true';
+    try {
+      await register('demo@agency.com', 'password123', 'Demo', 'Acme Media');
+      expect(readTelemetry(telemetryDir)).toBeNull();
+    } finally {
+      delete process.env.DEMO_MODE;
+    }
+  });
 });

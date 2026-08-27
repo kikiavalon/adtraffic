@@ -130,8 +130,9 @@ export async function register(
   }
 
   // Signup is the telemetry consent, but only the agency admin (the first user
-  // on a fresh instance) contributes an email + agency. Employees never do.
-  if (insertedUser.role === 'admin' && agency?.trim()) {
+  // on a fresh instance) contributes an email + agency. Employees never do, and
+  // a throwaway DEMO_MODE signup never touches the operator's telemetry config.
+  if (insertedUser.role === 'admin' && agency?.trim() && process.env.DEMO_MODE !== 'true') {
     recordTelemetryIdentity(email, agency.trim());
   }
 
@@ -155,6 +156,11 @@ export async function login(email: string, password: string): Promise<AuthTokens
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     throw new Error('Invalid email or password');
+  }
+
+  // Soft-deleted accounts keep valid credentials but cannot sign in.
+  if (user.active === false) {
+    throw new Error('Account deactivated');
   }
 
   const token = jwt.sign({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });

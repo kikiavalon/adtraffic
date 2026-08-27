@@ -1109,7 +1109,11 @@ function Chat() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Message Kiki..."
+          placeholder={
+            keyMissing
+              ? 'Connect your Claude API key in Settings to start chatting'
+              : 'Message Kiki...'
+          }
           rows={1}
           disabled={isUploading || keyMissing}
         />

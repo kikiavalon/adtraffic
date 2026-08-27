@@ -13,12 +13,17 @@ export function getJwtSecret(): string {
     return secret;
   }
   // No secret set. The hardcoded fallback is public in the source tree, so it is
-  // only safe for an explicit development or test run. Any other environment —
-  // including an unset NODE_ENV, "staging", or a misspelled "Production" — must
-  // supply a real secret rather than silently signing tokens with a known value.
-  if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+  // only safe for an explicit non-production run: development, test, or a
+  // throwaway DEMO_MODE demo (in-memory DB, no real users). Any other
+  // environment — an unset NODE_ENV, "staging", "production", or a misspelled
+  // "Production" — must supply a real secret rather than silently signing tokens
+  // with a known value. Production never uses the fallback, even in demo mode.
+  const nodeEnv = process.env.NODE_ENV;
+  const isDevOrTest = nodeEnv === 'development' || nodeEnv === 'test';
+  const isDemo = nodeEnv !== 'production' && process.env.DEMO_MODE === 'true';
+  if (!isDevOrTest && !isDemo) {
     throw new Error(
-      'JWT_SECRET must be set unless NODE_ENV is "development" or "test"',
+      'JWT_SECRET must be set unless NODE_ENV is "development" or "test", or DEMO_MODE is "true"',
     );
   }
   return 'dev-secret-change-in-production';

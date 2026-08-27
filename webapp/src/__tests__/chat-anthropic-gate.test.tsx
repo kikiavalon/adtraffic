@@ -56,6 +56,8 @@ function renderChat() {
 }
 
 const BANNER_PHRASE = /Connect your Claude API key in Settings/i;
+// When gated, the composer's own placeholder restates why it's disabled.
+const GATED_PLACEHOLDER = 'Connect your Claude API key in Settings to start chatting';
 
 /**
  * The banner text is split across a <Link>, so match on the banner element's
@@ -82,7 +84,7 @@ describe('Chat — Claude API key gate', () => {
     mockAnthropicConnected = false;
     renderChat();
 
-    expect(screen.getByPlaceholderText('Message Kiki...')).toBeDisabled();
+    expect(screen.getByPlaceholderText(GATED_PLACEHOLDER)).toBeDisabled();
 
     const banner = findBanner();
     expect(banner).toBeInTheDocument();
@@ -131,6 +133,6 @@ describe('Chat — Claude API key gate', () => {
     await waitFor(() => {
       expect(findBanner()).toBeInTheDocument();
     });
-    expect(screen.getByPlaceholderText('Message Kiki...')).toBeDisabled();
+    expect(screen.getByPlaceholderText(GATED_PLACEHOLDER)).toBeDisabled();
   });
 });

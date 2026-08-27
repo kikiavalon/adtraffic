@@ -396,6 +396,81 @@ function Settings() {
         )}
 
         <section className="settings-section">
+          <h2>Claude API Key</h2>
+          {anthropicLoading ? (
+            <p className="settings-placeholder">Loading Claude API key status...</p>
+          ) : anthropicStatus?.connected ? (
+            <>
+              <div className="settings-field">
+                <label>Status</label>
+                <span className="settings-connected">
+                  Connected &#10003; &middot; &bull;&bull;&bull;&bull;{anthropicStatus.last4}
+                </span>
+              </div>
+              <p className="anthropic-connected-note">
+                Kiki is using your own Claude API key. Usage is billed directly to your
+                Anthropic account.
+              </p>
+              <button
+                className="cm360-disconnect-btn"
+                onClick={() => void handleAnthropicDisconnect()}
+                disabled={anthropicActionLoading}
+              >
+                {anthropicActionLoading ? 'Removing...' : 'Disconnect'}
+              </button>
+              <p className="settings-hint">
+                <strong>Disconnect</strong> removes your saved key. Kiki can&rsquo;t chat
+                until you connect a key again.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="anthropic-not-connected">
+                <p>
+                  Kiki uses your own Claude API key for every AI conversation &mdash;
+                  connect one to start chatting. Usage is billed to your Anthropic
+                  account. Your key is stored encrypted and only the last four digits
+                  are ever shown.
+                </p>
+              </div>
+              <label className="anthropic-key-label" htmlFor="anthropic-key-input">
+                Claude API key
+              </label>
+              <input
+                id="anthropic-key-input"
+                className="anthropic-key-input"
+                type="password"
+                autoComplete="off"
+                placeholder="sk-ant-..."
+                value={anthropicKeyInput}
+                onChange={(e) => setAnthropicKeyInput(e.target.value)}
+              />
+              {anthropicError && (
+                <p className="settings-error" role="alert">{anthropicError}</p>
+              )}
+              <button
+                className="cm360-connect-btn"
+                onClick={() => void handleAnthropicConnect()}
+                disabled={anthropicActionLoading || !anthropicKeyInput.trim()}
+              >
+                {anthropicActionLoading ? 'Connecting...' : 'Connect'}
+              </button>
+              <p className="settings-hint">
+                Need a key? Create one in the{' '}
+                <a
+                  href="https://console.anthropic.com/settings/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Anthropic Console
+                </a>
+                . It starts with <code>sk-ant-</code>.
+              </p>
+            </>
+          )}
+        </section>
+
+        <section className="settings-section">
           <h2>CM360 Connection</h2>
           {liveAckOpen && (
             <div className="live-ack-overlay" role="dialog" aria-modal="true" aria-labelledby="live-ack-title">
@@ -580,80 +655,6 @@ function Settings() {
                 Connecting only grants Kiki permission to act when you ask — it doesn&rsquo;t
                 change anything in your CM360 account, and you can disconnect anytime from
                 this page.
-              </p>
-            </>
-          )}
-        </section>
-
-        <section className="settings-section">
-          <h2>Claude API Key</h2>
-          {anthropicLoading ? (
-            <p className="settings-placeholder">Loading Claude API key status...</p>
-          ) : anthropicStatus?.connected ? (
-            <>
-              <div className="settings-field">
-                <label>Status</label>
-                <span className="settings-connected">
-                  Connected &#10003; &middot; &bull;&bull;&bull;&bull;{anthropicStatus.last4}
-                </span>
-              </div>
-              <p className="anthropic-connected-note">
-                Kiki is using your own Claude API key. Usage is billed directly to your
-                Anthropic account.
-              </p>
-              <button
-                className="cm360-disconnect-btn"
-                onClick={() => void handleAnthropicDisconnect()}
-                disabled={anthropicActionLoading}
-              >
-                {anthropicActionLoading ? 'Removing...' : 'Disconnect'}
-              </button>
-              <p className="settings-hint">
-                <strong>Disconnect</strong> removes your saved key. Kiki can&rsquo;t chat
-                until you connect a key again.
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="anthropic-not-connected">
-                <p>
-                  Add your own Claude API key so Kiki&rsquo;s AI usage is billed to your
-                  Anthropic account instead of the shared one. Your key is stored encrypted
-                  and only the last four digits are ever shown.
-                </p>
-              </div>
-              <label className="anthropic-key-label" htmlFor="anthropic-key-input">
-                Claude API key
-              </label>
-              <input
-                id="anthropic-key-input"
-                className="anthropic-key-input"
-                type="password"
-                autoComplete="off"
-                placeholder="sk-ant-..."
-                value={anthropicKeyInput}
-                onChange={(e) => setAnthropicKeyInput(e.target.value)}
-              />
-              {anthropicError && (
-                <p className="settings-error" role="alert">{anthropicError}</p>
-              )}
-              <button
-                className="cm360-connect-btn"
-                onClick={() => void handleAnthropicConnect()}
-                disabled={anthropicActionLoading || !anthropicKeyInput.trim()}
-              >
-                {anthropicActionLoading ? 'Connecting...' : 'Connect'}
-              </button>
-              <p className="settings-hint">
-                Need a key? Create one in the{' '}
-                <a
-                  href="https://console.anthropic.com/settings/keys"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Anthropic Console
-                </a>
-                . It starts with <code>sk-ant-</code>.
               </p>
             </>
           )}

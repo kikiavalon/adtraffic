@@ -36,7 +36,6 @@ node mcp/dist/index.js     # stdio MCP server, 70 tools over mock CM360 data
 ## What's inside
 
 - All 70 CM360 tools (read, create, update, tags, reporting, floodlight, event tags, placement groups, user/role management) executing against `@adtraffic/shared/mock-cm360` — a dependency-free, seeded mock of CM360.
-- Zero delete tools, by design: CM360 treats archiving as the terminal state.
 - Flat, consistent error contract; inputs validated with Zod.
 
 **This package never talks to Google.** It operates exclusively on mock data. Live CM360 operation is a feature of the full AdTraffic platform, not this server.

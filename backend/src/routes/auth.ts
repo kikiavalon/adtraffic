@@ -14,6 +14,9 @@ const RegisterSchema = z.object({
   email: z.string().email().max(254),
   password: z.string().min(8, 'Password must be at least 8 characters').max(128, 'Password must not exceed 128 characters'),
   name: z.string().min(1, 'Name is required').max(200),
+  // Optional: only the bootstrap admin supplies this, and it becomes the
+  // telemetry identity (see auth-service.register). Ignored for later users.
+  agency: z.string().trim().max(120).optional(),
 });
 
 const LoginSchema = z.object({
@@ -30,7 +33,7 @@ router.post('/auth/register', registerLimiter, async (req, res) => {
   }
 
   try {
-    const result = await register(parsed.data.email, parsed.data.password, parsed.data.name);
+    const result = await register(parsed.data.email, parsed.data.password, parsed.data.name, parsed.data.agency);
     setAuthCookie(res, result.token);
     res.status(201).json(result);
   } catch (error) {

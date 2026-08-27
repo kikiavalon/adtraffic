@@ -55,7 +55,7 @@ Point your MCP client at that command. (An `npx @adtraffic/mcp` package is on th
 
 ## Tool coverage — honest status
 
-Kiki ships **70 CM360 tools** (validated against CM360 API v5). By design there are **zero delete tools** — CM360 uses archiving as the terminal state for core entities.
+Kiki ships **70 CM360 tools** (validated against CM360 API v5).
 
 | | Count | Notes |
 |---|---|---|

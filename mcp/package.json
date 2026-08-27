@@ -1,6 +1,6 @@
 {
   "name": "@adtraffic/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-credential stdio MCP server exposing 70 Google Campaign Manager 360 tools against seeded mock data. Mock-only: never talks to Google. See DISCLAIMER in README.",
   "keywords": [
     "mcp",

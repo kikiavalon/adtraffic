@@ -280,7 +280,7 @@ The manifest will be served at `GET /api/v1/agent/manifest` (public, no authenti
       "status": "pending_registration",
       "agent_type": "MCP",
       "agent_category": "Campaign Management",
-      "mcp_implementation": "@adtraffic/mcp — shipped stdio Model Context Protocol server, run from a local checkout via `node mcp/dist/index.js` (npm publishing / `npx @adtraffic/mcp` on the roadmap), exposing all 70 CM360 tools against seeded demo data (@adtraffic/shared/mock-cm360)"
+      "mcp_implementation": "@adtraffic/mcp — published stdio Model Context Protocol server, run via `npx @adtraffic/mcp` (on npm since 2026-08-19) or from a local checkout via `node mcp/dist/index.js`, exposing all 70 CM360 tools against seeded demo data (@adtraffic/shared/mock-cm360)"
     },
     "soc2_type2": {
       "status": "in_progress",

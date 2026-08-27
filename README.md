@@ -45,13 +45,21 @@ Open http://localhost:5173 and sign up. Kiki uses **your own** Claude API key �
 
 `@adtraffic/mcp` is a zero-credential stdio MCP server that exposes all 70 CM360 tools against the same seeded mock data — usable from Claude Desktop or any MCP client. No Claude key needed; it's just the tool surface over mock data.
 
+Run it directly — no clone, no build:
+
+```bash
+npx @adtraffic/mcp                     # stdio MCP server
+```
+
+Or build from source (contributors):
+
 ```bash
 npm run build --workspace=shared
 npm run build --workspace=mcp
 node mcp/dist/index.js                 # stdio MCP server
 ```
 
-Point your MCP client at that command. (An `npx @adtraffic/mcp` package is on the roadmap.)
+Point your MCP client at that command.
 
 ## Tool coverage — honest status
 

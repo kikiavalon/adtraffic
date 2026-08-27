@@ -37,10 +37,9 @@ describe('memory-adapter CRUD', () => {
   });
 
   describe('users table', () => {
-    it('demo user is pre-seeded', async () => {
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, 'demo@adtraffic.ai'));
-      expect(users).toHaveLength(1);
-      expect(users[0]).toMatchObject({ email: 'demo@adtraffic.ai', name: 'Demo User' });
+    it('starts with no users (fresh instance)', async () => {
+      const users = await db.select().from(schema.users);
+      expect(users).toHaveLength(0);
     });
 
     it('insert with returning projects specified columns', async () => {
@@ -62,9 +61,10 @@ describe('memory-adapter CRUD', () => {
     });
 
     it('rejects duplicate email', async () => {
+      await db.insert(schema.users).values({ email: 'dup@example.com', passwordHash: 'hash', name: 'First' });
       await expect(
         db.insert(schema.users).values({
-          email: 'demo@adtraffic.ai',
+          email: 'dup@example.com',
           passwordHash: 'hash',
           name: 'Dupe',
         })
@@ -74,8 +74,8 @@ describe('memory-adapter CRUD', () => {
 
   describe('conversations + messages', () => {
     it('insert with onConflictDoNothing skips duplicates', async () => {
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, 'demo@adtraffic.ai'));
-      const userId = users[0]!.id as string;
+      const [owner] = await db.insert(schema.users).values({ email: 'owner1@example.com', passwordHash: 'h', name: 'Owner' }).returning({ id: schema.users.id });
+      const userId = owner!.id as string;
 
       await db.insert(schema.conversations).values({ id: 'conv-1', userId, title: 'First' }).onConflictDoNothing();
       await db.insert(schema.conversations).values({ id: 'conv-1', userId, title: 'Duplicate' }).onConflictDoNothing();
@@ -86,8 +86,8 @@ describe('memory-adapter CRUD', () => {
     });
 
     it('select with orderBy desc + limit + offset paginates correctly', async () => {
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, 'demo@adtraffic.ai'));
-      const userId = users[0]!.id as string;
+      const [owner] = await db.insert(schema.users).values({ email: 'owner2@example.com', passwordHash: 'h', name: 'Owner' }).returning({ id: schema.users.id });
+      const userId = owner!.id as string;
 
       // Insert 3 conversations with different updatedAt
       const now = Date.now();
@@ -118,8 +118,8 @@ describe('memory-adapter CRUD', () => {
     });
 
     it('select with orderBy asc returns chronological order', async () => {
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, 'demo@adtraffic.ai'));
-      const userId = users[0]!.id as string;
+      const [owner] = await db.insert(schema.users).values({ email: 'owner@example.com', passwordHash: 'h', name: 'Owner' }).returning({ id: schema.users.id });
+      const userId = owner!.id as string;
 
       await db.insert(schema.conversations).values({ id: 'conv-1', userId, title: 'Chat' });
 
@@ -143,8 +143,8 @@ describe('memory-adapter CRUD', () => {
     });
 
     it('delete cascades from conversations to messages', async () => {
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, 'demo@adtraffic.ai'));
-      const userId = users[0]!.id as string;
+      const [owner] = await db.insert(schema.users).values({ email: 'owner@example.com', passwordHash: 'h', name: 'Owner' }).returning({ id: schema.users.id });
+      const userId = owner!.id as string;
 
       await db.insert(schema.conversations).values({ id: 'conv-del', userId, title: 'Delete me' });
       await db.insert(schema.messages).values({ id: 'msg-del', conversationId: 'conv-del', role: 'user', content: 'Gone', timestamp: 100 });
@@ -160,8 +160,8 @@ describe('memory-adapter CRUD', () => {
 
   describe('update', () => {
     it('updates matching records', async () => {
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, 'demo@adtraffic.ai'));
-      const userId = users[0]!.id as string;
+      const [owner] = await db.insert(schema.users).values({ email: 'owner@example.com', passwordHash: 'h', name: 'Owner' }).returning({ id: schema.users.id });
+      const userId = owner!.id as string;
 
       await db.insert(schema.conversations).values({ id: 'conv-upd', userId, title: 'Old', updatedAt: new Date(1000) });
 
@@ -175,8 +175,8 @@ describe('memory-adapter CRUD', () => {
 
   describe('feature flags — onConflictDoUpdate + and()', () => {
     it('upsert with onConflictDoUpdate creates then updates', async () => {
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, 'demo@adtraffic.ai'));
-      const userId = users[0]!.id as string;
+      const [owner] = await db.insert(schema.users).values({ email: 'owner@example.com', passwordHash: 'h', name: 'Owner' }).returning({ id: schema.users.id });
+      const userId = owner!.id as string;
 
       // Insert
       await db.insert(schema.featureFlagOverrides).values({
@@ -210,8 +210,8 @@ describe('memory-adapter CRUD', () => {
     });
 
     it('delete with and() compound condition', async () => {
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, 'demo@adtraffic.ai'));
-      const userId = users[0]!.id as string;
+      const [owner] = await db.insert(schema.users).values({ email: 'owner@example.com', passwordHash: 'h', name: 'Owner' }).returning({ id: schema.users.id });
+      const userId = owner!.id as string;
 
       await db.insert(schema.featureFlagOverrides).values({ userId, flagName: 'flag-a', value: 'true', updatedAt: new Date() });
       await db.insert(schema.featureFlagOverrides).values({ userId, flagName: 'flag-b', value: 'false', updatedAt: new Date() });
@@ -232,8 +232,8 @@ describe('memory-adapter CRUD', () => {
 
   describe('oauth tokens', () => {
     it('CRUD cycle works', async () => {
-      const users = await db.select().from(schema.users).where(eq(schema.users.email, 'demo@adtraffic.ai'));
-      const userId = users[0]!.id as string;
+      const [owner] = await db.insert(schema.users).values({ email: 'owner@example.com', passwordHash: 'h', name: 'Owner' }).returning({ id: schema.users.id });
+      const userId = owner!.id as string;
 
       await db.insert(schema.oauthTokens).values({
         id: randomUUID(),

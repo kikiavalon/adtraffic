@@ -9,7 +9,6 @@
  */
 
 import crypto from 'crypto';
-import bcrypt from 'bcrypt';
 import * as schema from './schema.js';
 import { logger } from '../lib/logger.js';
 
@@ -529,7 +528,7 @@ class DeleteBuilder {
 
 /**
  * Create an in-memory database that mimics the Drizzle ORM API.
- * Pre-seeds a demo user (demo@adtraffic.ai / demo123).
+ * Starts empty (no seed user) so demo behaves like a real fresh instance.
  */
 export function createMemoryDb(): { db: {
   select: (projection?: Record<string, unknown>) => SelectBuilder;
@@ -542,19 +541,8 @@ export function createMemoryDb(): { db: {
     map.clear();
   }
 
-  // Seed demo user
-  const demoUserId = crypto.randomUUID();
-  const demoPasswordHash = bcrypt.hashSync('demo123', 10);
-  tables.users.set(demoUserId, {
-    id: demoUserId,
-    email: 'demo@adtraffic.ai',
-    passwordHash: demoPasswordHash,
-    name: 'Demo User',
-    role: 'senior',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-
+  // No seed user: demo starts as a real fresh instance, so the first signup
+  // runs the bootstrap flow (creates the workspace admin).
   logger.info('Demo mode: in-memory database initialized (no PostgreSQL required)');
 
   const db = {

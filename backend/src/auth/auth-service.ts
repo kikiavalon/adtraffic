@@ -130,8 +130,9 @@ export async function register(
   }
 
   // Signup is the telemetry consent, but only the agency admin (the first user
-  // on a fresh instance) contributes an email + agency. Employees never do.
-  if (insertedUser.role === 'admin' && agency?.trim()) {
+  // on a fresh instance) contributes an email + agency. Employees never do, and
+  // a throwaway DEMO_MODE signup never touches the operator's telemetry config.
+  if (insertedUser.role === 'admin' && agency?.trim() && process.env.DEMO_MODE !== 'true') {
     recordTelemetryIdentity(email, agency.trim());
   }
 

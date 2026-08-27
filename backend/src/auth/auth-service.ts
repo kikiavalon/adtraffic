@@ -59,13 +59,22 @@ export interface AuthTokens {
  * self-hosted instance.)
  */
 async function resolveNewUserRole(): Promise<UserRole> {
-  const anyUser = await db.select({ id: schema.users.id }).from(schema.users).limit(1);
-  if (anyUser.length === 0) return 'admin';
+  if (await isBootstrapNeeded()) return 'admin';
   // Only senior/junior are valid mass-assignment defaults. admin is reserved for
   // the bootstrap first user, so DEFAULT_USER_ROLE=admin (which would make every
   // registrant a full admin) is rejected and falls back to least privilege.
   const configured = process.env.DEFAULT_USER_ROLE;
   return configured === 'senior' || configured === 'junior' ? configured : 'junior';
+}
+
+/**
+ * True when no users exist yet — the next signup bootstraps the agency admin.
+ * Single source of truth for the public registration-status endpoint and the
+ * closed-registration gate, so both agree on "is this a fresh instance?".
+ */
+export async function isBootstrapNeeded(): Promise<boolean> {
+  const anyUser = await db.select({ id: schema.users.id }).from(schema.users).limit(1);
+  return anyUser.length === 0;
 }
 
 export async function register(email: string, password: string, name: string): Promise<AuthTokens> {

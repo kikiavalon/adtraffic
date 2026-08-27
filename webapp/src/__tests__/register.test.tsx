@@ -58,7 +58,8 @@ describe('Register', () => {
     await user.type(screen.getByPlaceholderText('Min 8 characters'), 'password123');
     await user.click(screen.getByRole('button', { name: /create account/i }));
 
-    expect(mockRegister).toHaveBeenCalledWith('test@agency.com', 'password123', 'Test User');
+    // Non-bootstrap signup (no agency field) → agency arg is undefined.
+    expect(mockRegister).toHaveBeenCalledWith('test@agency.com', 'password123', 'Test User', undefined);
   });
 
   it('navigates to / on successful register', async () => {

@@ -7,15 +7,16 @@ function Register() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [agency, setAgency] = useState('');
   const [error, setError] = useState('');
-  const { register, isLoading } = useAuth();
+  const { register, isLoading, needsBootstrap } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
-      await register(email, password, name);
+      await register(email, password, name, agency.trim() || undefined);
       void navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Registration failed');
@@ -26,7 +27,7 @@ function Register() {
     <div className="auth-page">
       <div className="auth-card">
         <h1 className="auth-title">AdTraffic.ai</h1>
-        <p className="auth-subtitle">Create your account</p>
+        <p className="auth-subtitle">{needsBootstrap ? 'Set up your workspace' : 'Create your account'}</p>
 
         {error && <div className="auth-error" role="alert">{error}</div>}
 
@@ -55,6 +56,25 @@ function Register() {
               required
             />
           </label>
+
+          {needsBootstrap && (
+            <>
+              <label className="auth-label">
+                Agency
+                <input
+                  type="text"
+                  value={agency}
+                  onChange={(e) => setAgency(e.target.value)}
+                  className="auth-input"
+                  placeholder="Your agency or company"
+                />
+              </label>
+              <p className="auth-ai-disclosure">
+                As the first account you&apos;re the workspace admin. Your email and agency
+                are shared with the maintainers so they can reach out — nothing else is sent.
+              </p>
+            </>
+          )}
 
           <label className="auth-label">
             Password

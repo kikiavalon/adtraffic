@@ -3,6 +3,8 @@ import jwt from 'jsonwebtoken';
 import { db, schema } from '../db/index.js';
 import { eq } from 'drizzle-orm';
 import type { UserRole } from './roles.js';
+import { logger } from '../lib/logger.js';
+import { readConfig, writeConfig, buildConsentConfig } from '../telemetry/config-store.js';
 
 export function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
@@ -59,8 +61,7 @@ export interface AuthTokens {
  * self-hosted instance.)
  */
 async function resolveNewUserRole(): Promise<UserRole> {
-  const anyUser = await db.select({ id: schema.users.id }).from(schema.users).limit(1);
-  if (anyUser.length === 0) return 'admin';
+  if (await isBootstrapNeeded()) return 'admin';
   // Only senior/junior are valid mass-assignment defaults. admin is reserved for
   // the bootstrap first user, so DEFAULT_USER_ROLE=admin (which would make every
   // registrant a full admin) is rejected and falls back to least privilege.
@@ -68,7 +69,41 @@ async function resolveNewUserRole(): Promise<UserRole> {
   return configured === 'senior' || configured === 'junior' ? configured : 'junior';
 }
 
-export async function register(email: string, password: string, name: string): Promise<AuthTokens> {
+/**
+ * True when no users exist yet — the next signup bootstraps the agency admin.
+ * Single source of truth for the public registration-status endpoint and the
+ * closed-registration gate, so both agree on "is this a fresh instance?".
+ */
+export async function isBootstrapNeeded(): Promise<boolean> {
+  const anyUser = await db.select({ id: schema.users.id }).from(schema.users).limit(1);
+  return anyUser.length === 0;
+}
+
+/**
+ * Record the agency admin's telemetry identity from their signup. Signup is the
+ * consent, so we enable telemetry and attach email + agency — UNLESS the
+ * operator has already explicitly opted out in the terminal, which wins. Never
+ * throws: a telemetry-write failure must not break account creation.
+ */
+function recordTelemetryIdentity(email: string, agency: string): void {
+  try {
+    const existing = readConfig();
+    if (existing?.consent === false && existing.noticeShown === true) return; // explicit opt-out wins
+    writeConfig(buildConsentConfig({ enable: true, email, agency }, existing));
+  } catch (err) {
+    logger.warn(
+      { err: { message: err instanceof Error ? err.message : 'Unknown error' } },
+      'Failed to record telemetry identity from signup',
+    );
+  }
+}
+
+export async function register(
+  email: string,
+  password: string,
+  name: string,
+  agency?: string,
+): Promise<AuthTokens> {
   const existing = await db.select().from(schema.users).where(eq(schema.users.email, email));
   if (existing[0]) {
     throw new Error('Email already registered');
@@ -92,6 +127,12 @@ export async function register(email: string, password: string, name: string): P
   const insertedUser = result[0];
   if (!insertedUser) {
     throw new Error('Failed to create user');
+  }
+
+  // Signup is the telemetry consent, but only the agency admin (the first user
+  // on a fresh instance) contributes an email + agency. Employees never do.
+  if (insertedUser.role === 'admin' && agency?.trim()) {
+    recordTelemetryIdentity(email, agency.trim());
   }
 
   const token = jwt.sign({ userId: insertedUser.id, email: insertedUser.email, role: insertedUser.role }, JWT_SECRET, { algorithm: 'HS256', expiresIn: '7d' });

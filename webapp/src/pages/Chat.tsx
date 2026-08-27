@@ -916,6 +916,11 @@ function Chat() {
           <button className="chat-new-btn" onClick={startNewChat} title="Start new conversation">
             New Chat
           </button>
+          {user?.role === 'admin' && (
+            <Link to="/users" className="chat-new-btn" title="Manage team">
+              Team
+            </Link>
+          )}
           <Link to="/settings" className="chat-new-btn" title="Settings">
             Settings
           </Link>

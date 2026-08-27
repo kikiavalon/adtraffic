@@ -1,10 +1,11 @@
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext.js';
-import { ProtectedRoute, PublicRoute } from './auth/routeGuards.js';
+import { ProtectedRoute, PublicRoute, AdminRoute } from './auth/routeGuards.js';
 import Chat from './pages/Chat.js';
 import Login from './pages/Login.js';
 import Register from './pages/Register.js';
 import Settings from './pages/Settings.js';
+import Users from './pages/Users.js';
 import Privacy from './pages/Privacy.js';
 import ErrorBoundary from './components/ErrorBoundary.js';
 
@@ -15,6 +16,7 @@ function AppRoutes() {
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
       <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/users" element={<AdminRoute><Users /></AdminRoute>} />
       <Route path="/privacy" element={<Privacy />} />
     </Routes>
   );

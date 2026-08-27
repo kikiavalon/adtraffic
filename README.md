@@ -119,7 +119,7 @@ To connect Kiki to a real CM360 account you supply your own Google OAuth2 client
 
 ## Telemetry
 
-AdTraffic collects **no usage data by default.** Optional, anonymous telemetry is off until you explicitly opt in with `npm run telemetry`; it never sends chat, CM360, or credential data. See [docs/TELEMETRY.md](docs/TELEMETRY.md).
+AdTraffic sends anonymous usage telemetry **on by default** so we can see how many teams are running it. On each backend start it sends one event with an install id, app/Node version, and operating system — and, **only if you enter them**, your email and agency. It **never** sends chat, CM360, or credential data. The first time you start it in a terminal it asks; you can change your mind (turn it off, or add your email/agency) anytime with `npm run telemetry`. Details: [docs/TELEMETRY.md](docs/TELEMETRY.md).
 
 ## Contributing
 

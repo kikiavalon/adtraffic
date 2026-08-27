@@ -54,3 +54,47 @@ describe('telemetry config store', () => {
     expect(readConfig()).toBeNull();
   });
 });
+
+describe('buildConsentConfig', () => {
+  it('declining returns consent:false with no install id', async () => {
+    const { buildConsentConfig } = await import('../telemetry/config-store.js');
+    const cfg = buildConsentConfig({ enable: false }, null);
+    expect(cfg.consent).toBe(false);
+    expect(cfg.noticeShown).toBe(true);
+    expect(cfg.installId).toBeUndefined();
+  });
+
+  it('enabling returns consent:true with a generated install id and createdAt', async () => {
+    const { buildConsentConfig } = await import('../telemetry/config-store.js');
+    const cfg = buildConsentConfig({ enable: true }, null);
+    expect(cfg.consent).toBe(true);
+    expect(cfg.noticeShown).toBe(true);
+    expect(typeof cfg.installId).toBe('string');
+    expect(cfg.installId!.length).toBeGreaterThan(0);
+    expect(typeof cfg.createdAt).toBe('string');
+    expect(cfg.email).toBeUndefined();
+    expect(cfg.agency).toBeUndefined();
+  });
+
+  it('generates a distinct install id on separate calls with no existing config', async () => {
+    const { buildConsentConfig } = await import('../telemetry/config-store.js');
+    const a = buildConsentConfig({ enable: true }, null);
+    const b = buildConsentConfig({ enable: true }, null);
+    expect(a.installId).not.toBe(b.installId);
+  });
+
+  it('includes trimmed email/agency when provided', async () => {
+    const { buildConsentConfig } = await import('../telemetry/config-store.js');
+    const cfg = buildConsentConfig({ enable: true, email: '  a@b.com ', agency: ' Acme ' }, null);
+    expect(cfg.email).toBe('a@b.com');
+    expect(cfg.agency).toBe('Acme');
+  });
+
+  it('preserves an existing install id and createdAt instead of regenerating', async () => {
+    const { buildConsentConfig } = await import('../telemetry/config-store.js');
+    const existing = { consent: true, installId: 'keep-me', createdAt: '2020-01-01T00:00:00.000Z' };
+    const cfg = buildConsentConfig({ enable: true }, existing);
+    expect(cfg.installId).toBe('keep-me');
+    expect(cfg.createdAt).toBe('2020-01-01T00:00:00.000Z');
+  });
+});

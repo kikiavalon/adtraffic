@@ -41,7 +41,7 @@ import { logger } from './lib/logger.js';
 import { sql } from './db/index.js';
 import { initRedis, closeRedis, getRedis } from './db/redis.js';
 import { initQaQueueEvents, closeQaQueue } from './qa/qa-queue.js';
-import { maybeShowFirstBootNotice } from './telemetry/notice.js';
+import { runFirstRun } from './telemetry/notice.js';
 import { emitStartupEvent } from './telemetry/emitter.js';
 
 const app = express();
@@ -180,9 +180,17 @@ if (process.env.NODE_ENV !== 'test') {
         'AdTraffic.ai backend started',
       );
 
-      // Opt-in telemetry (both are no-ops unless the user has run `npm run telemetry`).
-      maybeShowFirstBootNotice();
-      emitStartupEvent();
+      // Telemetry: the server is already accepting connections, so this can never
+      // delay startup. First-run prompts (or the default-ON notice) run, then the
+      // anonymous app_started event is emitted. Nothing sends without a real key.
+      void (async () => {
+        try {
+          await runFirstRun();
+        } catch {
+          // Telemetry setup must never affect the server.
+        }
+        emitStartupEvent();
+      })();
     });
 
     const shutdown = () => {

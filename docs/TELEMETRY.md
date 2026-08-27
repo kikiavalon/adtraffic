@@ -17,13 +17,19 @@ your choice. Your settings live in `~/.adtraffic/telemetry.json` (outside this
 repo). To turn it off for a whole deployment at once, set `POSTHOG_KEY=` (empty)
 in the backend environment.
 
+The **first account** on a fresh instance is the workspace admin. If that person
+fills in the optional **Agency** field on the setup screen, their email and agency
+are saved the same way — signing up is the opt-in. An explicit terminal opt-out
+still wins, and employees who sign up later never contribute telemetry.
+
 ## What is sent
 
 On each backend start, one `app_started` event is sent to PostHog with:
 
 - app version, Node.js version, operating system
 - a random install id (a UUID generated on your machine)
-- your email and agency name — **only if you typed them in**
+- your email and agency name — **only if you provided them** (via the terminal
+  prompt or the first-account setup screen)
 
 ## What is NEVER sent
 

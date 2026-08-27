@@ -47,7 +47,11 @@ interface AuthContextType {
   anthropicConnected: boolean | null;
   refreshAnthropicStatus: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  /** null until /auth/registration-status resolves; true on a fresh instance (no users yet). */
+  needsBootstrap: boolean | null;
+  /** null until resolved; whether public self-registration is currently allowed. */
+  registrationOpen: boolean | null;
+  register: (email: string, password: string, name: string, agency?: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
   authFetch: (url: string, options?: RequestInit) => Promise<Response>;
@@ -62,6 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
   const [cm360Connected, setCM360Connected] = useState<boolean | null>(null);
   const [anthropicConnected, setAnthropicConnected] = useState<boolean | null>(null);
+  const [needsBootstrap, setNeedsBootstrap] = useState<boolean | null>(null);
+  const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
 
   // The JWT lives in an httpOnly cookie the client cannot read; every request
   // sends it automatically via credentials: 'include'.
@@ -120,6 +126,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Runs once on mount.
   }, [loadSessionExtras]);
 
+  // Public registration status (no auth required) — drives whether the auth
+  // screens show the bootstrap (agency admin) signup and whether public
+  // self-registration is currently open. Stays null on failure; routing then
+  // falls back to the plain login screen.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/v1/auth/registration-status`);
+        if (res.ok) {
+          const data = await res.json() as { needsBootstrap?: boolean; registrationOpen?: boolean };
+          setNeedsBootstrap(data.needsBootstrap === true);
+          setRegistrationOpen(data.registrationOpen === true);
+        }
+      } catch { /* leave null — routing falls back to /login */ }
+    })();
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
     try {
@@ -144,13 +167,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [loadSessionExtras]);
 
-  const register = useCallback(async (email: string, password: string, name: string) => {
+  const register = useCallback(async (email: string, password: string, name: string, agency?: string) => {
     setIsLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/v1/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name }),
+        body: JSON.stringify({ email, password, name, ...(agency ? { agency } : {}) }),
         credentials: 'include',
       });
 
@@ -202,13 +225,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refreshCM360Status,
       anthropicConnected,
       refreshAnthropicStatus,
+      needsBootstrap,
+      registrationOpen,
       login,
       register,
       logout,
       isLoading,
       authFetch,
     }),
-    [user, authReady, featureFlags, cm360Connected, refreshCM360Status, anthropicConnected, refreshAnthropicStatus, login, register, logout, isLoading, authFetch],
+    [user, authReady, featureFlags, cm360Connected, refreshCM360Status, anthropicConnected, refreshAnthropicStatus, needsBootstrap, registrationOpen, login, register, logout, isLoading, authFetch],
   );
 
   return (

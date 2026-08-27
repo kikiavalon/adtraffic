@@ -140,7 +140,7 @@ function Settings() {
     try {
       const res = await authFetch(`${API_URL}/api/v1/auth/google/acknowledgment`);
       if (res.ok) {
-        setLiveAckInfo(await res.json());
+        setLiveAckInfo(await res.json() as LiveAckInfo);
       } else {
         setLiveAckError('Could not load the acknowledgment text. Close this dialog and try again.');
       }
@@ -160,7 +160,7 @@ function Settings() {
         body: JSON.stringify({ acknowledgment: liveAckInput.trim() }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({})) as { error?: string };
         setLiveAckError(data.error ?? 'Something went wrong. Please try again.');
         return;
       }
@@ -441,7 +441,7 @@ function Settings() {
                   </button>
                   <button
                     className="cm360-connect-btn"
-                    onClick={handleAcknowledgeContinue}
+                    onClick={() => void handleAcknowledgeContinue()}
                     disabled={
                       liveAckSubmitting ||
                       !liveAckInfo ||

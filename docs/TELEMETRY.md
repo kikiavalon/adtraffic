@@ -1,19 +1,23 @@
 # Telemetry
 
-AdTraffic is open source and collects **no usage data by default**. Telemetry is
-**opt-in**: nothing is sent unless you explicitly enable it.
+AdTraffic is open source and sends **anonymous usage telemetry, on by default**,
+so we can see how many teams are running it. It is anonymous unless you choose to
+add your email and agency. You can turn it off at any time.
 
-## Enable or disable
+## Turn it off, or add your details
 
 ```bash
 npm run telemetry
 ```
 
-This interactive command lets you turn anonymous telemetry on or off and,
-optionally, share your email and agency name. Re-run it anytime to change your
-choice. Your settings live in `~/.adtraffic/telemetry.json` (outside this repo).
+This interactive command lets you turn telemetry on or off and, optionally, share
+your email and agency name so we can reach out. The first time you start the
+backend in a terminal it runs this prompt for you; re-run it anytime to change
+your choice. Your settings live in `~/.adtraffic/telemetry.json` (outside this
+repo). To turn it off for a whole deployment at once, set `POSTHOG_KEY=` (empty)
+in the backend environment.
 
-## What is sent (only if you opt in)
+## What is sent
 
 On each backend start, one `app_started` event is sent to PostHog with:
 
@@ -34,13 +38,16 @@ contact the maintainer.
 
 ## A note on Docker
 
-Install counts are meaningful for local `npm run dev` / `npm run start`. Under
-`docker compose` the container home directory is ephemeral and replicas restart,
+Because telemetry is on by default, be mindful of how install counts read under
+`docker compose`: the container home directory is ephemeral and replicas restart,
 so each would generate its own install id and re-send `app_started` — inflating
-counts. Read the dashboard with that in mind.
+counts. Local `npm run dev` / `npm run start` install counts are the meaningful
+ones. Read the dashboard with that in mind.
 
 ## The code
 
-All of it lives in `backend/src/telemetry/`: `config-store.ts` (local settings),
-`cli.ts` (this command), `emitter.ts` (the send), and `notice.ts` (the one-time
-first-run message).
+All of it lives in `backend/src/telemetry/`: `config.ts` (the committed,
+write-only PostHog key), `config-store.ts` (local settings + the shared
+consent-config builder), `cli.ts` (the interactive prompt), `emitter.ts` (the
+send), and `notice.ts` (the first-run flow — an interactive prompt when a human
+is at the terminal, otherwise a one-time default-ON notice).

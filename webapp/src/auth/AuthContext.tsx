@@ -7,6 +7,7 @@ interface AuthUser {
   id: string;
   email: string;
   name: string;
+  role: 'admin' | 'senior' | 'junior';
 }
 
 type FeatureFlags = Record<string, boolean | number>;

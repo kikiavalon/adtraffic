@@ -26,3 +26,13 @@ export function PublicRoute({ children }: { children: ReactNode }) {
   if (isAuthenticated) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
+
+/** Gate for admin-only routes (user management). Non-admins are sent home;
+ *  unauthenticated visitors go to login. */
+export function AdminRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated, authReady, user } = useAuth();
+  if (!authReady) return null;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role !== 'admin') return <Navigate to="/" replace />;
+  return <>{children}</>;
+}

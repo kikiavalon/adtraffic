@@ -117,6 +117,16 @@ The `drizzle-kit push` shown above is a quick path for throwaway dev/test databa
 
 To connect Kiki to a real CM360 account you supply your own Google OAuth2 client (`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI`) and complete the in-app consent flow. Note Google's rules: the `dfatrafficking` and `dfareporting` scopes are **sensitive**, so an unverified OAuth app is capped at 100 users until it passes Google's verification review. See [docs/PRD-capabilities.md](docs/PRD-capabilities.md) for the CM360 v5 architecture details.
 
+## Roles & team
+
+The **first account** created on a fresh instance becomes the workspace **admin**. Admins can add teammates from the in-app **Team** screen (linked in the header) and assign a role:
+
+- **admin** — full access, including managing users
+- **senior** — can run write operations and approve others; no user management
+- **junior** — read-only by default; write actions require approval
+
+An admin sets a teammate's initial password and shares it; the teammate can change it after signing in. Admins can promote another user to admin, and the app won't let you remove the last admin.
+
 ## Telemetry
 
 AdTraffic sends anonymous usage telemetry **on by default** so we can see how many teams are running it. On each backend start it sends one event with an install id, app/Node version, and operating system — and, **only if you enter them**, your email and agency. It **never** sends chat, CM360, or credential data. The first time you start it in a terminal it asks; you can change your mind (turn it off, or add your email/agency) anytime with `npm run telemetry`. Details: [docs/TELEMETRY.md](docs/TELEMETRY.md).

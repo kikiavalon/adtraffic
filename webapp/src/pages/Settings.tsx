@@ -31,6 +31,12 @@ interface AnthropicStatus {
   verifiedAt?: string;
 }
 
+interface LiveAckInfo {
+  acknowledged: boolean;
+  phrase: string;
+  warningText: string;
+}
+
 const FLAG_LABELS: Record<string, string> = {
   'cm360.write_operations': 'CM360 Write Operations',
   'cm360.tag_generation': 'Tag Generation',
@@ -57,6 +63,11 @@ function Settings() {
   const [cm360Error, setCM360Error] = useState('');
   const [cm360SetupNeeded, setCM360SetupNeeded] = useState(false);
   const [cm360ActionLoading, setCM360ActionLoading] = useState(false);
+  const [liveAckOpen, setLiveAckOpen] = useState(false);
+  const [liveAckInfo, setLiveAckInfo] = useState<LiveAckInfo | null>(null);
+  const [liveAckInput, setLiveAckInput] = useState('');
+  const [liveAckError, setLiveAckError] = useState('');
+  const [liveAckSubmitting, setLiveAckSubmitting] = useState(false);
   const [anthropicStatus, setAnthropicStatus] = useState<AnthropicStatus | null>(null);
   const [anthropicKeyInput, setAnthropicKeyInput] = useState('');
   const [anthropicLoading, setAnthropicLoading] = useState(true);
@@ -96,7 +107,7 @@ function Settings() {
     }
   }, [authFetch]);
 
-  const handleConnect = useCallback(async () => {
+  const startOAuthRedirect = useCallback(async () => {
     setCM360ActionLoading(true);
     setCM360SetupNeeded(false);
     try {
@@ -118,6 +129,49 @@ function Settings() {
       setCM360ActionLoading(false);
     }
   }, [authFetch]);
+
+  // Connect/Reconnect opens the typed-acknowledgment dialog (DISCLAIMER.md) —
+  // the OAuth redirect only starts after the user types the exact phrase.
+  const handleConnect = useCallback(async () => {
+    setLiveAckOpen(true);
+    setLiveAckInput('');
+    setLiveAckError('');
+    if (liveAckInfo) return;
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/auth/google/acknowledgment`);
+      if (res.ok) {
+        setLiveAckInfo(await res.json() as LiveAckInfo);
+      } else {
+        setLiveAckError('Could not load the acknowledgment text. Close this dialog and try again.');
+      }
+    } catch {
+      setLiveAckError('Could not connect to backend');
+    }
+  }, [authFetch, liveAckInfo]);
+
+  const handleAcknowledgeContinue = useCallback(async () => {
+    if (!liveAckInfo || liveAckInput.trim() !== liveAckInfo.phrase) return;
+    setLiveAckSubmitting(true);
+    setLiveAckError('');
+    try {
+      const res = await authFetch(`${API_URL}/api/v1/auth/google/acknowledge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acknowledgment: liveAckInput.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setLiveAckError(data.error ?? 'Something went wrong. Please try again.');
+        return;
+      }
+      await startOAuthRedirect();
+      setLiveAckOpen(false);
+    } catch {
+      setLiveAckError('Could not connect to backend');
+    } finally {
+      setLiveAckSubmitting(false);
+    }
+  }, [authFetch, liveAckInfo, liveAckInput, startOAuthRedirect]);
 
   const handleDisconnect = useCallback(async () => {
     setCM360ActionLoading(true);
@@ -343,6 +397,63 @@ function Settings() {
 
         <section className="settings-section">
           <h2>CM360 Connection</h2>
+          {liveAckOpen && (
+            <div className="live-ack-overlay" role="dialog" aria-modal="true" aria-labelledby="live-ack-title">
+              <div className="live-ack-dialog">
+                <h3 id="live-ack-title">Before you connect: live CM360 is unverified</h3>
+                {liveAckInfo ? (
+                  <>
+                    <ul className="live-ack-warning">
+                      {liveAckInfo.warningText.split('\n').map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                    <p className="live-ack-instruction">
+                      To continue to Google, type the following phrase exactly:
+                    </p>
+                    <p className="live-ack-phrase"><code>{liveAckInfo.phrase}</code></p>
+                    <label className="live-ack-label" htmlFor="live-ack-input">
+                      Type the acknowledgment phrase
+                    </label>
+                    <input
+                      id="live-ack-input"
+                      className="live-ack-input"
+                      type="text"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={liveAckInput}
+                      onChange={(e) => setLiveAckInput(e.target.value)}
+                    />
+                  </>
+                ) : !liveAckError ? (
+                  <p className="settings-placeholder">Loading acknowledgment…</p>
+                ) : null}
+                {liveAckError && (
+                  <p className="settings-error" role="alert">{liveAckError}</p>
+                )}
+                <div className="live-ack-actions">
+                  <button
+                    className="cm360-disconnect-btn"
+                    onClick={() => setLiveAckOpen(false)}
+                    disabled={liveAckSubmitting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="cm360-connect-btn"
+                    onClick={() => void handleAcknowledgeContinue()}
+                    disabled={
+                      liveAckSubmitting ||
+                      !liveAckInfo ||
+                      liveAckInput.trim() !== liveAckInfo.phrase
+                    }
+                  >
+                    {liveAckSubmitting ? 'Connecting…' : 'Acknowledge & Continue to Google'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {cm360Error && <p className="settings-error">{cm360Error}</p>}
           {cm360SetupNeeded && (
             <div className="cm360-setup-needed" role="alert">

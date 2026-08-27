@@ -17,6 +17,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { eq } from 'drizzle-orm';
 import { requireAuth } from '../auth/middleware.js';
 import { encrypt, decrypt } from '../auth/crypto.js';
+import { LIVE_ACK_PHRASE, LIVE_ACK_WARNING_TEXT, getAppVersion } from '../cm360/live-acknowledgment.js';
 import { db, schema } from '../db/index.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
 import { featureFlagsMiddleware } from '../feature-flags/flag-middleware.js';
@@ -94,13 +95,72 @@ function verifyState(state: string): { userId: string } | null {
   }
 }
 
+/** Has this user ever typed the live-CM360 acknowledgment? */
+async function hasLiveAcknowledgment(userId: string): Promise<boolean> {
+  const rows = await db
+    .select()
+    .from(schema.cm360LiveAcknowledgments)
+    .where(eq(schema.cm360LiveAcknowledgments.userId, userId));
+  return rows.length > 0;
+}
+
+/**
+ * GET /api/v1/auth/google/acknowledgment
+ *
+ * Returns the typed-acknowledgment requirements for the live CM360 connect
+ * flow: the exact phrase to type, the warning text to display, and whether
+ * this user has already acknowledged.
+ */
+router.get('/auth/google/acknowledgment', requireAuth, featureFlagsMiddleware, async (req, res) => {
+  const acknowledged = await hasLiveAcknowledgment(req.user!.userId);
+  res.json({
+    acknowledged,
+    phrase: LIVE_ACK_PHRASE,
+    warningText: LIVE_ACK_WARNING_TEXT,
+  });
+});
+
+/**
+ * POST /api/v1/auth/google/acknowledge
+ *
+ * Records that the user typed the unverified-live-path warning phrase.
+ * The typed phrase must match LIVE_ACK_PHRASE exactly (whitespace-trimmed,
+ * case-sensitive). Persists userId, timestamp, app version, and the exact
+ * warning text shown — an append-only liability record (DISCLAIMER.md).
+ */
+router.post('/auth/google/acknowledge', oauthLimiter, requireAuth, featureFlagsMiddleware, async (req, res) => {
+  const body = req.body as { acknowledgment?: unknown };
+  const typed = typeof body.acknowledgment === 'string' ? body.acknowledgment.trim() : '';
+
+  if (typed !== LIVE_ACK_PHRASE) {
+    res.status(400).json({
+      error: `The acknowledgment must be typed exactly: "${LIVE_ACK_PHRASE}"`,
+    });
+    return;
+  }
+
+  await db.insert(schema.cm360LiveAcknowledgments).values({
+    id: crypto.randomUUID(),
+    userId: req.user!.userId,
+    acknowledgedPhrase: typed,
+    warningText: LIVE_ACK_WARNING_TEXT,
+    appVersion: getAppVersion(),
+    createdAt: new Date(),
+  });
+
+  res.json({ acknowledged: true });
+});
+
 /**
  * GET /api/v1/auth/google/connect
  *
  * Generate a Google OAuth authorization URL and return it.
  * The frontend redirects the user's browser to this URL.
+ *
+ * Gated: the user must first have typed the live-CM360 acknowledgment
+ * (POST /auth/google/acknowledge) — otherwise 428 Precondition Required.
  */
-router.get('/auth/google/connect', oauthLimiter, requireAuth, featureFlagsMiddleware, (req, res) => {
+router.get('/auth/google/connect', oauthLimiter, requireAuth, featureFlagsMiddleware, async (req, res) => {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const redirectUri = process.env.GOOGLE_REDIRECT_URI;
@@ -108,6 +168,13 @@ router.get('/auth/google/connect', oauthLimiter, requireAuth, featureFlagsMiddle
   if (!clientId || !clientSecret || !redirectUri) {
     res.status(503).json({
       error: 'Google OAuth is not configured. Contact support.',
+    });
+    return;
+  }
+
+  if (!(await hasLiveAcknowledgment(req.user!.userId))) {
+    res.status(428).json({
+      error: 'Live CM360 acknowledgment required. Type the unverified-live-path acknowledgment before connecting.',
     });
     return;
   }

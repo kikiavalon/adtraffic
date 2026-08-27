@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { register, login, getUserById } from '../auth/auth-service.js';
+import { register, login, getUserById, isBootstrapNeeded } from '../auth/auth-service.js';
 import { createRateLimiter } from '../middleware/rate-limiter.js';
 import { requireAuth } from '../auth/middleware.js';
 import { setAuthCookie, clearAuthCookie } from '../auth/cookies.js';
@@ -29,6 +29,14 @@ router.post('/auth/register', registerLimiter, async (req, res) => {
 
   if (!parsed.success) {
     res.status(400).json({ error: 'Invalid input' });
+    return;
+  }
+
+  // Self-registration is open only on a fresh instance (the bootstrap admin), or
+  // when the operator opts in with ALLOW_OPEN_REGISTRATION=true. Otherwise an
+  // admin adds users from the Team screen.
+  if (!(await isBootstrapNeeded()) && process.env.ALLOW_OPEN_REGISTRATION !== 'true') {
+    res.status(403).json({ error: 'Registration is closed. Ask your workspace admin to add you.' });
     return;
   }
 

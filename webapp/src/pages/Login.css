@@ -28,6 +28,13 @@
   margin-bottom: 24px;
 }
 
+.auth-closed-note {
+  color: var(--color-text-secondary);
+  font-size: var(--font-base);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
 .auth-error {
   background: var(--color-danger-tint);
   border: 1px solid #fecaca;

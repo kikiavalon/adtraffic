@@ -9,8 +9,9 @@ function Register() {
   const [password, setPassword] = useState('');
   const [agency, setAgency] = useState('');
   const [error, setError] = useState('');
-  const { register, isLoading, needsBootstrap } = useAuth();
+  const { register, isLoading, needsBootstrap, registrationOpen } = useAuth();
   const navigate = useNavigate();
+  const registrationClosed = registrationOpen === false && !needsBootstrap;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +28,16 @@ function Register() {
     <div className="auth-page">
       <div className="auth-card">
         <h1 className="auth-title">AdTraffic.ai</h1>
+        {registrationClosed ? (
+          <>
+            <p className="auth-subtitle">Registration is closed</p>
+            <p className="auth-closed-note">
+              New accounts are added by your workspace admin. Ask them to add you, then sign in.
+            </p>
+            <p className="auth-footer"><Link to="/login">Back to sign in</Link></p>
+          </>
+        ) : (
+          <>
         <p className="auth-subtitle">{needsBootstrap ? 'Set up your workspace' : 'Create your account'}</p>
 
         {error && <div className="auth-error" role="alert">{error}</div>}
@@ -97,6 +108,8 @@ function Register() {
         <p className="auth-footer">
           Already have an account? <Link to="/login">Sign in</Link>
         </p>
+          </>
+        )}
         <p className="auth-ai-disclosure">
           AdTraffic.ai uses AI to assist with CM360 ad trafficking. <Link to="/privacy">Privacy Policy</Link>
         </p>

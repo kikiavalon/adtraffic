@@ -7,7 +7,7 @@ function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, registrationOpen } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -61,9 +61,11 @@ function Login() {
           </button>
         </form>
 
-        <p className="auth-footer">
-          Don&apos;t have an account? <Link to="/register">Create one</Link>
-        </p>
+        {registrationOpen !== false && (
+          <p className="auth-footer">
+            Don&apos;t have an account? <Link to="/register">Create one</Link>
+          </p>
+        )}
         <p className="auth-ai-disclosure">
           AdTraffic.ai uses AI to assist with CM360 ad trafficking. <Link to="/privacy">Privacy Policy</Link>
         </p>

@@ -9,6 +9,9 @@ export default defineConfig({
     // Ensure database tables exist before tests run (needed in CI where
     // there's no pre-existing database from drizzle-kit push)
     globalSetup: './vitest.setup.ts',
+    // Runs before each test file: default the suite to OPEN self-registration
+    // (see vitest.env-setup.ts). register-closed.test.ts clears it per-test.
+    setupFiles: ['./vitest.env-setup.ts'],
     coverage: {
       // Measured with the v8 provider when `vitest run --coverage` is invoked
       // (the `test:coverage` script / the CI Coverage job); a normal test run is

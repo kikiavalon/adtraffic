@@ -22,7 +22,7 @@
     "@adtraffic/shared": "*",
     "@anthropic-ai/sdk": "0.39.0",
     "@googleapis/dfareporting": "17.2.1",
-    "@sentry/node": "9.5.0",
+    "@sentry/node": "10.71.0",
     "@sentry/profiling-node": "9.5.0",
     "bcrypt": "6.0.0",
     "bullmq": "6.1.2",

@@ -17,3 +17,25 @@ updates:
       - dependency-name: '*'
         update-types:
           - version-update:semver-major
+
+  # Keep npm dependencies current so the pinned tree never silently drifts.
+  # One root entry covers all workspaces (single root lockfile). Patch/minor
+  # bumps are grouped into one weekly PR to avoid PR spam; major bumps arrive as
+  # individual PRs for deliberate review (they can carry breaking changes).
+  #
+  # NOTE: this weekly cadence is for routine freshness only. Urgent security
+  # fixes arrive out-of-band via Dependabot *security updates* — enable them
+  # once in repo Settings → Code security & analysis (they're event-driven and
+  # ignore this schedule). Auto-merge of green patch/minor PRs is a separate,
+  # deliberate opt-in (branch protection + a merge workflow) — left off here so
+  # a compromised release can't auto-land on a product that touches ad spend.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch

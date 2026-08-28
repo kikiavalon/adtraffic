@@ -61,3 +61,6 @@ CLAUDE.md
 session-buffer.md
 project-context.rtfd/
 archive/
+
+# Friendly demo runner logs (scripts/demo.mjs)
+.demo-logs/

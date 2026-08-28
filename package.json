@@ -17,6 +17,7 @@
     "dev": "concurrently --names backend,webapp --prefix-colors blue,green \"npm run dev:backend\" \"npm run dev:webapp\"",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:webapp": "npm run dev --workspace=webapp",
+    "demo": "node scripts/demo.mjs",
     "test": "npm test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",

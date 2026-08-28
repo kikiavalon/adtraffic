@@ -17,12 +17,32 @@ function redactRedisUrl(url: string): string {
 }
 
 /**
+ * Whether initRedis() should attach a real Redis client.
+ *
+ * Skipped when:
+ *  - NODE_ENV=test — the suite uses the in-memory fallback.
+ *  - DEMO_MODE=true — the zero-dependency demo runs with no external services;
+ *    every Redis consumer already falls back to in-memory (isRedisHealthy() is
+ *    false). Without this, a demo on a machine with no Redis dialed
+ *    localhost:6379 and logged red ECONNREFUSED errors that read as a crash.
+ */
+export function shouldSkipRedis(): boolean {
+  return process.env.NODE_ENV === 'test' || process.env.DEMO_MODE === 'true';
+}
+
+/**
  * Initialize the Redis client.
- * No-op if NODE_ENV=test (tests use in-memory fallback).
+ * No-op under NODE_ENV=test and DEMO_MODE (both use the in-memory fallback).
  * Safe to call multiple times — subsequent calls are ignored.
  */
 export function initRedis(): void {
-  if (process.env.NODE_ENV === 'test') return;
+  if (shouldSkipRedis()) {
+    // A calm, single notice in demo mode — never silence after scary errors.
+    if (process.env.DEMO_MODE === 'true') {
+      logger.info('Redis skipped (DEMO_MODE) — using in-memory cache');
+    }
+    return;
+  }
   if (redis) return;
 
   const url = process.env.REDIS_URL ?? 'redis://localhost:6379';

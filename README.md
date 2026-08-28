@@ -30,14 +30,35 @@ Google sunset **Bulkdozer** — its open-source bulk-trafficking tool — in Aug
 
 ## Quick start (demo mode — no database, no CM360 account)
 
-You only need Node.js ≥ 20.
+Demo mode runs entirely on seeded, deterministic mock CM360 data — no Google account, no database, nothing to configure.
+
+### The easy way — one command (no clone needed)
+
+Open a terminal and paste the line for your system. It installs everything needed (including Node.js if you don't have it), starts the demo, and opens your browser automatically — no scary output.
+
+**macOS / Linux** — Terminal:
 
 ```bash
-npm install
-npm run build --workspace=shared
-export DEMO_MODE=true
-npm run dev                            # backend on :3001, webapp on :5173
+curl -fsSL https://raw.githubusercontent.com/kikiavalon/adtraffic/main/install.sh | bash
 ```
+
+**Windows** — PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/kikiavalon/adtraffic/main/install.ps1 | iex"
+```
+
+This downloads AdTraffic to an `AdTraffic-Demo` folder in your home directory and launches it. Keep the terminal window open while you use the demo; close it (or press Ctrl-C) to stop. To start it again later, just paste the same line.
+
+### Already cloned the repo?
+
+You only need Node.js ≥ 20. One friendly command:
+
+```bash
+npm run demo                           # quiet install + build + launch + opens the browser
+```
+
+Prefer the raw steps? `npm install && npm run build --workspace=shared && DEMO_MODE=true npm run dev` (backend on :3001, webapp on :5173).
 
 Open http://localhost:5173 and sign up. Kiki uses **your own** Claude API key — open **Settings → Claude API** and paste a key from [console.anthropic.com](https://console.anthropic.com/settings/keys); it's verified and stored encrypted, and chat stays disabled until it's connected. Then ask Kiki to "list advertisers" or "create a campaign." Everything runs against seeded, deterministic mock CM360 data — no Google account required.
 

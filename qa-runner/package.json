@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@adtraffic/shared": "*",
-    "bullmq": "6.1.2",
+    "bullmq": "6.3.2",
     "ioredis": "5.6.1",
     "pino": "10.3.1",
     "playwright": "1.62.1"

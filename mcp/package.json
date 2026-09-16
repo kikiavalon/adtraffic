@@ -48,7 +48,7 @@
   "devDependencies_note": "@adtraffic/shared is bundled into dist at build time (see tsup.config.ts), so it is a devDependency, not a runtime dependency.",
   "devDependencies": {
     "@adtraffic/shared": "*",
-    "tsup": "^8.5.0",
+    "tsup": "^8.5.1",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
   }

@@ -42,7 +42,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "zod": "3.25.76"
   },
   "devDependencies_note": "@adtraffic/shared is bundled into dist at build time (see tsup.config.ts), so it is a devDependency, not a runtime dependency.",

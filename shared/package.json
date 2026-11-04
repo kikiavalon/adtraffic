@@ -24,7 +24,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@faker-js/faker": "10.3.0",
+    "@faker-js/faker": "10.6.0",
     "zod": "3.25.76"
   },
   "devDependencies": {
